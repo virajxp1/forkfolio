@@ -1,0 +1,3 @@
+"""
+ForkFolio - A FastAPI application.
+"""
