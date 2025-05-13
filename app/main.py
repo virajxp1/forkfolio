@@ -1,10 +1,12 @@
-from fastapi import FastAPI
-from app.routers import api
-from app.core.config import settings
 from dotenv import load_dotenv
+from fastapi import FastAPI
+
+from app.core.config import settings
+from app.routers import api
 
 # Load environment variables from .env file
 load_dotenv()
+
 
 def create_application() -> FastAPI:
     application = FastAPI(
@@ -14,14 +16,15 @@ def create_application() -> FastAPI:
         docs_url="/docs",
         redoc_url="/redoc",
     )
-    
+
     # Include routers
     application.include_router(api.router)
-    
+
     @application.get("/health", tags=["Health"])
     def health_check():
         return {"status": "healthy"}
-    
+
     return application
+
 
 app = create_application()

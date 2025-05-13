@@ -1,14 +1,14 @@
-from app.services.recipe_extractor import RecipeExtractorService
-from app.schemas.recipe import Recipe, Ingredient
-from app.core.config import settings
 import logging
 
+from app.core.config import settings
+from app.schemas.recipe import Recipe
+from app.services.recipe_extractor import RecipeExtractorService
 
 logger = logging.getLogger(__name__)
 
 
 class RecipeExtractorImpl(RecipeExtractorService):
-    def extractRecipeFromRawText(self, text: str) -> Recipe:
+    def extract_recipe_from_raw_text(self, text: str) -> Recipe:
         """
         Extract recipe data from raw text
 
@@ -24,7 +24,9 @@ class RecipeExtractorImpl(RecipeExtractorService):
         api_token: str = settings.HUGGINGFACE_API_TOKEN
 
         if not api_token:
-            logger.error("HuggingFace API token is not set in the environment variables.")
+            logger.error(
+                "HuggingFace API token is not set in the environment variables."
+            )
             raise ValueError("HuggingFace API token is not set.")
 
         # Implementation will go here

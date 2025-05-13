@@ -1,6 +1,7 @@
-from pydantic_settings import BaseSettings
-from typing import Any, Dict, List, Optional
 import os
+
+from pydantic_settings import BaseSettings
+
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "ForkFolio"
@@ -12,9 +13,10 @@ class Settings(BaseSettings):
     HUGGINGFACE_API_TOKEN: str = os.environ.get("HUGGINGFACE_API_TOKEN", "")
 
     # Add more settings as needed (database, security, etc.)
-    
+
     class Config:
         env_file = ".env"
         case_sensitive = True
+
 
 settings = Settings()
