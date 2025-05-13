@@ -1,12 +1,16 @@
 from pydantic_settings import BaseSettings
 from typing import Any, Dict, List, Optional
+import os
 
 class Settings(BaseSettings):
     PROJECT_NAME: str = "ForkFolio"
     PROJECT_DESCRIPTION: str = "Portfolio management API for tracking investments"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
-    
+
+    # API tokens
+    HUGGINGFACE_API_TOKEN: str = os.environ.get("HUGGINGFACE_API_TOKEN", "")
+
     # Add more settings as needed (database, security, etc.)
     
     class Config:
