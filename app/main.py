@@ -1,6 +1,10 @@
 from fastapi import FastAPI
 from app.routers import api
 from app.core.config import settings
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 def create_application() -> FastAPI:
     application = FastAPI(
