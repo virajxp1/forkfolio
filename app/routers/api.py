@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.core.config import settings
+from app.services.llm_test_service import make_llm_call
 
 router = APIRouter(prefix=settings.API_V1_STR)
 
@@ -10,7 +11,6 @@ def root():
     return {"message": "Welcome to ForkFolio API"}
 
 
-# Import and include other routers here
-# from app.routers import items, users
-# router.include_router(users.router, prefix="/users", tags=["Users"])
-# router.include_router(items.router, prefix="/items", tags=["Items"])
+@router.post("/llm-test")
+def test_llm():
+    return {"message": make_llm_call()}
