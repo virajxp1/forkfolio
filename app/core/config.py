@@ -11,6 +11,7 @@ class Settings(BaseSettings):
 
     # API tokens
     HUGGINGFACE_API_TOKEN: str = os.environ.get("HUGGINGFACE_API_TOKEN", "")
+    OPEN_ROUTER_API_KEY: str = os.environ.get("OPEN_ROUTER_API_KEY", "")
 
     # Add more settings as needed (database, security, etc.)
 
