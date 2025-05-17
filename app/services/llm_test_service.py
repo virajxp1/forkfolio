@@ -13,17 +13,25 @@ from app.schemas.location_info import LocationInfo
 model_name = "meta-llama/llama-4-maverick:free"
 
 
-def make_llm_call_text_generation() -> str:
-    user_prompt: str = "What is the capital of France?"
-    system_prompt: str = (
-        "You are a helpful assistant. Always answer questions accurately and concise."
-    )
+def _get_openai_client() -> OpenAI:
+    """
+    Get an authenticated OpenAI client using OpenRouter.
 
+    Returns:
+        OpenAI client instance
+
+    Raises:
+        ValueError: If the API token is not set
+    """
     api_token: str = settings.OPEN_ROUTER_API_KEY
 
     if not api_token:
         raise ValueError("API token is not set.")
 
+    return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_token)
+
+
+def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
     ] = [
@@ -31,8 +39,7 @@ def make_llm_call_text_generation() -> str:
         ChatCompletionUserMessageParam(role="user", content=user_prompt),
     ]
 
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_token)
-
+    client = _get_openai_client()
     completion = client.chat.completions.create(model=model_name, messages=messages)
 
     print(completion.choices[0].message.content)
@@ -44,11 +51,6 @@ def make_llm_call_structured_output() -> LocationInfo:
     system_prompt: str = (
         "You are a helpful assistant that provides information about locations."
     )
-
-    api_token: str = settings.OPEN_ROUTER_API_KEY
-
-    if not api_token:
-        raise ValueError("API token is not set.")
 
     messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
@@ -66,7 +68,7 @@ def make_llm_call_structured_output() -> LocationInfo:
         "json_schema": {"name": "location_info", "strict": True, "schema": schema},
     }
 
-    client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_token)
+    client = _get_openai_client()
 
     # Call with the response_format according to the documentation
     completion = client.chat.completions.create(
