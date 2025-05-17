@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Query
 
 from app.core.config import settings
-from app.services.llm_test_service import make_llm_call_structured_output
 from app.services.location_llm_test_example_service import LocationLLMTestExampleService
 
 router = APIRouter(prefix=settings.API_V1_STR)
@@ -20,5 +19,11 @@ def test_llm(country: str = Query("France", description="Country to get capital 
 
 
 @router.post("/llm-test-structured")
-def test_llm_structured():
-    return make_llm_call_structured_output()
+def test_llm_structured(
+    location: str = Query(
+        "New York City, USA", description="Location to extract information about"
+    ),
+):
+    location_service = LocationLLMTestExampleService()
+    location_info = location_service.get_location_info(location)
+    return location_info
