@@ -1,5 +1,5 @@
 import json
-from typing import List, Union
+from typing import Union
 
 from openai import OpenAI
 from openai.types.chat import (
@@ -8,7 +8,7 @@ from openai.types.chat import (
 )
 
 from app.core.config import settings
-from app.schemas.LocationInfo import LocationInfo
+from app.schemas.location_info import LocationInfo
 
 model_name = "meta-llama/llama-4-maverick:free"
 
@@ -24,7 +24,7 @@ def make_llm_call_text_generation() -> str:
     if not api_token:
         raise ValueError("API token is not set.")
 
-    messages: List[
+    messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
     ] = [
         ChatCompletionSystemMessageParam(role="system", content=system_prompt),
@@ -50,7 +50,7 @@ def make_llm_call_structured_output() -> LocationInfo:
     if not api_token:
         raise ValueError("API token is not set.")
 
-    messages: List[
+    messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
     ] = [
         ChatCompletionSystemMessageParam(role="system", content=system_prompt),

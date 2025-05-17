@@ -10,5 +10,5 @@ class LocationInfo(BaseModel):
     country: str = Field(..., description="The country where the location is situated.")
     highlights: str = Field(
         ...,
-        description="A brief description of key attractions or highlights of the location.",
+        description="Description of key attractions or highlights.",
     )
