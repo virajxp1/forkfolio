@@ -18,6 +18,6 @@ class Recipe(BaseModel):
     prep_time: Optional[str] = None
     cook_time: Optional[str] = None
     total_time: Optional[str] = None
-    tags: Optional[list[str]] = None
+    search_tags: Optional[list[str]] = None
     nutrition: Optional[dict[str, str]] = None
     source_url: Optional[str] = None
