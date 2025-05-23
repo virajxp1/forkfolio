@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Body, Query
 
 from app.core.config import settings
+from app.core.test_inputs import BRUSCHETTA_RECIPE
 from app.schemas.ingest import RecipeIngestionRequest
 from app.services.location_llm_test_example_service import LocationLLMTestExampleService
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 
 router = APIRouter(prefix=settings.API_V1_STR)
 
-ingestion_body = Body(..., description="Unstructured recipe data to be ingested")
+DEFAULT_RECIPE_REQUEST = RecipeIngestionRequest(raw_input=BRUSCHETTA_RECIPE)
 
 
 @router.get("/")
@@ -17,7 +18,10 @@ def root():
 
 @router.post("/ingest-raw-recipe")
 def ingest_raw_recipe(
-    ingestion_input_request: RecipeIngestionRequest = ingestion_body,
+    ingestion_input_request: RecipeIngestionRequest = Body(
+        default=DEFAULT_RECIPE_REQUEST,
+        description="Unstructured recipe data to be ingested",
+    ),
 ):
     ## TODO - Need to use dependency injection
     recipe_extractor = RecipeExtractorImpl()

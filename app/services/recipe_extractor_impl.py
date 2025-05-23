@@ -14,7 +14,7 @@ class RecipeExtractorImpl(RecipeExtractorService):
         self, recipe_ingestion_request: RecipeIngestionRequest
     ) -> Recipe:
         logger.info(
-            f"Extracting recipe from text input: {recipe_ingestion_request.rawInput}"
+            f"Extracting recipe from text input: {recipe_ingestion_request.raw_input}"
         )
         user_prompt: str = recipe_ingestion_request.raw_input
 
