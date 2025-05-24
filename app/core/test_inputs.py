@@ -1,5 +1,6 @@
 # Sample Recipe for testing
-BRUSCHETTA_RECIPE = """Bruschetta Recipe
+BRUSCHETTA_RECIPE = """
+Bruschetta Recipe
 Prep time
 5 minutes to 10 minutes
 
