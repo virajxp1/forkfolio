@@ -13,11 +13,11 @@ Extract the following fields:
 - instructions (list of strings): A sequential list of cooking directions,
   one step per list item.
 
-- servings (string): The number of servings. If not specified, estimate based on ingredient quantities (e.g., "2 servings", "4 people").
+- servings (string): The number of servings. If not specified, estimate based
+  on ingredient quantities (e.g., "2 servings", "4 people").
 
-- cook_time (string): Cooking time. If not specified, estimate based on recipe complexity (e.g., "10 minutes", "30 minutes").
-
-- prep_time (string): Preparation time. If not specified, estimate based on recipe complexity (e.g., "5 minutes", "15 minutes").
+- total_time (string): Cooking time. If not specified, estimate based on
+  recipe complexity (e.g., "10 minutes", "30 minutes").
 
 Your output must be valid JSON according to this structure.
 Do not include any text or explanation outside the JSON object.
