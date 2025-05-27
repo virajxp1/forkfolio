@@ -1,5 +1,6 @@
 import json
-from typing import TypeVar, Union
+import logging
+from typing import TypeVar, Union, Optional
 
 from openai import OpenAI
 from openai.types.chat import (
@@ -10,9 +11,11 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 
-model_name = "meta-llama/llama-4-maverick:free"
+model_name = "meta-llama/llama-3.3-8b-instruct:free"
 
 T = TypeVar("T", bound=BaseModel)
+
+logger = logging.getLogger(__name__)
 
 
 def _get_openai_client() -> OpenAI:
@@ -53,7 +56,7 @@ def make_llm_call_structured_output_generic(
     system_prompt: str,
     model_class: type[T],
     schema_name: str = "response_schema",
-) -> T:
+) -> tuple[Optional[T], Optional[str]]:
     """
     Generic function for making LLM calls that return structured data.
 
@@ -64,7 +67,8 @@ def make_llm_call_structured_output_generic(
         schema_name: The name to use for the schema in the response format
 
     Returns:
-        An instance of the provided model_class with data from the LLM response
+        A tuple of (result, error_message). If successful, result contains the model instance
+        and error_message is None. If failed, result is None and error_message contains the error.
     """
     messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
@@ -73,28 +77,45 @@ def make_llm_call_structured_output_generic(
         ChatCompletionUserMessageParam(role="user", content=user_prompt),
     ]
 
-    # Get the JSON schema from the provided model class
-    schema = model_class.model_json_schema()
+    try:
+        client = _get_openai_client()
 
-    # Create the response_format object
-    response_format = {
-        "type": "json_schema",
-        "json_schema": {"name": schema_name, "strict": True, "schema": schema},
-    }
+        # Get the JSON schema from the provided model class
+        schema = model_class.model_json_schema()
 
-    client = _get_openai_client()
+        # Create the response_format object
+        response_format = {
+            "type": "json_schema",
+            "json_schema": {"name": schema_name, "strict": True, "schema": schema},
+        }
 
-    # Call with the response_format
-    completion = client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        response_format=response_format,
-        extra_body={"provider": {"require_parameters": True}},
-    )
+        # Call with the response_format
+        completion = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            response_format=response_format,
+            max_tokens=1000,  # Increase token limit for complete responses
+            extra_body={"provider": {"require_parameters": True}},
+        )
 
-    # Parse the JSON response
-    content = completion.choices[0].message.content
-    response_data = json.loads(content)
+        content = completion.choices[0].message.content
+        logger.info(f"Structured output response: {repr(content)}")
 
-    # Create and return an instance of the model class
-    return model_class.model_validate(response_data)
+        # Parse the JSON response
+        try:
+            response_data = json.loads(content)
+            result = model_class.model_validate(response_data)
+            return result, None
+        except json.JSONDecodeError as e:
+            error_msg = f"Failed to parse JSON response: {e}. Raw content: {repr(content)}"
+            logger.error(error_msg)
+            return None, error_msg
+        except Exception as e:
+            error_msg = f"Failed to validate response data: {e}"
+            logger.error(error_msg)
+            return None, error_msg
+
+    except Exception as e:
+        error_msg = f"LLM API call failed: {e}"
+        logger.error(error_msg)
+        return None, error_msg

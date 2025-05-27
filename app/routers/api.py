@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Query, HTTPException
+from typing import Union
 
 from app.core.config import settings
 from app.schemas.ingest import RecipeIngestionRequest
+from app.schemas.recipe import Recipe
 from app.services.location_llm_test_example_service import LocationLLMTestExampleService
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 
@@ -18,12 +20,23 @@ def root():
 @router.post("/ingest-raw-recipe")
 def ingest_raw_recipe(
     ingestion_input_request: RecipeIngestionRequest = RECIPE_BODY,
-):
+) -> Union[Recipe, dict]:
+    """
+    Extract structured recipe data from raw text input.
+
+    Takes unstructured recipe text and returns a structured Recipe object
+    with title, ingredients, instructions, servings, and timing information.
+    If extraction fails, returns an error response.
+    """
     ## TODO - Need to use dependency injection
     recipe_extractor = RecipeExtractorImpl()
-    extracted_recipe = recipe_extractor.extract_recipe_from_raw_text(
-        ingestion_input_request
+    extracted_recipe, error = recipe_extractor.extract_recipe_from_raw_text(
+        ingestion_input_request.raw_input
     )
+
+    if error:
+        return {"error": error, "success": False}
+
     return extracted_recipe
 
 
