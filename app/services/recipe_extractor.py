@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 from app.schemas.recipe import Recipe
 
@@ -8,7 +8,9 @@ class RecipeExtractorService(ABC):
     """Abstract service for extracting structured recipe data from raw text."""
 
     @abstractmethod
-    def extract_recipe_from_raw_text(self, raw_text: str) -> Tuple[Optional[Recipe], Optional[str]]:
+    def extract_recipe_from_raw_text(
+        self, raw_text: str
+    ) -> Tuple[Optional[Recipe], Optional[str]]:
         """
         Extract recipe data from raw text input.
 

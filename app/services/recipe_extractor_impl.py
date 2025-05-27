@@ -1,5 +1,5 @@
 import logging
-from typing import Tuple, Optional
+from typing import Optional, Tuple
 
 from app.core.prompts import RECIPE_EXTRACTION_SYSTEM_PROMPT
 from app.schemas.recipe import Recipe
@@ -17,7 +17,9 @@ class RecipeExtractorImpl(RecipeExtractorService):
     from raw text input.
     """
 
-    def extract_recipe_from_raw_text(self, raw_text: str) -> Tuple[Optional[Recipe], Optional[str]]:
+    def extract_recipe_from_raw_text(
+        self, raw_text: str
+    ) -> Tuple[Optional[Recipe], Optional[str]]:
         """
         Extract structured recipe data from raw text using LLM.
 
@@ -25,8 +27,9 @@ class RecipeExtractorImpl(RecipeExtractorService):
             raw_text: The unstructured recipe text to process
 
         Returns:
-            A tuple of (recipe, error_message). If successful, recipe contains the Recipe object
-            and error_message is None. If failed, recipe is None and error_message contains the error.
+            A tuple of (recipe, error_message). If successful, recipe contains
+            the Recipe object and error_message is None. If failed,
+            recipe is None and error_message contains the error.
         """
         if not raw_text or not raw_text.strip():
             return None, "Input text is empty or contains only whitespace"

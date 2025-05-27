@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Body, Query, HTTPException
 from typing import Union
+
+from fastapi import APIRouter, Body, Query
 
 from app.core.config import settings
 from app.schemas.ingest import RecipeIngestionRequest

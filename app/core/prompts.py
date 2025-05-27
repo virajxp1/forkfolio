@@ -25,6 +25,13 @@ Rules:
 - Ignore notes and extra text
 - Return only valid JSON, no other text
 
+Generally speaking input messages may not always come in a 
+structured format, so you should be able to handle a variety of input styles and 
+input formats. You may need to read the entire input first before getting
+started on the extraction. Make sure all cooking products in the 
+instructions are included in the ingredients list. Sort ingredients 
+and instructions in a logical order of what should be done first.
+
 Example:
 {"title": "Pasta", "ingredients": ["200g pasta", "1 cup sauce"], 
 "instructions": ["Boil pasta", "Add sauce"], "servings": "Not specified", "total_time": "Not specified"}
