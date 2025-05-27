@@ -1,14 +1,44 @@
-from fastapi import APIRouter, Query
+from typing import Union
+
+from fastapi import APIRouter, Body, Query
 
 from app.core.config import settings
+from app.schemas.ingest import RecipeIngestionRequest
+from app.schemas.recipe import Recipe
 from app.services.location_llm_test_example_service import LocationLLMTestExampleService
+from app.services.recipe_extractor_impl import RecipeExtractorImpl
 
 router = APIRouter(prefix=settings.API_V1_STR)
+
+RECIPE_BODY = Body()
 
 
 @router.get("/")
 def root():
     return {"message": "Welcome to ForkFolio API"}
+
+
+@router.post("/ingest-raw-recipe")
+def ingest_raw_recipe(
+    ingestion_input_request: RecipeIngestionRequest = RECIPE_BODY,
+) -> Union[Recipe, dict]:
+    """
+    Extract structured recipe data from raw text input.
+
+    Takes unstructured recipe text and returns a structured Recipe object
+    with title, ingredients, instructions, servings, and timing information.
+    If extraction fails, returns an error response.
+    """
+    ## TODO - Need to use dependency injection
+    recipe_extractor = RecipeExtractorImpl()
+    extracted_recipe, error = recipe_extractor.extract_recipe_from_raw_text(
+        ingestion_input_request.raw_input
+    )
+
+    if error:
+        return {"error": error, "success": False}
+
+    return extracted_recipe
 
 
 @router.post("/llm-test")
@@ -24,6 +54,7 @@ def test_llm_structured(
         "New York City, USA", description="Location to extract information about"
     ),
 ):
+    ## TODO - Need to use dependency injection
     location_service = LocationLLMTestExampleService()
     location_info = location_service.get_location_info(location)
     return location_info
