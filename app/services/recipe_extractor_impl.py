@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Tuple
+from typing import Optional
 
 from app.core.prompts import RECIPE_EXTRACTION_SYSTEM_PROMPT
 from app.schemas.recipe import Recipe
@@ -19,7 +19,7 @@ class RecipeExtractorImpl(RecipeExtractorService):
 
     def extract_recipe_from_raw_text(
         self, raw_text: str
-    ) -> Tuple[Optional[Recipe], Optional[str]]:
+    ) -> tuple[Optional[Recipe], Optional[str]]:
         """
         Extract structured recipe data from raw text using LLM.
 

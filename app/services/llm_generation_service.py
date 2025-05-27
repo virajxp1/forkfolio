@@ -67,8 +67,9 @@ def make_llm_call_structured_output_generic(
         schema_name: The name to use for the schema in the response format
 
     Returns:
-        A tuple of (result, error_message). If successful, result contains the model instance
-        and error_message is None. If failed, result is None and error_message contains the error.
+        A tuple of (result, error_message). If successful,
+        result contains the model instance and error_message is None.
+        If failed, result is None and error_message contains the error.
     """
     messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]

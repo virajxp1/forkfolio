@@ -36,5 +36,6 @@ If the input does not contain any recipe information, return an empty JSON objec
 
 Example:
 {"title": "Pasta", "ingredients": ["200g pasta", "1 cup sauce"], 
-"instructions": ["Boil pasta", "Add sauce"], "servings": "Not specified", "total_time": "Not specified"}
+"instructions": ["Boil pasta", "Add sauce"], "servings": "Not specified", 
+"total_time": "Not specified"}
 """
