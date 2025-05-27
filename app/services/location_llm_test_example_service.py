@@ -2,7 +2,7 @@ from typing import Optional
 
 from app.core.test_prompts import CAPITAL_SYSTEM_PROMPT, LOCATION_INFO_SYSTEM_PROMPT
 from app.schemas.location_info import LocationInfo
-from app.services.llm_test_service import (
+from app.services.llm_generation_service import (
     make_llm_call_structured_output_generic,
     make_llm_call_text_generation,
 )

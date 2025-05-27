@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 
 from app.core.prompts import RECIPE_EXTRACTION_SYSTEM_PROMPT
 from app.schemas.recipe import Recipe
-from app.services.llm_test_service import (
+from app.services.llm_generation_service import (
     make_llm_call_structured_output_generic,
 )
 from app.services.recipe_extractor import RecipeExtractorService
