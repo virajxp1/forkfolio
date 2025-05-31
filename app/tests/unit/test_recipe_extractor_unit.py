@@ -2,10 +2,11 @@
 Unit tests for RecipeExtractorImpl.
 Tests business logic in isolation without external dependencies.
 """
-import pytest
-from unittest.mock import Mock, patch, ANY
-from app.services.recipe_extractor_impl import RecipeExtractorImpl
+
+from unittest.mock import ANY, patch
+
 from app.schemas.recipe import Recipe
+from app.services.recipe_extractor_impl import RecipeExtractorImpl
 
 
 class TestRecipeExtractorImpl:
@@ -29,7 +30,7 @@ class TestRecipeExtractorImpl:
         assert recipe is None
         assert error == "Input text is empty or contains only whitespace"
 
-    @patch('app.services.recipe_extractor_impl.make_llm_call_structured_output_generic')
+    @patch("app.services.recipe_extractor_impl.make_llm_call_structured_output_generic")
     def test_extract_recipe_success(self, mock_llm_call):
         """Test successful recipe extraction."""
         # Arrange
@@ -38,7 +39,7 @@ class TestRecipeExtractorImpl:
             ingredients=["1 cup flour", "2 eggs"],
             instructions=["Mix ingredients", "Bake"],
             servings="4",
-            total_time="30 minutes"
+            total_time="30 minutes",
         )
         mock_llm_call.return_value = (mock_recipe, None)
 
@@ -52,10 +53,10 @@ class TestRecipeExtractorImpl:
             user_prompt="Test recipe text",
             system_prompt=ANY,  # We don't care about exact prompt content
             model_class=Recipe,
-            schema_name="recipe_extraction"
+            schema_name="recipe_extraction",
         )
 
-    @patch('app.services.recipe_extractor_impl.make_llm_call_structured_output_generic')
+    @patch("app.services.recipe_extractor_impl.make_llm_call_structured_output_generic")
     def test_extract_recipe_llm_error(self, mock_llm_call):
         """Test handling of LLM service errors."""
         # Arrange
@@ -68,7 +69,7 @@ class TestRecipeExtractorImpl:
         assert recipe is None
         assert error == "LLM service unavailable"
 
-    @patch('app.services.recipe_extractor_impl.make_llm_call_structured_output_generic')
+    @patch("app.services.recipe_extractor_impl.make_llm_call_structured_output_generic")
     def test_extract_recipe_calls_llm_with_correct_parameters(self, mock_llm_call):
         """Test that LLM is called with correct parameters."""
         # Arrange
@@ -81,6 +82,6 @@ class TestRecipeExtractorImpl:
         # Assert
         mock_llm_call.assert_called_once()
         call_args = mock_llm_call.call_args
-        assert call_args[1]['user_prompt'] == input_text
-        assert call_args[1]['model_class'] == Recipe
-        assert call_args[1]['schema_name'] == "recipe_extraction"
+        assert call_args[1]["user_prompt"] == input_text
+        assert call_args[1]["model_class"] == Recipe
+        assert call_args[1]["schema_name"] == "recipe_extraction"

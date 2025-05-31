@@ -2,11 +2,19 @@
 Integration tests for API endpoints.
 Tests API layer with mocked services - faster than E2E tests.
 """
-import pytest
+
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
-from unittest.mock import patch, Mock
+
 from app.main import app
 from app.schemas.recipe import Recipe
+
+# Constants
+HTTP_OK = 200
+HTTP_UNPROCESSABLE_ENTITY = 422
+EXPECTED_INGREDIENT_COUNT = 2
+EXPECTED_INSTRUCTION_COUNT = 2
 
 
 class TestRecipeAPI:
@@ -20,11 +28,13 @@ class TestRecipeAPI:
         """Test the health check endpoint."""
         response = self.client.get("/api/v1/")
 
-        assert response.status_code == 200
+        assert response.status_code == HTTP_OK
         data = response.json()
         assert "message" in data
 
-    @patch('app.services.recipe_extractor_impl.RecipeExtractorImpl.extract_recipe_from_raw_text')
+    @patch(
+        "app.services.recipe_extractor_impl.RecipeExtractorImpl.extract_recipe_from_raw_text"
+    )
     def test_ingest_recipe_success(self, mock_extract):
         """Test successful recipe ingestion."""
         # Arrange
@@ -33,25 +43,26 @@ class TestRecipeAPI:
             ingredients=["1 cup flour", "2 eggs"],
             instructions=["Mix", "Bake"],
             servings="4",
-            total_time="30 minutes"
+            total_time="30 minutes",
         )
         mock_extract.return_value = (mock_recipe, None)
 
         # Act
         response = self.client.post(
-            "/api/v1/ingest-raw-recipe",
-            json={"raw_input": "Test recipe content"}
+            "/api/v1/ingest-raw-recipe", json={"raw_input": "Test recipe content"}
         )
 
         # Assert
-        assert response.status_code == 200
+        assert response.status_code == HTTP_OK
         data = response.json()
         assert data["title"] == "API Test Recipe"
-        assert len(data["ingredients"]) == 2
-        assert len(data["instructions"]) == 2
+        assert len(data["ingredients"]) == EXPECTED_INGREDIENT_COUNT
+        assert len(data["instructions"]) == EXPECTED_INSTRUCTION_COUNT
         mock_extract.assert_called_once_with("Test recipe content")
 
-    @patch('app.services.recipe_extractor_impl.RecipeExtractorImpl.extract_recipe_from_raw_text')
+    @patch(
+        "app.services.recipe_extractor_impl.RecipeExtractorImpl.extract_recipe_from_raw_text"
+    )
     def test_ingest_recipe_service_error(self, mock_extract):
         """Test handling of service errors."""
         # Arrange
@@ -59,12 +70,11 @@ class TestRecipeAPI:
 
         # Act
         response = self.client.post(
-            "/api/v1/ingest-raw-recipe",
-            json={"raw_input": "Test recipe content"}
+            "/api/v1/ingest-raw-recipe", json={"raw_input": "Test recipe content"}
         )
 
         # Assert
-        assert response.status_code == 200
+        assert response.status_code == HTTP_OK
         data = response.json()
         assert data["success"] is False
         assert "Service temporarily unavailable" in data["error"]
@@ -72,23 +82,17 @@ class TestRecipeAPI:
     def test_ingest_recipe_validation_error(self):
         """Test request validation."""
         # Act - missing required field
-        response = self.client.post(
-            "/api/v1/ingest-raw-recipe",
-            json={}
-        )
+        response = self.client.post("/api/v1/ingest-raw-recipe", json={})
 
         # Assert
-        assert response.status_code == 422
+        assert response.status_code == HTTP_UNPROCESSABLE_ENTITY
         data = response.json()
         assert "detail" in data
 
     def test_ingest_recipe_empty_input(self):
         """Test empty input validation."""
         # Act
-        response = self.client.post(
-            "/api/v1/ingest-raw-recipe",
-            json={"raw_input": ""}
-        )
+        response = self.client.post("/api/v1/ingest-raw-recipe", json={"raw_input": ""})
 
         # Assert
-        assert response.status_code == 422
+        assert response.status_code == HTTP_UNPROCESSABLE_ENTITY

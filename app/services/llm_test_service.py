@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import TypeVar, Union, Optional
+from typing import Optional, TypeVar, Union
 
 from openai import OpenAI
 from openai.types.chat import (
@@ -67,8 +67,9 @@ def make_llm_call_structured_output_generic(
         schema_name: The name to use for the schema in the response format
 
     Returns:
-        A tuple of (result, error_message). If successful, result contains the model instance
-        and error_message is None. If failed, result is None and error_message contains the error.
+        A tuple of (result, error_message). If successful, result contains the model
+        instance and error_message is None. If failed, result is None and error_message
+        contains the error.
     """
     messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
@@ -99,7 +100,7 @@ def make_llm_call_structured_output_generic(
         )
 
         content = completion.choices[0].message.content
-        logger.info(f"Structured output response: {repr(content)}")
+        logger.info(f"Structured output response: {content!r}")
 
         # Parse the JSON response
         try:
@@ -107,7 +108,7 @@ def make_llm_call_structured_output_generic(
             result = model_class.model_validate(response_data)
             return result, None
         except json.JSONDecodeError as e:
-            error_msg = f"Failed to parse JSON response: {e}. Raw content: {repr(content)}"
+            error_msg = f"Failed to parse JSON response: {e}. Raw content: {content!r}"
             logger.error(error_msg)
             return None, error_msg
         except Exception as e:

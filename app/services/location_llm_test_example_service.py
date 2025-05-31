@@ -24,7 +24,9 @@ class LocationLLMTestExampleService:
         user_prompt = f"What is the capital of {country}?"
         return make_llm_call_text_generation(user_prompt, CAPITAL_SYSTEM_PROMPT)
 
-    def get_location_info(self, location_text: str) -> tuple[Optional[LocationInfo], Optional[str]]:
+    def get_location_info(
+        self, location_text: str
+    ) -> tuple[Optional[LocationInfo], Optional[str]]:
         """
         Process a location text input and return structured location information.
 

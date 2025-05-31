@@ -2,7 +2,9 @@
 """
 Simple script to start the server for testing.
 """
+
 import sys
+
 import uvicorn
 
 if __name__ == "__main__":

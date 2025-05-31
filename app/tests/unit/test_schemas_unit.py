@@ -2,10 +2,16 @@
 Unit tests for Pydantic schemas/models.
 Tests data validation and serialization.
 """
+
 import pytest
 from pydantic import ValidationError
-from app.schemas.recipe import Recipe
+
 from app.schemas.ingest import RecipeIngestionRequest
+from app.schemas.recipe import Recipe
+
+# Constants
+EXPECTED_INGREDIENT_COUNT = 2
+EXPECTED_INSTRUCTION_COUNT = 2
 
 
 class TestRecipeSchema:
@@ -18,12 +24,12 @@ class TestRecipeSchema:
             ingredients=["1 cup flour", "2 eggs"],
             instructions=["Mix ingredients", "Bake at 350°F"],
             servings="4 servings",
-            total_time="30 minutes"
+            total_time="30 minutes",
         )
 
         assert recipe.title == "Test Recipe"
-        assert len(recipe.ingredients) == 2
-        assert len(recipe.instructions) == 2
+        assert len(recipe.ingredients) == EXPECTED_INGREDIENT_COUNT
+        assert len(recipe.instructions) == EXPECTED_INSTRUCTION_COUNT
         assert recipe.servings == "4 servings"
         assert recipe.total_time == "30 minutes"
 
@@ -34,7 +40,7 @@ class TestRecipeSchema:
             ingredients=["flour"],
             instructions=["mix"],
             servings="Not specified",
-            total_time="Not specified"
+            total_time="Not specified",
         )
 
         assert recipe.title == "Minimal Recipe"
@@ -48,7 +54,7 @@ class TestRecipeSchema:
                 ingredients=["flour"],
                 instructions=["mix"],
                 servings="4",
-                total_time="30 minutes"
+                total_time="30 minutes",
                 # Missing title
             )
 
@@ -61,7 +67,7 @@ class TestRecipeSchema:
                 title="Test Recipe",
                 instructions=["mix"],
                 servings="4",
-                total_time="30 minutes"
+                total_time="30 minutes",
                 # Missing ingredients
             )
 
@@ -75,7 +81,7 @@ class TestRecipeSchema:
                 ingredients="flour, eggs",  # Should be list, not string
                 instructions=["mix"],
                 servings="4",
-                total_time="30 minutes"
+                total_time="30 minutes",
             )
 
         assert "ingredients" in str(exc_info.value)
@@ -87,7 +93,7 @@ class TestRecipeSchema:
             ingredients=["flour", "eggs"],
             instructions=["mix", "bake"],
             servings="4",
-            total_time="30 minutes"
+            total_time="30 minutes",
         )
 
         recipe_dict = recipe.model_dump()
@@ -104,7 +110,9 @@ class TestRecipeIngestionRequestSchema:
 
     def test_ingestion_request_valid_data(self):
         """Test ingestion request with valid data."""
-        request = RecipeIngestionRequest(raw_input="Test recipe content with enough characters")
+        request = RecipeIngestionRequest(
+            raw_input="Test recipe content with enough characters"
+        )
 
         assert request.raw_input == "Test recipe content with enough characters"
 

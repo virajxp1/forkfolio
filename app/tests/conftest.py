@@ -2,18 +2,19 @@
 Pytest configuration and shared fixtures.
 This file is automatically loaded by pytest and provides shared test utilities.
 """
-import pytest
+
 import asyncio
-import sys
 import os
-from typing import Generator
+import sys
 from unittest.mock import Mock
 
-# Add the project root to Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
+import pytest
 
-from app.services.recipe_extractor_impl import RecipeExtractorImpl
+# Add the project root to Python path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
+
 from app.schemas.recipe import Recipe
+from app.services.recipe_extractor_impl import RecipeExtractorImpl
 
 
 @pytest.fixture(scope="session")
@@ -32,7 +33,7 @@ def mock_recipe() -> Recipe:
         ingredients=["1 cup flour", "2 eggs", "1 tsp salt"],
         instructions=["Mix dry ingredients", "Add wet ingredients", "Bake at 350°F"],
         servings="4 servings",
-        total_time="45 minutes"
+        total_time="45 minutes",
     )
 
 
@@ -52,9 +53,13 @@ def mock_llm_service():
 def pytest_configure(config):
     """Configure custom pytest markers."""
     config.addinivalue_line("markers", "unit: Unit tests (fast, isolated)")
-    config.addinivalue_line("markers", "integration: Integration tests (slower, with dependencies)")
+    config.addinivalue_line(
+        "markers", "integration: Integration tests (slower, with dependencies)"
+    )
     config.addinivalue_line("markers", "e2e: End-to-end tests (slowest, full system)")
-    config.addinivalue_line("markers", "slow: Slow tests that can be skipped in development")
+    config.addinivalue_line(
+        "markers", "slow: Slow tests that can be skipped in development"
+    )
 
 
 # Custom test collection rules
