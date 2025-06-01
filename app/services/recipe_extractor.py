@@ -18,8 +18,10 @@ class RecipeExtractorService(ABC):
             raw_text: The unstructured recipe text to process
 
         Returns:
-            A tuple of (recipe, error_message). If successful, recipe contains
-            the Recipe object and error_message is None. If failed,
-            recipe is None and error_message contains the error.
+            A tuple of (recipe, error_message). If successful,
+            recipe contains the Recipe
+            object and error_message is None. If failed, recipe
+            is None and error_message
+            contains the error.
         """
         pass
