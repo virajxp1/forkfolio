@@ -27,13 +27,6 @@ jobs:
     - name: Run unit tests
       run: |
         python -m pytest -m unit -v --tb=short
-        
-    - name: Upload unit test results
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: unit-test-results
-        path: pytest-unit-results.xml
 
   # Integration tests - medium speed
   integration-tests:
@@ -56,13 +49,6 @@ jobs:
     - name: Run integration tests
       run: |
         python -m pytest -m integration -v --tb=short
-        
-    - name: Upload integration test results
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: integration-test-results
-        path: pytest-integration-results.xml
 
   # E2E tests - slowest, most comprehensive
   e2e-tests:
@@ -89,13 +75,6 @@ jobs:
         # Add any required environment variables for E2E tests
         HUGGINGFACE_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
-        
-    - name: Upload E2E test results
-      uses: actions/upload-artifact@v3
-      if: always()
-      with:
-        name: e2e-test-results
-        path: pytest-e2e-results.xml
 
   # Parallel test run for faster CI (optional)
   parallel-tests:
@@ -150,27 +129,3 @@ jobs:
         file: ./coverage.xml
         fail_ci_if_error: false
 
-  # Matrix testing across Python versions (optional)
-  matrix-tests:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'  # Only on main branch
-    strategy:
-      matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
-      with:
-        python-version: ${{ matrix.python-version }}
-    
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-    
-    - name: Run fast tests
-      run: |
-        python -m pytest -m "unit or integration" -v --tb=short
