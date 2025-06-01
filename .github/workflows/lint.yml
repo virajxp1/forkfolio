@@ -1,4 +1,4 @@
-name: Python Linting
+name: Code Quality
 
 on:
   push:
@@ -11,12 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.9'
+        python-version: '3.11'
     
     - name: Install dependencies
       run: |
@@ -32,3 +32,9 @@ jobs:
       run: |
         # Verify code format
         ruff format --check .
+        
+    - name: Type checking with mypy (if enabled)
+      run: |
+        # Add mypy type checking if you want it
+        # mypy app/
+      continue-on-error: true  # Allow this to fail without breaking the workflow
