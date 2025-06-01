@@ -3,7 +3,7 @@ from typing import Optional
 
 from app.core.prompts import RECIPE_EXTRACTION_SYSTEM_PROMPT
 from app.schemas.recipe import Recipe
-from app.services.llm_test_service import (
+from app.services.llm_generation_service import (
     make_llm_call_structured_output_generic,
 )
 from app.services.recipe_extractor import RecipeExtractorService
@@ -27,10 +27,9 @@ class RecipeExtractorImpl(RecipeExtractorService):
             raw_text: The unstructured recipe text to process
 
         Returns:
-            A tuple of (recipe, error_message). If successful,
-            recipe contains the Recipe
-            object and error_message is None.
-            If failed, recipe is None and error_message contains the error.
+            A tuple of (recipe, error_message). If successful, recipe contains
+            the Recipe object and error_message is None. If failed,
+            recipe is None and error_message contains the error.
         """
         if not raw_text or not raw_text.strip():
             return None, "Input text is empty or contains only whitespace"
