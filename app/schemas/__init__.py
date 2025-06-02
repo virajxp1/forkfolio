@@ -1,17 +1,11 @@
 """Pydantic schemas package for request/response models."""
 
-from .recipe import (
-    RAW_RECIPE_BODY,
-    Ingredient,
-    Recipe,
-    RecipeCleanupRequest,
-    RecipeCleanupResponse,
-)
+from .ingest import RecipeIngestionRequest
+from .recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
 
 __all__ = [
-    "RAW_RECIPE_BODY",
-    "Ingredient",
     "Recipe",
+    "RecipeIngestionRequest",
     "RecipeCleanupRequest",
     "RecipeCleanupResponse",
 ]
