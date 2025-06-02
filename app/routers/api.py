@@ -5,7 +5,7 @@ from fastapi import APIRouter, Body, Query
 from app.core.config import settings
 from app.core.test_inputs import RAW_RECIPE_BODY
 from app.schemas.ingest import RecipeIngestionRequest
-from app.schemas.recipe import Recipe, RecipeCleanupResponse, RecipeCleanupRequest
+from app.schemas.recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
 from app.services import RecipeInputCleanupImpl
 from app.services.location_llm_test_example_service import LocationLLMTestExampleService
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
@@ -61,8 +61,9 @@ def test_llm_structured(
     location_info = location_service.get_location_info(location)
     return location_info
 
-@router.post("/ingest-raw-recipe", response_model=RecipeCleanupResponse)
-def ingest_raw_recipe(
+
+@router.post("/cleanup-raw-recipe", response_model=RecipeCleanupResponse)
+def recipe_cleanup(
     cleanup_request: RecipeCleanupRequest = RAW_RECIPE_BODY,
 ) -> RecipeCleanupResponse:
     """

@@ -5,7 +5,7 @@ from .recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
 
 __all__ = [
     "Recipe",
-    "RecipeIngestionRequest",
     "RecipeCleanupRequest",
     "RecipeCleanupResponse",
+    "RecipeIngestionRequest",
 ]

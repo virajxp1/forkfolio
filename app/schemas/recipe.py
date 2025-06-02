@@ -10,6 +10,7 @@ class Recipe(BaseModel):
     servings: str
     total_time: str
 
+
 class RecipeCleanupRequest(BaseModel):
     """Request model for cleaning up raw recipe data that needs preprocessing."""
 
