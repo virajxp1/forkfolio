@@ -1,9 +1,9 @@
 from ..core.prompts import CLEANUP_SYSTEM_PROMPT
-from .llm_test_service import make_llm_call_text_generation
+from .llm_generation_service import make_llm_call_text_generation
 from .recipe_input_cleanup import RecipeInputCleanup
 
 
-class RecipeInputCleanupImpl(RecipeInputCleanup):
+class RecipeInputCleanupServiceImpl(RecipeInputCleanup):
     """
     Implementation of RecipeInputCleanup that uses LLM to clean messy input data.
 

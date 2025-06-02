@@ -64,15 +64,15 @@ def test_llm_structured(
 
 @router.post("/cleanup-raw-recipe", response_model=RecipeCleanupResponse)
 def recipe_cleanup(
-    cleanup_request: RecipeCleanupRequest = RAW_RECIPE_BODY,
+    cleanup_request: RecipeCleanupRequest = Body(),
 ) -> RecipeCleanupResponse:
     """
     Clean up messy recipe input data (HTML, scraped content, etc.)
     and return cleaned text suitable for recipe extraction.
     """
     # TODO - Need to use dependency injection
-    recipe_cleanup = RecipeInputCleanupImpl()
-    cleaned_text = recipe_cleanup.cleanup_input(cleanup_request.raw_text)
+    recipe_cleanup_service = RecipeInputCleanupImpl()
+    cleaned_text = recipe_cleanup_service.cleanup_input(cleanup_request.raw_text)
 
     return RecipeCleanupResponse(
         cleaned_text=cleaned_text,
