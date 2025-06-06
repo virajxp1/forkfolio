@@ -3,10 +3,9 @@ from typing import Union
 from fastapi import APIRouter, Body, Query
 
 from app.core.config import settings
-from app.core.test_inputs import RAW_RECIPE_BODY
 from app.schemas.ingest import RecipeIngestionRequest
 from app.schemas.recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
-from app.services import RecipeInputCleanupImpl
+from app.services import RecipeInputCleanupServiceImpl
 from app.services.location_llm_test_example_service import LocationLLMTestExampleService
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 
@@ -62,16 +61,19 @@ def test_llm_structured(
     return location_info
 
 
+CLEANUP_BODY = Body()
+
+
 @router.post("/cleanup-raw-recipe", response_model=RecipeCleanupResponse)
 def recipe_cleanup(
-    cleanup_request: RecipeCleanupRequest = Body(),
+    cleanup_request: RecipeCleanupRequest = CLEANUP_BODY,
 ) -> RecipeCleanupResponse:
     """
     Clean up messy recipe input data (HTML, scraped content, etc.)
     and return cleaned text suitable for recipe extraction.
     """
     # TODO - Need to use dependency injection
-    recipe_cleanup_service = RecipeInputCleanupImpl()
+    recipe_cleanup_service = RecipeInputCleanupServiceImpl()
     cleaned_text = recipe_cleanup_service.cleanup_input(cleanup_request.raw_text)
 
     return RecipeCleanupResponse(

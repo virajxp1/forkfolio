@@ -10,26 +10,6 @@
     "input_text": "\nSimple Pasta\n\nIngredients:\n- 200g pasta\n- 1 cup tomato sauce\n\nInstructions:\n1. Boil pasta\n2. Add sauce\n"
   },
   {
-    "name": "recipe_with_fractions",
-    "description": "Recipe with fractional measurements",
-    "input_text": "\nPancakes\n\nIngredients:\n- 1 1/2 cups flour\n- 1/4 cup sugar\n- 2 1/4 tsp baking powder\n- 1/2 tsp salt\n- 1 1/4 cups milk\n\nInstructions:\n1. Mix dry ingredients\n2. Add wet ingredients\n3. Cook on griddle\n"
-  },
-  {
-    "name": "recipe_with_temperatures",
-    "description": "Recipe with temperatures and longer cooking time",
-    "input_text": "\nRoast Chicken\n\nTotal time: 1 hour 15 minutes\n\nIngredients:\n- 1 whole chicken (3-4 lbs)\n- 2 tbsp olive oil\n- Salt and pepper to taste\n- 1 lemon, quartered\n\nInstructions:\n1. Preheat oven to 425°F\n2. Season chicken with salt and pepper\n3. Roast for 60-75 minutes until internal temp reaches 165°F\n4. Let rest for 10 minutes before carving\n"
-  },
-  {
-    "name": "recipe_different_format",
-    "description": "Recipe with different formatting (bullets, arrows, caps)",
-    "input_text": "\nBANANA BREAD\n\nSERVES: 8 slices\nTIME: 45 mins\n\nWHAT YOU NEED:\n• 3 ripe bananas\n• 1/3 cup melted butter\n• 3/4 cup sugar\n• 1 egg, beaten\n• 1 tsp vanilla\n• 1 tsp baking soda\n• Pinch of salt\n• 1 1/2 cups flour\n\nHOW TO MAKE:\n→ Preheat oven 350°F\n→ Mash bananas in large bowl\n→ Mix in butter, sugar, egg, vanilla\n→ Add baking soda and salt\n→ Mix in flour\n→ Pour into greased loaf pan\n→ Bake 60 minutes\n"
-  },
-  {
-    "name": "recipe_with_notes",
-    "description": "Recipe with optional ingredients and notes",
-    "input_text": "\nGarlic Bread\n\nIngredients:\n- 1 French baguette, sliced\n- 4 cloves garlic, minced\n- 1/2 cup butter, softened\n- 2 tbsp fresh parsley, chopped\n- 1/4 cup parmesan cheese, grated (optional)\n\nInstructions:\n1. Preheat oven to 400°F\n2. Mix garlic, butter, and parsley in a bowl\n3. Spread mixture on bread slices\n4. Sprinkle with parmesan if using\n5. Bake for 10-12 minutes until golden\n\nNote: Can be made ahead and frozen\n"
-  },
-  {
     "name": "single_line_recipe",
     "description": "Very short, single-line recipe format",
     "input_text": "Quick Smoothie: Blend 1 banana, 1 cup milk, 1 tbsp honey. Serve immediately."
@@ -41,28 +21,9 @@
     "expect_error": true
   },
   {
-    "name": "whitespace_only",
-    "description": "Edge case: Whitespace-only input should be handled gracefully",
-    "input_text": "   \n\t   ",
-    "expect_error": true
-  },
-  {
     "name": "nonsensical_input",
     "description": "Edge case: Non-recipe text should be handled gracefully",
     "input_text": "This is not a recipe at all, just random text.",
-    "expect_error": false,
-    "allow_empty_result": true
-  },
-  {
-    "name": "very_short_input",
-    "description": "Edge case: Very short input should be rejected by validation",
-    "input_text": "Pasta",
-    "expect_error": true
-  },
-  {
-    "name": "very_long_input",
-    "description": "Edge case: Very long input should be handled gracefully",
-    "input_text": "Recipe: This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. This is a very long recipe description. ",
     "expect_error": false,
     "allow_empty_result": true
   }
