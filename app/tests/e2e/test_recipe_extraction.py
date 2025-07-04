@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 HTTP_OK = 200
 HTTP_UNPROCESSABLE_ENTITY = 422
 REQUEST_TIMEOUT = 30
+DEBUG_TEXT_LENGTH = 100
 
 
 def load_test_cases():
@@ -67,7 +68,6 @@ class APIClient:
 class TestRecipeExtraction:
     """Test suite for recipe extraction functionality."""
 
-
     @pytest.mark.parametrize(
         "test_case", [pytest.param(case, id=case["name"]) for case in load_test_cases()]
     )
@@ -85,7 +85,10 @@ class TestRecipeExtraction:
 
         # Debug Output (always show for failed tests)
         print(f"\n=== Test: {test_case['name']} ===")
-        print(f"Input: {input_text[:100]}{'...' if len(input_text) > 100 else ''}")
+        truncated_input = input_text[:DEBUG_TEXT_LENGTH]
+        if len(input_text) > DEBUG_TEXT_LENGTH:
+            truncated_input += "..."
+        print(f"Input: {truncated_input}")
         print(f"Status: {response['status_code']}")
         print(f"Response: {response.get('data', response.get('text', 'No data'))}")
 
@@ -97,25 +100,39 @@ class TestRecipeExtraction:
             elif response["status_code"] == HTTP_OK and "error" in response["data"]:
                 return  # 200 with error field is expected
             else:
-                assert False, f"Expected error but got status {response['status_code']}"
+                raise AssertionError(
+                    f"Expected error but got status {response['status_code']}"
+                )
 
         # Expecting success response
-        assert response["status_code"] == HTTP_OK, f"Expected 200 but got {response['status_code']}"
-        
+        assert response["status_code"] == HTTP_OK, (
+            f"Expected 200 but got {response['status_code']}"
+        )
+
         response_data = response["data"]
-        assert "error" not in response_data, f"Expected success but got error: {response_data.get('error')}"
+        assert "error" not in response_data, (
+            f"Expected success but got error: {response_data.get('error')}"
+        )
 
         # Validate response matches Recipe Pydantic model exactly
         try:
             recipe = Recipe.model_validate(response_data)
             print(f"✓ Valid Recipe model: {recipe}")
         except ValidationError as e:
-            assert False, f"Response doesn't match Recipe model: {e}\nResponse: {response_data}"
+            raise AssertionError(
+                f"Response doesn't match Recipe model: {e}\nResponse: {response_data}"
+            ) from e
 
         # Check for content if not allowing empty results
         if not allow_empty_result:
-            has_content = response_data["title"].strip() or len(response_data["ingredients"]) > 0
-            assert has_content, f"Recipe should have title or ingredients but got: title='{response_data['title']}', ingredients={response_data['ingredients']}"
+            has_content = (
+                response_data["title"].strip() or len(response_data["ingredients"]) > 0
+            )
+            assert has_content, (
+                f"Recipe should have title or ingredients but got: "
+                f"title='{response_data['title']}', "
+                f"ingredients={response_data['ingredients']}"
+            )
 
     def test_server_health(self, server: str) -> None:
         """Test that the server is running and healthy."""
