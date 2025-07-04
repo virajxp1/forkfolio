@@ -7,11 +7,12 @@ from openai.types.chat import (
     ChatCompletionSystemMessageParam,
     ChatCompletionUserMessageParam,
 )
+from openai.types.shared_params import ResponseFormatJSONSchema
 from pydantic import BaseModel
 
 from app.core.config import settings
 
-model_name = "meta-llama/llama-3.3-8b-instruct:free"
+model_name = "mistralai/mistral-small-3.2-24b-instruct:free"
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -84,19 +85,17 @@ def make_llm_call_structured_output_generic(
         # Get the JSON schema from the provided model class
         schema = model_class.model_json_schema()
 
-        # Create the response_format object
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {"name": schema_name, "strict": True, "schema": schema},
-        }
+        response_format = ResponseFormatJSONSchema(
+            type="json_schema",
+            json_schema={"name": schema_name, "schema": schema},
+        )
 
-        # Call with the response_format
+        # Call with proper JSON schema format
         completion = client.chat.completions.create(
             model=model_name,
             messages=messages,
             response_format=response_format,
-            max_tokens=1000,  # Increase token limit for complete responses
-            extra_body={"provider": {"require_parameters": True}},
+            max_tokens=1000,
         )
 
         content = completion.choices[0].message.content

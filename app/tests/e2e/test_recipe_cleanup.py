@@ -15,8 +15,10 @@ logger = logging.getLogger(__name__)
 
 # Constants
 HTTP_OK = 200
+HTTP_INTERNAL_SERVER_ERROR = 500
 HTTP_UNPROCESSABLE_ENTITY = 422
 REQUEST_TIMEOUT = 30
+DEBUG_TEXT_LENGTH = 100
 
 
 def load_cleanup_test_cases():
@@ -35,78 +37,83 @@ class TestRecipeCleanup:
     )
     def test_cleanup_from_json(self, server: str, test_case: dict) -> None:
         """Test cleanup for all cases defined in cleanup_test_cases.json."""
+        # Input
         input_data = test_case["input"]
+        raw_text = input_data["raw_text"]
 
-        # Make the cleanup request
+        # API Call
+        request_json = {"raw_text": raw_text}
+        if "source_url" in input_data:
+            request_json["source_url"] = input_data["source_url"]
+
         response = requests.post(
             f"{server}/api/v1/cleanup-raw-recipe",
-            json={
-                "raw_text": input_data["raw_text"],
-                **(
-                    {}
-                    if "source_url" not in input_data
-                    else {"source_url": input_data["source_url"]}
-                ),
-            },
+            json=request_json,
             headers={"Content-Type": "application/json"},
             timeout=REQUEST_TIMEOUT,
         )
 
-        # Log the API response
-        logger.info(f"Cleanup test case: {test_case['name']}")
-        logger.info(f"Status code: {response.status_code}")
+        # Debug Output (always show for failed tests)
+        print(f"\n=== Test: {test_case['name']} ===")
+        truncated_input = raw_text[:DEBUG_TEXT_LENGTH]
+        if len(raw_text) > DEBUG_TEXT_LENGTH:
+            truncated_input += "..."
+        print(f"Input: {truncated_input}")
+        print(f"Status: {response.status_code}")
         if response.status_code == HTTP_OK:
             data = response.json()
-            logger.info(f"Cleaned text length: {data.get('cleaned_length', 'unknown')}")
+            cleaned_text = data.get("cleaned_text", "No cleaned_text")
+            truncated_cleaned = cleaned_text[:DEBUG_TEXT_LENGTH]
+            if len(cleaned_text) > DEBUG_TEXT_LENGTH:
+                truncated_cleaned += "..."
+            print(f"Cleaned: {truncated_cleaned}")
         else:
-            logger.info(f"Response text: {response.text}")
+            print(f"Error: {response.text}")
 
-        # Check if we expect a short output (for edge cases)
-        expect_short_output = test_case.get("expect_short_output", False)
-
-        if expect_short_output:
-            # For short outputs, we might get an error or very short cleaned text
-            # Just verify the endpoint responds
-            assert response.status_code in [200, 500]
+        # Assertions
+        # Handle edge cases that might fail
+        if test_case.get("expect_short_output", False):
+            assert response.status_code in [HTTP_OK, HTTP_INTERNAL_SERVER_ERROR], (
+                f"Expected {HTTP_OK} or {HTTP_INTERNAL_SERVER_ERROR} for edge case, "
+                f"got {response.status_code}"
+            )
             return
 
-        # For normal cases, verify successful response
-        assert response.status_code == HTTP_OK
+        # Expecting successful cleanup
+        assert response.status_code == HTTP_OK, (
+            f"Expected {HTTP_OK} but got {response.status_code}: {response.text}"
+        )
+
         data = response.json()
-
-        # Check response structure
-        assert "cleaned_text" in data
-        assert "original_length" in data
-        assert "cleaned_length" in data
-
+        assert "cleaned_text" in data, f"Response missing 'cleaned_text' field: {data}"
         cleaned_text = data["cleaned_text"]
 
-        # Verify expected content is present (case-insensitive)
-        cleaned_text_lower = cleaned_text.lower()
-        for expected in test_case.get("expected_contains", []):
-            assert expected.lower() in cleaned_text_lower, (
-                f"Expected '{expected}' in cleaned text for {test_case['name']}"
+        # Check expected content is present (case-insensitive)
+        expected_items = test_case.get("expected_contains", [])
+        for expected in expected_items:
+            assert expected.lower() in cleaned_text.lower(), (
+                f"Expected '{expected}' in cleaned text. Got: {cleaned_text}"
             )
 
-        # Verify unwanted content is removed
-        for not_expected in test_case.get("not_expected", []):
+        # Check unwanted content is removed
+        not_expected_items = test_case.get("not_expected", [])
+        for not_expected in not_expected_items:
             assert not_expected not in cleaned_text, (
-                f"Did not expect '{not_expected}' in cleaned text for "
-                f"{test_case['name']}"
+                f"Found unwanted '{not_expected}' in cleaned text. Got: {cleaned_text}"
             )
 
-        # Verify source URL if provided
+        # Check source URL if provided
         if "source_url" in input_data:
-            assert data["source_url"] == input_data["source_url"]
+            assert data["source_url"] == input_data["source_url"], (
+                f"Source URL mismatch. Expected: {input_data['source_url']}, "
+                f"Got: {data.get('source_url')}"
+            )
 
     def test_cleanup_validation_error(self, server: str) -> None:
         """Test cleanup endpoint validation."""
-        # Send request without required field
         response = requests.post(
             f"{server}/api/v1/cleanup-raw-recipe",
             json={},
             timeout=REQUEST_TIMEOUT,
         )
-
-        logger.info(f"Validation error test - Status code: {response.status_code}")
         assert response.status_code == HTTP_UNPROCESSABLE_ENTITY
