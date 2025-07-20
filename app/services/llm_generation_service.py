@@ -102,6 +102,7 @@ def make_llm_call_structured_output_generic(
         logger.info(f"Structured output response: {content!r}")
 
         # Parse the JSON response
+
         try:
             response_data = json.loads(content)
             result = model_class.model_validate(response_data)
