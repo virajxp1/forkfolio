@@ -46,3 +46,22 @@ max-complexity = 10
 # Sort imports
 [tool.ruff.lint.isort]
 known-third-party = []
+
+# Black configuration
+[tool.black]
+target-version = ['py311']
+line-length = 88
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
