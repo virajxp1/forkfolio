@@ -11,6 +11,7 @@ from app.schemas.ingest import RecipeIngestionRequest
 from app.schemas.recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
+from app.services.recipe_processing_service import RecipeProcessingService
 
 router = APIRouter(prefix=settings.API_V1_STR)
 
@@ -66,3 +67,34 @@ def recipe_cleanup(
         original_length=len(cleanup_request.raw_text),
         cleaned_length=len(cleaned_text),
     )
+
+
+@router.post("/process-and-store-recipe")
+def process_and_store_recipe(
+    ingestion_request: RecipeIngestionRequest = RECIPE_BODY,
+) -> dict:
+    """
+    Complete recipe processing pipeline:
+    1. Cleanup raw input
+    2. Extract structured recipe data
+    3. Store in database
+    4. Return database ID
+
+    Takes raw unstructured recipe text and returns the database ID
+    of the stored recipe, or an error if processing fails.
+    """
+    processing_service = RecipeProcessingService()
+
+    recipe_id, error = processing_service.process_raw_recipe(
+        raw_input=ingestion_request.raw_input,
+        source_url=None,  # Could extend request model to include source_url if needed
+    )
+
+    if error:
+        return {"error": error, "success": False}
+
+    return {
+        "recipe_id": recipe_id,
+        "success": True,
+        "message": "Recipe processed and stored successfully",
+    }
