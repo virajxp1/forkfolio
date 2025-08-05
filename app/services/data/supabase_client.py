@@ -20,11 +20,18 @@ def init_connection_pool():
     """Initialize the connection pool"""
     global _connection_pool  # noqa: PLW0603
 
-    password = os.getenv("SUPABASE_PASSWORD")
-    if not password:
-        raise ValueError("SUPABASE_PASSWORD environment variable is required")
+    # Use DATABASE_URL if provided, otherwise build from components
+    database_url = os.getenv("DATABASE_URL")
 
-    database_url = f"postgresql://postgres:{password}@db.ddrjsrzmbnovwqnstnvo.supabase.co:6543/postgres"
+    if not database_url:
+        password = os.getenv("SUPABASE_PASSWORD")
+        if not password:
+            raise ValueError(
+                "SUPABASE_PASSWORD or DATABASE_URL environment variable is required"
+            )
+
+        # Fallback to component-based URL for backward compatibility
+        database_url = f"postgresql://postgres:{password}@db.ddrjsrzmbnovwqnstnvo.supabase.co:6543/postgres"
 
     try:
         _connection_pool = psycopg2.pool.ThreadedConnectionPool(

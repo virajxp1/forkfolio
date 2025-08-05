@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     HUGGINGFACE_API_TOKEN: str = os.environ.get("HUGGINGFACE_API_TOKEN", "")
     SUPABASE_PASSWORD: str = os.environ.get("SUPABASE_PASSWORD", "")
     SUPABASE_API_KEY: str = os.environ.get("SUPABASE_API_KEY", "")
+    SUPABASE_ACCESS_TOKEN: str = os.environ.get("SUPABASE_ACCESS_TOKEN", "")
+    SUPABASE_PROJECT_ID: str = os.environ.get("SUPABASE_PROJECT_ID", "")
 
 
 settings = Settings()
