@@ -1,11 +1,17 @@
+from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from app.core.config import settings
 from app.routers import api
 
-# Load environment variables from .env file
-load_dotenv()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load environment variables on startup
+    load_dotenv()
+    yield
 
 
 def create_application() -> FastAPI:
@@ -15,6 +21,7 @@ def create_application() -> FastAPI:
         version=settings.VERSION,
         docs_url="/docs",
         redoc_url="/redoc",
+        lifespan=lifespan,
     )
 
     # Include routers
