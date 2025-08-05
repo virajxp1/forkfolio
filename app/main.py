@@ -4,7 +4,12 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from app.core.config import settings
+from app.core.logging import setup_logging
 from app.routers import api
+from app.services.data.supabase_client import (
+    close_connection_pool,
+    init_connection_pool,
+)
 
 
 @asynccontextmanager
@@ -13,16 +18,9 @@ async def lifespan(app: FastAPI):
     load_dotenv()
 
     # Setup logging
-    from app.core.logging import setup_logging
-
     setup_logging()
 
     # Initialize database connection pool
-    from app.services.data.supabase_client import (
-        close_connection_pool,
-        init_connection_pool,
-    )
-
     init_connection_pool()
 
     yield

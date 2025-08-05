@@ -13,6 +13,7 @@ from app.core.logging import get_logger
 from app.schemas.ingest import RecipeIngestionRequest
 from app.schemas.recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
 from app.services.data.managers.recipe_manager import RecipeManager
+from app.services.data.supabase_client import get_db_context, get_pool_status
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 from app.services.recipe_processing_service import RecipeProcessingService
@@ -140,15 +141,11 @@ def health_check() -> dict:
     """
     Comprehensive health check including database connectivity.
     """
-    from app.services.data.supabase_client import get_pool_status
-
     try:
         # Check connection pool status
         pool_status = get_pool_status()
 
         # Try a simple database query
-        from app.services.data.supabase_client import get_db_context
-
         with get_db_context() as (conn, cursor):
             cursor.execute("SELECT 1 as health_check")
             result = cursor.fetchone()
