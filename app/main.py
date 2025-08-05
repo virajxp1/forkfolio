@@ -11,7 +11,24 @@ from app.routers import api
 async def lifespan(app: FastAPI):
     # Load environment variables on startup
     load_dotenv()
+
+    # Setup logging
+    from app.core.logging import setup_logging
+
+    setup_logging()
+
+    # Initialize database connection pool
+    from app.services.data.supabase_client import (
+        close_connection_pool,
+        init_connection_pool,
+    )
+
+    init_connection_pool()
+
     yield
+
+    # Cleanup on shutdown
+    close_connection_pool()
 
 
 def create_application() -> FastAPI:

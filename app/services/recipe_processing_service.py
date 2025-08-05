@@ -1,12 +1,12 @@
-import logging
 from typing import Optional
 
+from app.core.logging import get_logger
 from app.schemas.recipe import Recipe
 from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class RecipeProcessingService:

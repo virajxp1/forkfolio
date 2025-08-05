@@ -58,9 +58,13 @@ class APIClient:
         # Don't raise for status - let tests handle different status codes
         return {
             "status_code": response.status_code,
-            "data": response.json()
-            if response.headers.get("content-type", "").startswith("application/json")
-            else None,
+            "data": (
+                response.json()
+                if response.headers.get("content-type", "").startswith(
+                    "application/json"
+                )
+                else None
+            ),
             "text": response.text,
         }
 
@@ -105,14 +109,14 @@ class TestRecipeExtraction:
                 )
 
         # Expecting success response
-        assert response["status_code"] == HTTP_OK, (
-            f"Expected 200 but got {response['status_code']}"
-        )
+        assert (
+            response["status_code"] == HTTP_OK
+        ), f"Expected 200 but got {response['status_code']}"
 
         response_data = response["data"]
-        assert "error" not in response_data, (
-            f"Expected success but got error: {response_data.get('error')}"
-        )
+        assert (
+            "error" not in response_data
+        ), f"Expected success but got error: {response_data.get('error')}"
 
         # Validate response matches Recipe Pydantic model exactly
         try:

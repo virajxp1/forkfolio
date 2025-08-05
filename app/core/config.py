@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = ConfigDict(env_file=".env", case_sensitive=True)
 
     PROJECT_NAME: str = "ForkFolio"
-    PROJECT_DESCRIPTION: str = "Portfolio management API for tracking investments"
+    PROJECT_DESCRIPTION: str = "Portfolio managemenUpdatet API for tracking investments"
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
 
