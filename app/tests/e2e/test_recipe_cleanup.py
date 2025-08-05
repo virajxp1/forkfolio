@@ -80,9 +80,9 @@ class TestRecipeCleanup:
             return
 
         # Expecting successful cleanup
-        assert (
-            response.status_code == HTTP_OK
-        ), f"Expected {HTTP_OK} but got {response.status_code}: {response.text}"
+        assert response.status_code == HTTP_OK, (
+            f"Expected {HTTP_OK} but got {response.status_code}: {response.text}"
+        )
 
         data = response.json()
         assert "cleaned_text" in data, f"Response missing 'cleaned_text' field: {data}"
@@ -91,16 +91,16 @@ class TestRecipeCleanup:
         # Check expected content is present (case-insensitive)
         expected_items = test_case.get("expected_contains", [])
         for expected in expected_items:
-            assert (
-                expected.lower() in cleaned_text.lower()
-            ), f"Expected '{expected}' in cleaned text. Got: {cleaned_text}"
+            assert expected.lower() in cleaned_text.lower(), (
+                f"Expected '{expected}' in cleaned text. Got: {cleaned_text}"
+            )
 
         # Check unwanted content is removed
         not_expected_items = test_case.get("not_expected", [])
         for not_expected in not_expected_items:
-            assert (
-                not_expected not in cleaned_text
-            ), f"Found unwanted '{not_expected}' in cleaned text. Got: {cleaned_text}"
+            assert not_expected not in cleaned_text, (
+                f"Found unwanted '{not_expected}' in cleaned text. Got: {cleaned_text}"
+            )
 
         # Check source URL if provided
         if "source_url" in input_data:
