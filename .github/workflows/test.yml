@@ -14,12 +14,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Setup Supabase CLI
-      uses: supabase/setup-cli@v1
-      with:
-        version: latest
-    
-    - name: Configure Supabase IP allowlist
+    - name: Configure Supabase IP allowlist FIRST
       run: |
         # Add ONLY the current runner IP using official Management API
         RUNNER_IP=$(curl -s https://ipinfo.io/ip)
@@ -41,6 +36,9 @@ jobs:
           }"
         
         echo "✅ Runner IP ${RUNNER_IP}/32 added to allowlist"
+        
+        # Wait a moment for the change to propagate
+        sleep 5
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
