@@ -14,14 +14,12 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Test connectivity
+    - name: Test IPv4 connectivity to Session Pooler
       run: |
-        echo "Testing DNS resolution..."
-        nslookup db.ddrjsrzmbnovwqnstnvo.supabase.co
-        echo "Testing port 5432 (direct)..."
-        nc -zv db.ddrjsrzmbnovwqnstnvo.supabase.co 5432 || echo "Port 5432 failed"
-        echo "Testing port 6543 (pooling)..."
-        nc -zv db.ddrjsrzmbnovwqnstnvo.supabase.co 6543 || echo "Port 6543 failed"
+        echo "Testing DNS resolution for Session Pooler (IPv4 compatible)..."
+        nslookup -query=A aws-0-us-west-1.pooler.supabase.com
+        echo "Testing port 5432 on Session Pooler..."
+        nc -4 -zv aws-0-us-west-1.pooler.supabase.com 5432
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -33,12 +31,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
+    - name: Configure database connection for IPv4
+      run: |
+        echo "Using IPv4-compatible Session Pooler for GitHub Actions"
+    
     - name: Run E2E tests
       run: |
         python app/tests/test_runner.py
       env:
-        # Try direct connection instead of pooling for CI
-        DATABASE_HOST: db.ddrjsrzmbnovwqnstnvo.supabase.co
+        # Use IPv4-compatible Session Pooler for GitHub Actions
+        DATABASE_HOST: aws-0-us-west-1.pooler.supabase.com
         DATABASE_PORT: 5432
         SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
         # Add any required environment variables for E2E tests

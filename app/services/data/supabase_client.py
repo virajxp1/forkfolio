@@ -32,9 +32,19 @@ def init_connection_pool():
 
         # Use configurable host and port for different environments
         db_host = os.getenv("DATABASE_HOST", "db.ddrjsrzmbnovwqnstnvo.supabase.co")
-        db_port = os.getenv("DATABASE_PORT", "6543")
+        db_port = os.getenv("DATABASE_PORT", "5432")
 
-        database_url = f"postgresql://postgres:{password}@{db_host}:{db_port}/postgres"
+        # Use different username format for Session Pooler vs Direct Connection
+        if "pooler.supabase.com" in db_host:
+            # Session Pooler format: postgres.project_ref
+            username = "postgres.ddrjsrzmbnovwqnstnvo"
+        else:
+            # Direct Connection format
+            username = "postgres"
+
+        database_url = (
+            f"postgresql://{username}:{password}@{db_host}:{db_port}/postgres"
+        )
 
     try:
         _connection_pool = psycopg2.pool.ThreadedConnectionPool(
