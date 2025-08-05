@@ -142,3 +142,44 @@ class RecipeManager(BaseManager):
         except Exception as e:
             self.db.rollback()
             raise Exception(f"Failed to create recipe: {e!s}") from e
+
+    def get_full_recipe(self, recipe_id: str) -> Optional[dict]:
+        """Get a complete recipe with ingredients and instructions"""
+        try:
+            # Get basic recipe info
+            recipe_sql = "SELECT * FROM recipes WHERE id = %s"
+            self.cursor.execute(recipe_sql, (recipe_id,))
+            recipe = self.cursor.fetchone()
+
+            if not recipe:
+                return None
+
+            recipe_data = dict(recipe)
+
+            # Get ingredients
+            ingredients_sql = """
+            SELECT ingredient_text 
+            FROM recipe_ingredients 
+            WHERE recipe_id = %s 
+            ORDER BY order_index
+            """
+            self.cursor.execute(ingredients_sql, (recipe_id,))
+            ingredients = [row["ingredient_text"] for row in self.cursor.fetchall()]
+
+            # Get instructions
+            instructions_sql = """
+            SELECT instruction_text 
+            FROM recipe_instructions 
+            WHERE recipe_id = %s 
+            ORDER BY step_number
+            """
+            self.cursor.execute(instructions_sql, (recipe_id,))
+            instructions = [row["instruction_text"] for row in self.cursor.fetchall()]
+
+            recipe_data["ingredients"] = ingredients
+            recipe_data["instructions"] = instructions
+
+            return recipe_data
+
+        except Exception as e:
+            raise Exception(f"Failed to get recipe: {e!s}") from e

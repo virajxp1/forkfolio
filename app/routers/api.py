@@ -1,6 +1,6 @@
 from typing import Union
 
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app.core.config import settings
 from app.core.dependencies import (
@@ -9,6 +9,7 @@ from app.core.dependencies import (
 )
 from app.schemas.ingest import RecipeIngestionRequest
 from app.schemas.recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
+from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 from app.services.recipe_processing_service import RecipeProcessingService
@@ -98,3 +99,29 @@ def process_and_store_recipe(
         "success": True,
         "message": "Recipe processed and stored successfully",
     }
+
+
+@router.get("/recipe/{recipe_id}")
+def get_recipe(recipe_id: str) -> dict:
+    """
+    Get a complete recipe by its UUID.
+
+    Returns the recipe with all ingredients and instructions,
+    or 404 if the recipe is not found.
+    """
+    recipe_manager = RecipeManager()
+
+    try:
+        recipe_data = recipe_manager.get_full_recipe(recipe_id)
+
+        if not recipe_data:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+
+        return {"recipe": recipe_data, "success": True}
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, detail=f"Error retrieving recipe: {e!s}"
+        ) from e
+    finally:
+        recipe_manager.close()
