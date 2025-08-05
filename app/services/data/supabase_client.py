@@ -30,8 +30,11 @@ def init_connection_pool():
                 "SUPABASE_PASSWORD or DATABASE_URL environment variable is required"
             )
 
-        # Fallback to component-based URL for backward compatibility
-        database_url = f"postgresql://postgres:{password}@db.ddrjsrzmbnovwqnstnvo.supabase.co:6543/postgres"
+        # Use configurable host and port for different environments
+        db_host = os.getenv("DATABASE_HOST", "db.ddrjsrzmbnovwqnstnvo.supabase.co")
+        db_port = os.getenv("DATABASE_PORT", "6543")
+
+        database_url = f"postgresql://postgres:{password}@{db_host}:{db_port}/postgres"
 
     try:
         _connection_pool = psycopg2.pool.ThreadedConnectionPool(
