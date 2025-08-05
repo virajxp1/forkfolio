@@ -21,10 +21,26 @@ jobs:
     
     - name: Configure Supabase IP allowlist
       run: |
-        # Add current runner IP to Supabase allowlist
+        # Add ONLY the current runner IP using official Management API
         RUNNER_IP=$(curl -s https://ipinfo.io/ip)
         echo "Runner IP: $RUNNER_IP"
-        supabase network-restrictions --project-ref $SUPABASE_PROJECT_ID update --db-allow-cidr "${RUNNER_IP}/32"
+        
+        # Get current network restrictions
+        echo "Getting current restrictions..."
+        CURRENT_RESTRICTIONS=$(curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+          "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/network-restrictions")
+        echo "Current: $CURRENT_RESTRICTIONS"
+        
+        # Add runner IP to allowlist using official API
+        echo "Adding runner IP to allowlist..."
+        curl -X PUT "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/network-restrictions" \
+          -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "{
+            \"allowed_cidrs\": [\"${RUNNER_IP}/32\"]
+          }"
+        
+        echo "✅ Runner IP ${RUNNER_IP}/32 added to allowlist"
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
