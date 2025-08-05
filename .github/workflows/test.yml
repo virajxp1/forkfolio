@@ -14,49 +14,14 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Configure Supabase IP allowlist FIRST
-      run: |
-        # Add ONLY the current runner IP using official Management API
-        RUNNER_IP=$(curl -s https://ipinfo.io/ip)
-        echo "🔍 Runner IP: $RUNNER_IP"
-        
-        # Get current network restrictions
-        echo "🔍 Getting current restrictions..."
-        CURRENT_RESTRICTIONS=$(curl -s -w "HTTP_CODE:%{http_code}" -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-          "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/network-restrictions")
-        echo "🔍 Current restrictions response: $CURRENT_RESTRICTIONS"
-        
-        # Add runner IP to allowlist using official API
-        echo "🔍 Adding runner IP to allowlist..."
-        API_RESPONSE=$(curl -s -w "HTTP_CODE:%{http_code}" -X PUT "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/network-restrictions" \
-          -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-          -H "Content-Type: application/json" \
-          -d "{
-            \"allowed_cidrs\": [\"${RUNNER_IP}/32\"]
-          }")
-        
-        echo "🔍 API Response: $API_RESPONSE"
-        
-        # Check if API call was successful
-        if [[ $API_RESPONSE == *"HTTP_CODE:200"* ]] || [[ $API_RESPONSE == *"HTTP_CODE:204"* ]]; then
-          echo "✅ Successfully added runner IP ${RUNNER_IP}/32 to allowlist"
-        else
-          echo "❌ Failed to add IP to allowlist. Response: $API_RESPONSE"
-          echo "⚠️  Continuing anyway - tests may fail"
-        fi
-        
-        # Wait for changes to propagate
-        echo "⏳ Waiting 10 seconds for network changes to propagate..."
-        sleep 10
-        
-        # Verify the change
-        echo "🔍 Verifying network restrictions..."
-        FINAL_RESTRICTIONS=$(curl -s -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-          "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/network-restrictions")
-        echo "🔍 Final restrictions: $FINAL_RESTRICTIONS"
+    - name: Allow CI IP in Supabase
+      uses: supabase/setup-cli@v1
+      with:
+        version: latest
       env:
         SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
+        PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
     
     - name: Set up Python
       uses: actions/setup-python@v4
