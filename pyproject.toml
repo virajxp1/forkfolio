@@ -47,21 +47,9 @@ max-complexity = 10
 [tool.ruff.lint.isort]
 known-third-party = []
 
-# Black configuration
-[tool.black]
-target-version = ['py311']
-line-length = 88
-include = '\.pyi?$'
-extend-exclude = '''
-/(
-  # directories
-  \.eggs
-  | \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | build
-  | dist
-)/
-'''
+# Ruff formatting configuration
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"

@@ -58,9 +58,13 @@ class APIClient:
         # Don't raise for status - let tests handle different status codes
         return {
             "status_code": response.status_code,
-            "data": response.json()
-            if response.headers.get("content-type", "").startswith("application/json")
-            else None,
+            "data": (
+                response.json()
+                if response.headers.get("content-type", "").startswith(
+                    "application/json"
+                )
+                else None
+            ),
             "text": response.text,
         }
 
