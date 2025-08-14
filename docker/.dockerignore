@@ -66,8 +66,8 @@ docs/
 README*
 
 # Docker
-Dockerfile*
-docker-compose*
+docker/Dockerfile
+docker/docker-compose.yml
 .dockerignore
 
 # Misc

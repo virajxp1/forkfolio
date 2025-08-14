@@ -10,8 +10,8 @@ from app.core.dependencies import (
     get_recipe_processing_service,
 )
 from app.core.logging import get_logger
-from app.schemas.ingest import RecipeIngestionRequest
-from app.schemas.recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
+from app.api.schemas import RecipeIngestionRequest
+from app.api.schemas import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
 from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.data.supabase_client import get_db_context, get_pool_status
 from app.services.recipe_extractor_impl import RecipeExtractorImpl

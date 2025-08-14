@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional
 
-from app.schemas.recipe import Recipe
+from app.api.schemas import Recipe
 
 
 class RecipeExtractorService(ABC):

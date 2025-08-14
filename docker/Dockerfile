@@ -9,7 +9,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Copy requirements
-COPY requirements.txt .
+COPY ../requirements.txt .
 
 # Install dependencies 
 RUN pip install -r requirements.txt
@@ -18,7 +18,7 @@ RUN pip install -r requirements.txt
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 # Copy application code
-COPY --chown=appuser:appuser . .
+COPY --chown=appuser:appuser .. .
 
 USER appuser
 

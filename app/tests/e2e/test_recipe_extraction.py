@@ -11,7 +11,7 @@ import pytest
 import requests
 from pydantic import ValidationError
 
-from app.schemas.recipe import Recipe
+from app.api.schemas import Recipe
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
