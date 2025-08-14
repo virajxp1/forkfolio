@@ -33,8 +33,3 @@ jobs:
         # Verify code format
         ruff format --check .
         
-    - name: Type checking with mypy (if enabled)
-      run: |
-        # Add mypy type checking if you want it
-        # mypy app/
-      continue-on-error: true  # Allow this to fail without breaking the workflow

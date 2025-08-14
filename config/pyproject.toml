@@ -1,6 +1,6 @@
 [tool.ruff]
-# Assume Python 3.9
-target-version = "py39"
+# Assume Python 3.11
+target-version = "py311"
 
 # Exclude a variety of commonly ignored directories.
 exclude = [
