@@ -34,7 +34,9 @@ def init_connection_pool() -> None:
     cfg = _load_config()
     password = os.getenv("SUPABASE_PASSWORD") or os.getenv("DB_PASSWORD")
     if not password:
-        raise ValueError("SUPABASE_PASSWORD (or DB_PASSWORD) must be set in the environment")
+        raise ValueError(
+            "SUPABASE_PASSWORD (or DB_PASSWORD) must be set in the environment"
+        )
 
     host = cfg.get("database", "host")
     port = int(cfg.get("database", "port", fallback="5432"))
