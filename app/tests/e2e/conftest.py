@@ -28,7 +28,7 @@ class ServerManager:
     def start_server(self, port: int, project_root: str) -> None:
         """Start the test server."""
         self.process = subprocess.Popen(
-            [sys.executable, "start_test_server.py", str(port)],
+            [sys.executable, "scripts/start_test_server.py", str(port)],
             cwd=project_root,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

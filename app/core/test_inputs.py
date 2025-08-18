@@ -1,5 +1,5 @@
 # Sample Recipe for testing
-from app.schemas import RecipeCleanupRequest
+from app.api.schemas import RecipeCleanupRequest
 
 BRUSCHETTA_RECIPE = """
 Bruschetta Recipe

@@ -2,7 +2,7 @@ import uuid
 from typing import Optional
 
 from app.core.exceptions import DatabaseError
-from app.schemas.recipe import Recipe
+from app.api.schemas import Recipe
 
 from .base import BaseManager
 

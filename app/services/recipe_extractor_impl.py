@@ -2,7 +2,7 @@ import logging
 from typing import Optional
 
 from app.core.prompts import RECIPE_EXTRACTION_SYSTEM_PROMPT
-from app.schemas.recipe import Recipe
+from app.api.schemas import Recipe
 from app.services.llm_generation_service import (
     make_llm_call_structured_output_generic,
 )

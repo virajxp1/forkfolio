@@ -60,15 +60,9 @@ coverage.xml
 *.cover
 .hypothesis/
 
-# Documentation
+# Documentation (keep README.md for production reference)
 docs/
-*.md
-README*
 
-# Docker
-Dockerfile*
-docker-compose*
-.dockerignore
 
 # Misc
 .ruff_cache/

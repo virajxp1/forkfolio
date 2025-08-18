@@ -1,13 +1,15 @@
 # ForkFolio 🍽️
 
-A production-ready recipe management API that transforms raw recipe text into structured, searchable data.
+A production-ready recipe management API that transforms raw recipe text into structured, searchable data using AI-powered processing pipelines.
 
 **Key Features:**
 - 🤖 AI-powered recipe extraction from messy text/HTML
-- 🗄️ Structured database storage with PostgreSQL
+- 🗄️ Structured database storage with PostgreSQL (Supabase)
 - 🔄 Complete processing pipeline with error handling
 - 📊 Health monitoring and observability  
 - 🚀 Production-ready architecture with connection pooling
+- 🐳 Containerized deployment with Docker
+- 🧪 Comprehensive testing with GitHub Actions CI/CD
 
 V0 design docs:
 https://docs.google.com/document/d/1rZlcXuCXt82Ffm7Lrw6L8zqdgDa_wjvsGm_BX-Xw4iI/edit?tab=t.0#heading=h.b8v2kld0jwk5
@@ -15,41 +17,86 @@ https://docs.google.com/document/d/1rZlcXuCXt82Ffm7Lrw6L8zqdgDa_wjvsGm_BX-Xw4iI/
 ## Quick Start
 
 ### Prerequisites
-- Python 3.9+
+- Python 3.11+ (recommended)
 - PostgreSQL database (Supabase)
+- OpenRouter API key for LLM access
 - Environment variables configured in `.env`
 
 ### Setup
+
+**Option 1: Local Development**
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd forkfolio
 
+# Create virtual environment (recommended)
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+
 # Install dependencies
 pip install -r requirements.txt
 
 # Configure environment variables
-cp .env.example .env
-# Edit .env with your database credentials
+# Create .env file with required variables (see Environment Configuration below)
+```
+
+**Option 2: Docker Development**
+```bash
+# Clone the repository
+git clone <repository-url>
+cd forkfolio
+
+# Configure environment variables in .env file
+
+# Build and run with Docker Compose
+docker-compose up --build
+```
+
+## Environment Configuration
+
+Create a `.env` file in the project root with the following variables:
+
+```bash
+# Database Configuration (Required)
+SUPABASE_PASSWORD=your_supabase_password
+SUPABASE_PROJECT_ID=your_project_id
+SUPABASE_API_KEY=your_supabase_api_key
+SUPABASE_ACCESS_TOKEN=your_access_token
+
+# AI Service Configuration (Required)
+OPEN_ROUTER_API_KEY=your_openrouter_api_key
+
+# Optional Database Configuration
+DATABASE_HOST=db.your-project.supabase.co  # Default uses project ID
+DATABASE_PORT=5432  # Default port
+DATABASE_URL=postgresql://...  # Alternative: full connection string
 ```
 
 ## Running the Application
 
-Run the application with:
-
+**Local Development:**
 ```bash
-python run.py
+# Using the runner script (recommended)
+python scripts/run.py
+
+# Or using uvicorn directly
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-Or use uvicorn directly:
-
+**Docker:**
 ```bash
-uvicorn app.main:app --reload
+# Using Docker Compose (recommended)
+docker-compose -f docker/docker-compose.yml up
+
+# Or build and run manually
+docker build -f docker/Dockerfile -t forkfolio .
+docker run -p 8000:8000 --env-file .env forkfolio
 ```
 
-The API will be available at http://localhost:8000
-
-API documentation is available at:
+**Access Points:**
+- API Server: http://localhost:8000
+- Health Check: http://localhost:8000/health
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
@@ -74,69 +121,206 @@ curl -X POST "http://localhost:8000/api/v1/process-and-store-recipe" \
 
 For detailed information about the recipe processing flow, see [docs/recipe-processing-flow.md](docs/recipe-processing-flow.md).
 
+## Technology Stack
+
+**Backend Framework:**
+- **FastAPI** - Modern, fast web framework for building APIs
+- **Uvicorn** - ASGI web server implementation
+- **Pydantic** - Data validation using Python type annotations
+- **Python 3.11+** - Latest stable Python version
+
+**Database & Connection Management:**
+- **PostgreSQL** - Primary database (via Supabase)
+- **psycopg2** - PostgreSQL adapter for Python
+- **Connection Pooling** - ThreadedConnectionPool (2-20 connections)
+- **Supabase** - Database-as-a-Service with built-in APIs
+
+**AI & Processing:**
+- **OpenRouter API** - LLM access for recipe extraction
+- **Custom Processing Pipeline** - Multi-stage recipe parsing
+
+**Testing & Quality:**
+- **pytest** - Testing framework with async support
+- **Ruff** - Fast Python linter and formatter
+- **pre-commit** - Git hooks for code quality
+- **GitHub Actions** - CI/CD pipeline
+
+**Deployment & Infrastructure:**
+- **Docker** - Containerization with multi-stage builds
+- **Docker Compose** - Local development orchestration
+- **Health Checks** - Built-in monitoring endpoints
+
 ## Development
 
-Project Structure:
-The project is structured as a FastAPI application with the following components:
+### Project Structure
+The application follows a clean architecture pattern with clear separation of concerns:
 
 ```
 forkfolio/
 ├── app/                    # Main application package
-│   ├── core/               # Core functionality
-│   │   ├── config.py       # Application settings
-│   │   ├── dependencies.py # Dependency injection providers
+│   ├── core/               # Core functionality & configuration
+│   │   ├── config.py       # Application settings & environment variables
+│   │   ├── dependencies.py # FastAPI dependency injection providers
 │   │   ├── exceptions.py   # Custom exception hierarchy  
-│   │   └── logging.py      # Logging configuration
-│   ├── routers/            # API routes
+│   │   ├── logging.py      # Structured logging configuration
+│   │   ├── prompts.py      # LLM prompts for recipe processing
+│   │   └── test_*.py       # Core testing utilities
+│   ├── routers/            # FastAPI route handlers
 │   │   └── api.py          # Main API router with all endpoints
-│   ├── schemas/            # Pydantic models (request/response schemas)
-│   ├── services/           # Business logic
+│   ├── schemas/            # Pydantic models for request/response validation
+│   │   ├── recipe.py       # Recipe data models
+│   │   ├── ingest.py       # Input processing schemas
+│   │   └── location_info.py # Location-based data models
+│   ├── services/           # Business logic layer
 │   │   ├── data/           # Data access layer
-│   │   │   ├── managers/   # Database managers with context management
+│   │   │   ├── managers/   # Database managers with transaction handling
+│   │   │   │   ├── base.py # Base database manager
+│   │   │   │   └── recipe_manager.py # Recipe-specific database operations
 │   │   │   └── supabase_client.py  # Connection pooling & transactions
-│   │   ├── recipe_extractor_impl.py     # AI recipe extraction
-│   │   ├── recipe_input_cleanup_impl.py # Input sanitization
-│   │   └── recipe_processing_service.py # Main processing pipeline
-│   └── tests/              # Test files
-├── docs/                   # Documentation
-├── .env                    # Environment variables (not in repo)
+│   │   ├── llm_generation_service.py   # LLM service abstraction
+│   │   ├── recipe_extractor*.py        # AI-powered recipe extraction
+│   │   ├── recipe_input_cleanup*.py    # Input sanitization & preprocessing
+│   │   └── recipe_processing_service.py # Main orchestration pipeline
+│   ├── tests/              # Test suite
+│   │   ├── e2e/            # End-to-end integration tests
+│   │   └── test_runner.py  # Test execution script
+│   └── main.py             # FastAPI application factory
+├── .github/workflows/      # GitHub Actions CI/CD
+│   ├── test.yml            # Test automation with Supabase connectivity
+│   └── lint.yml            # Code quality checks
+├── config/                 # Configuration files
+│   ├── .pre-commit-config.yaml # Pre-commit hooks configuration
+│   ├── pyproject.toml      # Python project configuration
+│   └── pytest.ini         # Test configuration
+├── docker/                 # Docker-related files
+│   ├── Dockerfile          # Multi-stage Docker build
+│   ├── docker-compose.yml  # Local development orchestration
+│   └── .dockerignore       # Docker ignore patterns
+├── docs/                   # Project documentation
+├── scripts/                # Executable scripts
+│   ├── lint.sh             # Local linting script
+│   ├── run.py              # Application runner script
+│   └── start_test_server.py # Test server startup script
+├── .pre-commit-config.yaml # Pre-commit hooks (symlink to config/)
 ├── requirements.txt        # Python dependencies
-└── run.py                  # Application runner script
+└── .env                    # Environment variables (gitignored)
 ```
 
 ## Architecture Highlights
 
 ### 🏗️ **Production-Ready Infrastructure**
-- **Connection Pooling**: ThreadedConnectionPool (2-20 connections) for optimal database performance
+- **Connection Pooling**: ThreadedConnectionPool (2-20 connections) with automatic failover
+- **Smart Database Routing**: Session Pooler support for GitHub Actions IPv4 compatibility  
 - **Context Managers**: Automatic transaction handling with rollback/commit
 - **Custom Exceptions**: Hierarchical error handling with proper exception chaining
 - **Dependency Injection**: Clean FastAPI integration with typed providers
-- **Health Monitoring**: `/api/v1/health` endpoint with database connectivity checks
+- **Health Monitoring**: Built-in health checks with database connectivity validation
+- **Graceful Shutdown**: Proper resource cleanup on application termination
 
 ### 🔧 **Key Components**
-- **RecipeProcessingService**: Main business logic orchestrator
-- **RecipeManager**: Database operations with context management  
-- **Connection Pool**: Automatic resource management and cleanup
+- **RecipeProcessingService**: Main business logic orchestrator with error handling
+- **RecipeManager**: Database operations with transaction context management  
+- **Supabase Client**: Connection pool with automatic resource management
+- **LLM Generation Service**: Abstracted AI service integration (OpenRouter)
+- **Processing Pipeline**: Multi-stage recipe extraction with validation
 - **Logging System**: Structured logging with configurable levels
 - **Exception Hierarchy**: Custom errors for different failure modes
 
 ### 📡 **API Endpoints**
 - `POST /api/v1/process-and-store-recipe` - Complete recipe processing pipeline
-- `GET /api/v1/recipe/{recipe_id}` - Retrieve recipe with ingredients/instructions
+- `GET /api/v1/recipe/{recipe_id}` - Retrieve recipe with ingredients/instructions  
 - `GET /api/v1/health` - Health check with database connectivity
-- `GET /docs` - Interactive API documentation
+- `GET /health` - Simple health check endpoint
+- `GET /docs` - Interactive Swagger API documentation
+- `GET /redoc` - Alternative API documentation format
+
+### 🧪 **Testing Strategy**
+- **End-to-End Tests**: Complete pipeline testing with real database connections
+- **GitHub Actions CI**: Automated testing on push/PR with IPv4 Supabase compatibility
+- **Linting Pipeline**: Ruff-based code formatting and quality checks
+- **Pre-commit Hooks**: Automated code quality enforcement
+- **Docker Testing**: Containerized test environments
 
 ### 🗄️ **Database Schema**
 ```sql
--- Core recipe information
-recipes (id, title, servings, total_time, source_url, created_at, updated_at)
+-- Core recipe information with metadata
+recipes (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR NOT NULL,
+  servings INTEGER,
+  total_time VARCHAR,  -- e.g., "30 minutes", "1 hour"
+  source_url VARCHAR,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+)
 
--- Ordered ingredients list  
-recipe_ingredients (id, recipe_id, ingredient_text, order_index)
+-- Ordered ingredients list with flexible text storage
+recipe_ingredients (
+  id SERIAL PRIMARY KEY,
+  recipe_id INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+  ingredient_text VARCHAR NOT NULL,  -- e.g., "2 cups all-purpose flour"
+  order_index INTEGER NOT NULL
+)
 
--- Step-by-step instructions
-recipe_instructions (id, recipe_id, instruction_text, step_number)
+-- Step-by-step cooking instructions
+recipe_instructions (
+  id SERIAL PRIMARY KEY,
+  recipe_id INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+  instruction_text TEXT NOT NULL,
+  step_number INTEGER NOT NULL
+)
 
--- Vector embeddings for similarity search (future)
-recipe_embeddings (id, recipe_id, embedding_type, embedding, created_at)
+-- Future: Vector embeddings for similarity search and recommendations
+recipe_embeddings (
+  id SERIAL PRIMARY KEY,
+  recipe_id INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+  embedding_type VARCHAR NOT NULL,  -- e.g., "ingredient", "instruction"
+  embedding VECTOR,  -- Vector representation for ML features
+  created_at TIMESTAMP DEFAULT NOW()
+)
 ```
+
+## Local Development Commands
+
+```bash
+# Code Quality
+scripts/lint.sh                     # Run Ruff linter and formatter
+pre-commit install                  # Install pre-commit hooks
+pre-commit run --all-files          # Run hooks on all files
+
+# Testing
+python app/tests/test_runner.py     # Run end-to-end tests
+pytest app/tests/ -v               # Run specific test suites
+
+# Database
+# Health check includes database connectivity test
+curl http://localhost:8000/health
+
+# Development Server
+python scripts/run.py               # Start development server
+# or
+uvicorn app.main:app --reload       # Alternative server startup
+```
+
+## Deployment
+
+**Docker Production:**
+```bash
+# Build production image
+docker build -f docker/Dockerfile -t forkfolio:latest .
+
+# Run with environment variables
+docker run -d \
+  --name forkfolio \
+  -p 8000:8000 \
+  --env-file .env \
+  --restart unless-stopped \
+  forkfolio:latest
+```
+
+**Environment-Specific Configuration:**
+- Local: Direct Supabase connection
+- GitHub Actions: Session Pooler (IPv4 compatibility)  
+- Production: Configurable via `DATABASE_URL` or component variables
+
+The application automatically detects Session Pooler usage and adjusts connection parameters accordingly.

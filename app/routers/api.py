@@ -10,13 +10,9 @@ from app.core.dependencies import (
     get_recipe_processing_service,
 )
 from app.core.logging import get_logger
-from app.schemas.ingest import RecipeIngestionRequest
-from app.schemas.recipe import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
-from app.services.data.managers.recipe_manager import RecipeManager
+from app.api.schemas import RecipeIngestionRequest
+from app.api.schemas import Recipe, RecipeCleanupRequest, RecipeCleanupResponse
 from app.services.data.supabase_client import get_db_context, get_pool_status
-from app.services.recipe_extractor_impl import RecipeExtractorImpl
-from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
-from app.services.recipe_processing_service import RecipeProcessingService
 
 router = APIRouter(prefix=settings.API_V1_STR)
 logger = get_logger(__name__)
@@ -39,7 +35,7 @@ def root():
 @router.post("/ingest-raw-recipe")
 def ingest_raw_recipe(
     ingestion_input_request: RecipeIngestionRequest = RECIPE_BODY,
-    recipe_extractor: RecipeExtractorImpl = recipe_extractor_dep,
+    recipe_extractor=recipe_extractor_dep,
 ) -> Union[Recipe, dict]:
     """
     Extract structured recipe data from raw text input.
@@ -61,7 +57,7 @@ def ingest_raw_recipe(
 @router.post("/cleanup-raw-recipe", response_model=RecipeCleanupResponse)
 def recipe_cleanup(
     cleanup_request: RecipeCleanupRequest = CLEANUP_BODY,
-    recipe_cleanup_service: RecipeInputCleanupServiceImpl = recipe_cleanup_service_dep,
+    recipe_cleanup_service=recipe_cleanup_service_dep,
 ) -> RecipeCleanupResponse:
     """
     Clean up messy recipe input data (HTML, scraped content, etc.)
@@ -80,7 +76,7 @@ def recipe_cleanup(
 @router.post("/process-and-store-recipe")
 def process_and_store_recipe(
     ingestion_request: RecipeIngestionRequest = RECIPE_BODY,
-    processing_service: RecipeProcessingService = recipe_processing_service_dep,
+    processing_service=recipe_processing_service_dep,
 ) -> dict:
     """
     Complete recipe processing pipeline:
@@ -108,9 +104,7 @@ def process_and_store_recipe(
 
 
 @router.get("/recipe/{recipe_id}")
-def get_recipe(
-    recipe_id: str, recipe_manager: RecipeManager = recipe_manager_dep
-) -> dict:
+def get_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
     """
     Get a complete recipe by its UUID.
 
