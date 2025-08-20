@@ -45,4 +45,11 @@ def get_recipe_processing_service() -> RecipeProcessingService:
     Returns:
         RecipeProcessingService instance
     """
-    return RecipeProcessingService()
+    cleanup_service = get_recipe_cleanup_service()
+    extractor_service = get_recipe_extractor()
+    recipe_manager = get_recipe_manager()
+    return RecipeProcessingService(
+        cleanup_service=cleanup_service,
+        extractor_service=extractor_service,
+        recipe_manager=recipe_manager,
+    )
