@@ -3,6 +3,8 @@ Dependency injection providers for the application.
 """
 
 from app.services.data.managers.recipe_manager import RecipeManager
+from app.services.recipe_extractor import RecipeExtractorService
+from app.services.recipe_input_cleanup import RecipeInputCleanup
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 from app.services.recipe_processing_service import RecipeProcessingService
@@ -45,4 +47,11 @@ def get_recipe_processing_service() -> RecipeProcessingService:
     Returns:
         RecipeProcessingService instance
     """
-    return RecipeProcessingService()
+    cleanup_service = get_recipe_cleanup_service()
+    extractor_service = get_recipe_extractor()
+    recipe_manager = get_recipe_manager()
+    return RecipeProcessingService(
+        cleanup_service=cleanup_service,
+        extractor_service=extractor_service,
+        recipe_manager=recipe_manager,
+    )

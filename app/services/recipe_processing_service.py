@@ -18,10 +18,15 @@ class RecipeProcessingService:
     4. Return database ID
     """
 
-    def __init__(self):
-        self.cleanup_service = RecipeInputCleanupServiceImpl()
-        self.extractor_service = RecipeExtractorImpl()
-        self.recipe_manager = RecipeManager()
+    def __init__(
+        self,
+        cleanup_service: 'RecipeInputCleanup' = None,
+        extractor_service: 'RecipeExtractorService' = None,
+        recipe_manager: 'RecipeManager' = None,
+    ):
+        self.cleanup_service = cleanup_service or RecipeInputCleanupServiceImpl()
+        self.extractor_service = extractor_service or RecipeExtractorImpl()
+        self.recipe_manager = recipe_manager or RecipeManager()
 
     def process_raw_recipe(
         self, raw_input: str, source_url: Optional[str] = None
