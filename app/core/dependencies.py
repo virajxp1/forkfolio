@@ -3,8 +3,6 @@ Dependency injection providers for the application.
 """
 
 from app.services.data.managers.recipe_manager import RecipeManager
-from app.services.recipe_extractor import RecipeExtractorService
-from app.services.recipe_input_cleanup import RecipeInputCleanup
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 from app.services.recipe_processing_service import RecipeProcessingService
