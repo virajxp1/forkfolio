@@ -2,6 +2,8 @@ from typing import Optional
 
 from app.core.logging import get_logger
 from app.api.schemas import Recipe
+from app.services.recipe_input_cleanup import RecipeInputCleanup
+from app.services.recipe_extractor import RecipeExtractorService
 from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
@@ -18,10 +20,15 @@ class RecipeProcessingService:
     4. Return database ID
     """
 
-    def __init__(self):
-        self.cleanup_service = RecipeInputCleanupServiceImpl()
-        self.extractor_service = RecipeExtractorImpl()
-        self.recipe_manager = RecipeManager()
+    def __init__(
+        self,
+        cleanup_service: RecipeInputCleanup = None,
+        extractor_service: RecipeExtractorService = None,
+        recipe_manager: RecipeManager = None,
+    ):
+        self.cleanup_service = cleanup_service or RecipeInputCleanupServiceImpl()
+        self.extractor_service = extractor_service or RecipeExtractorImpl()
+        self.recipe_manager = recipe_manager or RecipeManager()
 
     def process_raw_recipe(
         self, raw_input: str, source_url: Optional[str] = None
