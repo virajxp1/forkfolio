@@ -13,8 +13,8 @@ from typing import Optional
 import pytest
 import requests
 
-# Constants
-HTTP_OK = 200
+from app.tests.utils.constants import HTTP_OK
+
 DEFAULT_PORT = 8000
 MAX_RETRIES = 30
 

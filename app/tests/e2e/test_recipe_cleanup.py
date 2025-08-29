@@ -3,22 +3,18 @@ E2E tests for recipe cleanup endpoint.
 """
 
 import json
-import logging
 import os
 
 import pytest
 import requests
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Constants
-HTTP_OK = 200
-HTTP_INTERNAL_SERVER_ERROR = 500
-HTTP_UNPROCESSABLE_ENTITY = 422
-REQUEST_TIMEOUT = 30
-DEBUG_TEXT_LENGTH = 100
+from app.tests.utils.constants import (
+    HTTP_OK,
+    HTTP_INTERNAL_SERVER_ERROR,
+    HTTP_UNPROCESSABLE_ENTITY,
+    REQUEST_TIMEOUT,
+)
+from app.tests.utils.helpers import truncate_debug_text
 
 
 def load_cleanup_test_cases():
@@ -55,18 +51,12 @@ class TestRecipeCleanup:
 
         # Debug Output (always show for failed tests)
         print(f"\n=== Test: {test_case['name']} ===")
-        truncated_input = raw_text[:DEBUG_TEXT_LENGTH]
-        if len(raw_text) > DEBUG_TEXT_LENGTH:
-            truncated_input += "..."
-        print(f"Input: {truncated_input}")
+        print(f"Input: {truncate_debug_text(raw_text)}")
         print(f"Status: {response.status_code}")
         if response.status_code == HTTP_OK:
             data = response.json()
             cleaned_text = data.get("cleaned_text", "No cleaned_text")
-            truncated_cleaned = cleaned_text[:DEBUG_TEXT_LENGTH]
-            if len(cleaned_text) > DEBUG_TEXT_LENGTH:
-                truncated_cleaned += "..."
-            print(f"Cleaned: {truncated_cleaned}")
+            print(f"Cleaned: {truncate_debug_text(cleaned_text)}")
         else:
             print(f"Error: {response.text}")
 
