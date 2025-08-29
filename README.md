@@ -289,8 +289,9 @@ pre-commit install                  # Install pre-commit hooks
 pre-commit run --all-files          # Run hooks on all files
 
 # Testing
-python app/tests/test_runner.py     # Run end-to-end tests
-pytest app/tests/ -v               # Run specific test suites
+python -m pytest app/tests/e2e/ -v  # Run E2E tests (recommended)
+python -m pytest app/tests/ -v      # Run all tests
+python app/tests/test_runner.py     # Run using test runner wrapper
 
 # Database
 # Health check includes database connectivity test

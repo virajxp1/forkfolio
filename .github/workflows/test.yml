@@ -37,7 +37,7 @@ jobs:
     
     - name: Run E2E tests
       run: |
-        python app/tests/test_runner.py
+        python -m pytest app/tests/e2e/ -v
       env:
         # Use IPv4-compatible Session Pooler for GitHub Actions
         DATABASE_HOST: aws-0-us-west-1.pooler.supabase.com
