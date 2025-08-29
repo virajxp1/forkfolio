@@ -15,6 +15,7 @@ from app.tests.utils.constants import (
     REQUEST_TIMEOUT,
 )
 from app.tests.utils.helpers import truncate_debug_text
+from app.tests.clients.api_client import APIClient
 
 
 def load_cleanup_test_cases():
@@ -31,50 +32,42 @@ class TestRecipeCleanup:
         "test_case",
         [pytest.param(case, id=case["name"]) for case in load_cleanup_test_cases()],
     )
-    def test_cleanup_from_json(self, server: str, test_case: dict) -> None:
+    def test_cleanup_from_json(self, api_client: APIClient, test_case: dict) -> None:
         """Test cleanup for all cases defined in cleanup_test_cases.json."""
         # Input
         input_data = test_case["input"]
         raw_text = input_data["raw_text"]
 
-        # API Call
-        request_json = {"raw_text": raw_text}
-        if "source_url" in input_data:
-            request_json["source_url"] = input_data["source_url"]
-
-        response = requests.post(
-            f"{server}/api/v1/cleanup-raw-recipe",
-            json=request_json,
-            headers={"Content-Type": "application/json"},
-            timeout=REQUEST_TIMEOUT,
-        )
+        # API Call - use the recipe utilities client for cleanup
+        source_url = input_data.get("source_url")
+        response = api_client.recipe_utilities.cleanup_recipe(raw_text, source_url)
 
         # Debug Output (always show for failed tests)
         print(f"\n=== Test: {test_case['name']} ===")
         print(f"Input: {truncate_debug_text(raw_text)}")
-        print(f"Status: {response.status_code}")
-        if response.status_code == HTTP_OK:
-            data = response.json()
+        print(f"Status: {response['status_code']}")
+        if response["status_code"] == HTTP_OK:
+            data = response["data"]
             cleaned_text = data.get("cleaned_text", "No cleaned_text")
             print(f"Cleaned: {truncate_debug_text(cleaned_text)}")
         else:
-            print(f"Error: {response.text}")
+            print(f"Error: {response['text']}")
 
         # Assertions
         # Handle edge cases that might fail
         if test_case.get("expect_short_output", False):
-            assert response.status_code in [HTTP_OK, HTTP_INTERNAL_SERVER_ERROR], (
+            assert response["status_code"] in [HTTP_OK, HTTP_INTERNAL_SERVER_ERROR], (
                 f"Expected {HTTP_OK} or {HTTP_INTERNAL_SERVER_ERROR} for edge case, "
-                f"got {response.status_code}"
+                f"got {response['status_code']}"
             )
             return
 
         # Expecting successful cleanup
-        assert response.status_code == HTTP_OK, (
-            f"Expected {HTTP_OK} but got {response.status_code}: {response.text}"
+        assert response["status_code"] == HTTP_OK, (
+            f"Expected {HTTP_OK} but got {response['status_code']}: {response['text']}"
         )
 
-        data = response.json()
+        data = response["data"]
         assert "cleaned_text" in data, f"Response missing 'cleaned_text' field: {data}"
         cleaned_text = data["cleaned_text"]
 
@@ -99,11 +92,14 @@ class TestRecipeCleanup:
                 f"Got: {data.get('source_url')}"
             )
 
-    def test_cleanup_validation_error(self, server: str) -> None:
+    def test_cleanup_validation_error(self, api_client: APIClient) -> None:
         """Test cleanup endpoint validation."""
+        # Make a raw POST request with invalid JSON to test validation
+        from app.core.config import settings
+
         response = requests.post(
-            f"{server}/api/v1/cleanup-raw-recipe",
-            json={},
+            f"{api_client.base_url}{settings.API_V1_STR}/cleanup",
+            json={},  # Missing required raw_text field
             timeout=REQUEST_TIMEOUT,
         )
         assert response.status_code == HTTP_UNPROCESSABLE_ENTITY

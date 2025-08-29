@@ -4,20 +4,18 @@ E2E tests for recipe extraction endpoint.
 
 import json
 import os
-from typing import Any
 
 import pytest
-import requests
 from pydantic import ValidationError
 
 from app.api.schemas import Recipe
 from app.tests.utils.constants import (
     HTTP_OK,
     HTTP_UNPROCESSABLE_ENTITY,
-    REQUEST_TIMEOUT,
 )
 from app.tests.utils.helpers import truncate_debug_text
 from app.tests.utils.assertions import assert_recipe_has_content
+from app.tests.clients.api_client import APIClient
 
 
 def load_test_cases():
@@ -25,44 +23,6 @@ def load_test_cases():
     test_cases_file = os.path.join(os.path.dirname(__file__), "test_cases.json")
     with open(test_cases_file) as f:
         return json.load(f)
-
-
-@pytest.fixture
-def api_client(server: str):
-    """Provide an API client for each test."""
-    return APIClient(server)
-
-
-class APIClient:
-    """Helper class for making API requests."""
-
-    def __init__(self, base_url: str):
-        self.base_url = base_url
-        self.endpoint = f"{base_url}/api/v1/ingest-raw-recipe"
-
-    def extract_recipe(self, input_text: str) -> dict[str, Any]:
-        """Make a request to the recipe extraction API."""
-        payload = {"raw_input": input_text}
-
-        response = requests.post(
-            self.endpoint,
-            json=payload,
-            headers={"Content-Type": "application/json"},
-            timeout=REQUEST_TIMEOUT,
-        )
-
-        # Don't raise for status - let tests handle different status codes
-        return {
-            "status_code": response.status_code,
-            "data": (
-                response.json()
-                if response.headers.get("content-type", "").startswith(
-                    "application/json"
-                )
-                else None
-            ),
-            "text": response.text,
-        }
 
 
 class TestRecipeExtraction:
@@ -80,8 +40,8 @@ class TestRecipeExtraction:
         expect_error = test_case.get("expect_error", False)
         allow_empty_result = test_case.get("allow_empty_result", False)
 
-        # API Call
-        response = api_client.extract_recipe(input_text)
+        # API Call - use the recipe utilities client for recipe extraction
+        response = api_client.recipe_utilities.extract_recipe(input_text)
 
         # Debug Output (always show for failed tests)
         print(f"\n=== Test: {test_case['name']} ===")
@@ -123,7 +83,7 @@ class TestRecipeExtraction:
         # Check for content using utility function
         assert_recipe_has_content(response_data, allow_empty=allow_empty_result)
 
-    def test_server_health(self, server: str) -> None:
+    def test_server_health(self, api_client: APIClient) -> None:
         """Test that the server is running and healthy."""
-        response = requests.get(f"{server}/api/v1/", timeout=5)
-        assert response.status_code == HTTP_OK
+        response = api_client.health.get_root()
+        assert response["status_code"] == HTTP_OK
