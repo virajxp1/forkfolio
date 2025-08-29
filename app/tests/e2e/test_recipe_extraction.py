@@ -3,7 +3,6 @@ E2E tests for recipe extraction endpoint.
 """
 
 import json
-import logging
 import os
 from typing import Any
 
@@ -12,16 +11,13 @@ import requests
 from pydantic import ValidationError
 
 from app.api.schemas import Recipe
-
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-# Constants
-HTTP_OK = 200
-HTTP_UNPROCESSABLE_ENTITY = 422
-REQUEST_TIMEOUT = 30
-DEBUG_TEXT_LENGTH = 100
+from app.tests.utils.constants import (
+    HTTP_OK,
+    HTTP_UNPROCESSABLE_ENTITY,
+    REQUEST_TIMEOUT,
+)
+from app.tests.utils.helpers import truncate_debug_text
+from app.tests.utils.assertions import assert_recipe_has_content
 
 
 def load_test_cases():
@@ -89,10 +85,7 @@ class TestRecipeExtraction:
 
         # Debug Output (always show for failed tests)
         print(f"\n=== Test: {test_case['name']} ===")
-        truncated_input = input_text[:DEBUG_TEXT_LENGTH]
-        if len(input_text) > DEBUG_TEXT_LENGTH:
-            truncated_input += "..."
-        print(f"Input: {truncated_input}")
+        print(f"Input: {truncate_debug_text(input_text)}")
         print(f"Status: {response['status_code']}")
         print(f"Response: {response.get('data', response.get('text', 'No data'))}")
 
@@ -127,16 +120,8 @@ class TestRecipeExtraction:
                 f"Response doesn't match Recipe model: {e}\nResponse: {response_data}"
             ) from e
 
-        # Check for content if not allowing empty results
-        if not allow_empty_result:
-            has_content = (
-                response_data["title"].strip() or len(response_data["ingredients"]) > 0
-            )
-            assert has_content, (
-                f"Recipe should have title or ingredients but got: "
-                f"title='{response_data['title']}', "
-                f"ingredients={response_data['ingredients']}"
-            )
+        # Check for content using utility function
+        assert_recipe_has_content(response_data, allow_empty=allow_empty_result)
 
     def test_server_health(self, server: str) -> None:
         """Test that the server is running and healthy."""
