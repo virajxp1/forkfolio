@@ -13,8 +13,10 @@ from typing import Optional
 import pytest
 import requests
 
-# Constants
-HTTP_OK = 200
+from app.tests.utils.constants import HTTP_OK
+from app.tests.clients.health_client import HealthClient
+from app.tests.clients.api_client import APIClient
+
 DEFAULT_PORT = 8000
 MAX_RETRIES = 30
 
@@ -89,11 +91,12 @@ def server() -> Generator[str, None, None]:
 
     # Wait for server to start
     base_url = f"http://localhost:{port}"
+    health_client = HealthClient(base_url)
     max_retries = MAX_RETRIES
     for _ in range(max_retries):
         try:
-            response = requests.get(f"{base_url}/api/v1/", timeout=1)
-            if response.status_code == HTTP_OK:
+            response = health_client.get_root()
+            if response["status_code"] == HTTP_OK:
                 break
         except requests.exceptions.RequestException:
             pass
@@ -113,3 +116,9 @@ def server() -> Generator[str, None, None]:
 
     # Cleanup
     server_manager.stop_server()
+
+
+@pytest.fixture
+def api_client(server: str):
+    """Provide a centralized API client for all E2E tests."""
+    return APIClient(server)
