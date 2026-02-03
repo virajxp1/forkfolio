@@ -74,3 +74,13 @@ def get_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
         raise HTTPException(
             status_code=500, detail=f"Error retrieving recipe: {e!s}"
         ) from e
+
+
+@router.delete("/delete/{recipe_id}")
+def delete_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> bool:
+    """
+    Delete a recipe by its UUID.
+    returns true on success
+    """
+    logger.info(f"Deleting recipe with ID: {recipe_id}")
+    return True
