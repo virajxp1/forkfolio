@@ -33,40 +33,51 @@ def test_process_and_store_from_json(api_client: APIClient, test_case: dict) -> 
     input_text = test_case["input_text"]
     expect_error = test_case.get("expect_error", False)
 
-    response = api_client.recipes.process_and_store_recipe(input_text)
-
-    # Debug Output (always show for failed tests)
-    print(f"\n=== Test: {test_case['name']} ===")
-    print(f"Input: {truncate_debug_text(input_text)}")
-    print(f"Status: {response['status_code']}")
-    print(f"Response: {response.get('data', response.get('text', 'No data'))}")
-
-    if expect_error:
-        if response["status_code"] == HTTP_UNPROCESSABLE_ENTITY:
-            return
-        if response["status_code"] == HTTP_OK and "error" in response["data"]:
-            return
-        raise AssertionError(f"Expected error but got status {response['status_code']}")
-
-    assert response["status_code"] == HTTP_OK, (
-        f"Expected 200 but got {response['status_code']}"
-    )
-
-    response_data = response["data"]
-    assert "error" not in response_data, (
-        f"Expected success but got error: {response_data.get('error')}"
-    )
-    assert response_data.get("success") is True
-
-    recipe_data = response_data.get("recipe")
-    assert recipe_data, "Expected recipe data in response"
-
+    recipe_id = None
     try:
-        Recipe.model_validate(recipe_data)
-    except ValidationError as e:
-        raise AssertionError(
-            f"Response recipe doesn't match Recipe model: {e}\nResponse: {recipe_data}"
-        ) from e
+        response = api_client.recipes.process_and_store_recipe(input_text)
+
+        # Debug Output (always show for failed tests)
+        print(f"\n=== Test: {test_case['name']} ===")
+        print(f"Input: {truncate_debug_text(input_text)}")
+        print(f"Status: {response['status_code']}")
+        print(f"Response: {response.get('data', response.get('text', 'No data'))}")
+
+        if expect_error:
+            if response["status_code"] == HTTP_UNPROCESSABLE_ENTITY:
+                return
+            if response["status_code"] == HTTP_OK and "error" in response["data"]:
+                return
+            raise AssertionError(
+                f"Expected error but got status {response['status_code']}"
+            )
+
+        assert response["status_code"] == HTTP_OK, (
+            f"Expected 200 but got {response['status_code']}"
+        )
+
+        response_data = response["data"]
+        assert "error" not in response_data, (
+            f"Expected success but got error: {response_data.get('error')}"
+        )
+        assert response_data.get("success") is True
+
+        recipe_id = response_data.get("recipe_id")
+        assert recipe_id
+
+        recipe_data = response_data.get("recipe")
+        assert recipe_data, "Expected recipe data in response"
+
+        try:
+            Recipe.model_validate(recipe_data)
+        except ValidationError as e:
+            raise AssertionError(
+                f"Response recipe doesn't match Recipe model: {e}\n"
+                f"Response: {recipe_data}"
+            ) from e
+    finally:
+        if recipe_id:
+            api_client.recipes.delete_recipe(recipe_id)
 
 
 def test_process_and_store_then_delete(api_client: APIClient) -> None:
