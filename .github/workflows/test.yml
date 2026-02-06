@@ -38,9 +38,9 @@ jobs:
     - name: Test IPv4 connectivity to Session Pooler
       run: |
         echo "Testing DNS resolution for Session Pooler (IPv4 compatible)..."
-        getent hosts aws-0-us-west-1.pooler.supabase.com
+        getent hosts aws-0-us-west-2.pooler.supabase.com
         echo "Testing port 5432 on Session Pooler..."
-        timeout 5 bash -c "</dev/tcp/aws-0-us-west-1.pooler.supabase.com/5432"
+        timeout 5 bash -c "</dev/tcp/aws-0-us-west-2.pooler.supabase.com/5432"
     
     - name: Set up Python
       uses: actions/setup-python@v4
