@@ -205,6 +205,66 @@ class RecipeManager(BaseManager):
         except Exception as e:
             raise DatabaseError(f"Failed to get recipe: {e!s}") from e
 
+    def get_full_recipe_with_embeddings(self, recipe_id: str) -> Optional[dict]:
+        """Get a complete recipe with ingredients, instructions, and embeddings."""
+        try:
+            with self.get_db_context() as (conn, cursor):
+                recipe_sql = "SELECT * FROM recipes WHERE id = %s"
+                cursor.execute(recipe_sql, (recipe_id,))
+                recipe = cursor.fetchone()
+
+                if not recipe:
+                    return None
+
+                recipe_data = dict(recipe)
+
+                ingredients_sql = """
+                SELECT ingredient_text 
+                FROM recipe_ingredients 
+                WHERE recipe_id = %s 
+                ORDER BY order_index
+                """
+                cursor.execute(ingredients_sql, (recipe_id,))
+                ingredients = [row["ingredient_text"] for row in cursor.fetchall()]
+
+                instructions_sql = """
+                SELECT instruction_text 
+                FROM recipe_instructions 
+                WHERE recipe_id = %s 
+                ORDER BY step_number
+                """
+                cursor.execute(instructions_sql, (recipe_id,))
+                instructions = [row["instruction_text"] for row in cursor.fetchall()]
+
+                embeddings_sql = """
+                SELECT id, embedding_type, embedding, created_at
+                FROM recipe_embeddings
+                WHERE recipe_id = %s
+                ORDER BY created_at
+                """
+                cursor.execute(embeddings_sql, (recipe_id,))
+                embeddings = [dict(row) for row in cursor.fetchall()]
+                for embedding in embeddings:
+                    embedding_vector = embedding.get("embedding")
+                    if embedding_vector is None:
+                        continue
+                    if hasattr(embedding_vector, "tolist"):
+                        embedding["embedding"] = embedding_vector.tolist()
+                    else:
+                        try:
+                            embedding["embedding"] = list(embedding_vector)
+                        except TypeError:
+                            embedding["embedding"] = embedding_vector
+
+                recipe_data["ingredients"] = ingredients
+                recipe_data["instructions"] = instructions
+                recipe_data["embeddings"] = embeddings
+
+                return recipe_data
+
+        except Exception as e:
+            raise DatabaseError(f"Failed to get recipe with embeddings: {e!s}") from e
+
     def create_recipe_embedding(
         self,
         recipe_id: str,

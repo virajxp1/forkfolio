@@ -41,6 +41,16 @@ class RecipesClient(BaseAPIClient):
         endpoint = f"{settings.API_V1_STR}/recipes/{recipe_id}"
         return self.get(endpoint)
 
+    def get_recipe_all(self, recipe_id: str) -> Dict[str, Any]:
+        """
+        Get a complete recipe by its UUID, including embeddings.
+
+        Endpoint: GET /api/v1/recipes/{recipe_id}/all
+        Router: app.routers.recipes:get_recipe_all
+        """
+        endpoint = f"{settings.API_V1_STR}/recipes/{recipe_id}/all"
+        return self.get(endpoint)
+
     def delete_recipe(self, recipe_id: str) -> Dict[str, Any]:
         """
         Delete a recipe by its UUID.

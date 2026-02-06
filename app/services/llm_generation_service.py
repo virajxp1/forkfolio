@@ -2,6 +2,7 @@ import configparser
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Optional, TypeVar, Union
 
 from openai import OpenAI
@@ -14,7 +15,9 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 
-_LLM_CONFIG_PATH = os.getenv("LLM_CONFIG_FILE", "config/llm.config.ini")
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_LLM_CONFIG_PATH = _REPO_ROOT / "config" / "llm.config.ini"
+_LLM_CONFIG_PATH = os.getenv("LLM_CONFIG_FILE", str(_DEFAULT_LLM_CONFIG_PATH))
 
 T = TypeVar("T", bound=BaseModel)
 

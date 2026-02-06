@@ -92,6 +92,17 @@ def test_process_and_store_then_delete(api_client: APIClient) -> None:
     assert get_response["status_code"] == HTTP_OK
     assert get_response["data"].get("success") is True
 
+    get_all_response = api_client.recipes.get_recipe_all(recipe_id)
+    assert get_all_response["status_code"] == HTTP_OK
+    all_data = get_all_response["data"]
+    assert all_data.get("success") is True
+    recipe_all = all_data.get("recipe")
+    assert recipe_all
+    assert recipe_all.get("id") == recipe_id
+    assert isinstance(recipe_all.get("ingredients"), list)
+    assert isinstance(recipe_all.get("instructions"), list)
+    assert isinstance(recipe_all.get("embeddings"), list)
+
     delete_response = api_client.recipes.delete_recipe(recipe_id)
     assert delete_response["status_code"] == HTTP_OK
     assert delete_response["data"] is True
