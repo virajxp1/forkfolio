@@ -79,6 +79,8 @@ def get_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
         logger.info(f"Successfully retrieved recipe: {recipe_id}")
         return {"recipe": recipe_data, "success": True}
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error retrieving recipe {recipe_id}: {e!s}")
         raise HTTPException(

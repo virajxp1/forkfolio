@@ -67,6 +67,8 @@ DB_PASSWORD=your_database_password
 # AI Service Configuration (Required)
 OPEN_ROUTER_API_KEY=your_openrouter_api_key
 
+# LLM model selection is configured in config/llm.config.ini
+
 # Database host/user are configured in config/db.config.ini
 ```
 
