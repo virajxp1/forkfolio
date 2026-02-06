@@ -204,3 +204,24 @@ class RecipeManager(BaseManager):
 
         except Exception as e:
             raise DatabaseError(f"Failed to get recipe: {e!s}") from e
+
+    def create_recipe_embedding(
+        self,
+        recipe_id: str,
+        embedding_type: str,
+        embedding: list[float],
+    ) -> None:
+        """Store an embedding for a recipe."""
+        try:
+            with self.get_db_context() as (conn, cursor):
+                sql = """
+                INSERT INTO recipe_embeddings (id, recipe_id, embedding_type, embedding)
+                VALUES (%s, %s, %s, %s)
+                """
+                embedding_id = str(uuid.uuid4())
+                cursor.execute(
+                    sql,
+                    (embedding_id, recipe_id, embedding_type, embedding),
+                )
+        except Exception as e:
+            raise DatabaseError(f"Failed to create recipe embedding: {e!s}") from e

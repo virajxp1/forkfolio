@@ -7,6 +7,8 @@ from app.services.recipe_extractor import RecipeExtractorService
 from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
+from app.services.recipe_embeddings import RecipeEmbeddingsService
+from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 
 logger = get_logger(__name__)
 
@@ -25,10 +27,12 @@ class RecipeProcessingService:
         cleanup_service: RecipeInputCleanup = None,
         extractor_service: RecipeExtractorService = None,
         recipe_manager: RecipeManager = None,
+        embeddings_service: RecipeEmbeddingsService = None,
     ):
         self.cleanup_service = cleanup_service or RecipeInputCleanupServiceImpl()
         self.extractor_service = extractor_service or RecipeExtractorImpl()
         self.recipe_manager = recipe_manager or RecipeManager()
+        self.embeddings_service = embeddings_service or RecipeEmbeddingsServiceImpl()
 
     def process_raw_recipe(
         self, raw_input: str, source_url: Optional[str] = None
@@ -60,6 +64,10 @@ class RecipeProcessingService:
             recipe_id = self._store_recipe(recipe, source_url)
             if not recipe_id:
                 return None, "Failed to store recipe in database"
+
+            # Step 4: Store embeddings (title + ingredients)
+            if not self._store_embeddings(recipe_id, recipe):
+                return None, "Failed to store recipe embeddings"
 
             logger.info(f"Successfully processed recipe with ID: {recipe_id}")
             return recipe_id, None
@@ -143,3 +151,16 @@ class RecipeProcessingService:
         except Exception as e:
             logger.error(f"Recipe storage failed: {e}")
             return None
+
+    def _store_embeddings(self, recipe_id: str, recipe: Recipe) -> bool:
+        """Step 4: Store embeddings for the recipe."""
+        try:
+            self.embeddings_service.embed_title_ingredients(
+                recipe_id=recipe_id,
+                title=recipe.title,
+                ingredients=recipe.ingredients,
+            )
+            return True
+        except Exception as e:
+            logger.error(f"Embedding storage failed: {e}")
+            return False
