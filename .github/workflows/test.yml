@@ -5,6 +5,30 @@ on:
     branches: [ main ]
 
 jobs:
+  # Unit tests - fast checks
+  unit-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run unit tests
+      run: |
+        python -m pytest app/tests/unit/ -v
+      env:
+        BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
+        OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
+
   # E2E tests - comprehensive end-to-end testing
   e2e-tests:
     runs-on: ubuntu-latest
@@ -15,9 +39,9 @@ jobs:
     - name: Test IPv4 connectivity to Session Pooler
       run: |
         echo "Testing DNS resolution for Session Pooler (IPv4 compatible)..."
-        nslookup -query=A aws-0-us-west-1.pooler.supabase.com
+        getent hosts aws-0-us-west-2.pooler.supabase.com
         echo "Testing port 5432 on Session Pooler..."
-        nc -4 -zv aws-0-us-west-1.pooler.supabase.com 5432
+        timeout 5 bash -c "</dev/tcp/aws-0-us-west-2.pooler.supabase.com/5432"
     
     - name: Set up Python
       uses: actions/setup-python@v4
@@ -31,15 +55,13 @@ jobs:
     
     - name: Configure database connection for IPv4
       run: |
-        echo "Using IPv4-compatible Session Pooler for GitHub Actions"
+        echo "Using repository config/db.config.ini for GitHub Actions"
     
     - name: Run E2E tests
       run: |
         python -m pytest app/tests/e2e/ -v
       env:
-        # Use IPv4-compatible Session Pooler for GitHub Actions
-        DATABASE_HOST: aws-0-us-west-1.pooler.supabase.com
-        DATABASE_PORT: 5432
+        BRAINTRUST_API_KEY: ${{ secrets.BRAINTRUST_API_KEY }}
         SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
         # Add any required environment variables for E2E tests
         HUGGINGFACE_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}

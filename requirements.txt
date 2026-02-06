@@ -10,5 +10,6 @@ pytest-cov>=4.0.0
 ruff>=0.1.6
 pre-commit>=3.0.0
 openai~=1.78.1
+braintrust>=0.0.200
 requests~=2.32.3
 psycopg2-binary>=2.9.0
