@@ -40,3 +40,13 @@ class RecipesClient(BaseAPIClient):
         """
         endpoint = f"{settings.API_V1_STR}/recipes/{recipe_id}"
         return self.get(endpoint)
+
+    def delete_recipe(self, recipe_id: str) -> Dict[str, Any]:
+        """
+        Delete a recipe by its UUID.
+
+        Endpoint: DELETE /api/v1/recipes/delete/{recipe_id}
+        Router: app.routers.recipes:delete_recipe
+        """
+        endpoint = f"{settings.API_V1_STR}/recipes/delete/{recipe_id}"
+        return self.delete(endpoint)

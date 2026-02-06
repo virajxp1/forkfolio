@@ -24,7 +24,6 @@
     "name": "nonsensical_input",
     "description": "Edge case: Non-recipe text should be handled gracefully",
     "input_text": "This is not a recipe at all, just random text.",
-    "expect_error": false,
-    "allow_empty_result": true
+    "expect_error": true
   }
 ]

@@ -2,11 +2,11 @@
 
 ## Overview
 
-The `process-and-store-recipe` endpoint provides a complete pipeline for converting raw, unstructured recipe text into structured data stored in the database. This endpoint is designed to handle messy input like scraped web content, HTML, or poorly formatted text.
+The `process-and-store` endpoint provides a complete pipeline for converting raw, unstructured recipe text into structured data stored in the database. This endpoint is designed to handle messy input like scraped web content, HTML, or poorly formatted text.
 
 ## API Endpoint
 
-**URL**: `POST /api/v1/process-and-store-recipe`
+**URL**: `POST /api/v1/recipes/process-and-store`
 
 **Request Body**:
 ```json
@@ -55,8 +55,8 @@ The endpoint orchestrates a three-stage pipeline through the `RecipeProcessingSe
   - Title (string)
   - Ingredients (list of strings)
   - Instructions (list of strings)
-  - Servings (optional string)
-  - Total time (optional string)
+  - Servings (string)
+  - Total time (string)
 - **Output**: Validated `Recipe` Pydantic model
 
 ### Stage 3: Database Storage
@@ -77,8 +77,8 @@ The endpoint orchestrates a three-stage pipeline through the `RecipeProcessingSe
 ### recipes
 - `id` (UUID, Primary Key)
 - `title` (VARCHAR)
-- `servings` (VARCHAR, Optional)
-- `total_time` (VARCHAR, Optional)
+- `servings` (VARCHAR)
+- `total_time` (VARCHAR)
 - `source_url` (VARCHAR, Optional)
 - `created_at` (TIMESTAMP)
 - `updated_at` (TIMESTAMP)
@@ -144,7 +144,7 @@ graph TD
 ## Usage Example
 
 ```bash
-curl -X POST "http://localhost:8000/api/v1/process-and-store-recipe" \
+curl -X POST "http://localhost:8000/api/v1/recipes/process-and-store" \
   -H "Content-Type: application/json" \
   -d '{
     "raw_input": "Chocolate Chip Cookies\n\nIngredients:\n- 2 cups flour\n- 1 cup sugar\n- 1/2 cup butter\n- 1 cup chocolate chips\n\nInstructions:\n1. Mix flour and sugar\n2. Add butter\n3. Fold in chocolate chips\n4. Bake at 350F for 12 minutes"

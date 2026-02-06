@@ -53,7 +53,7 @@ The architecture has been thoroughly refactored to meet enterprise standards:
 ## Key Architectural Decisions
 
 ### 1. Connection Pooling
-- **Pattern**: ThreadedConnectionPool with 2-20 connections
+- **Pattern**: ThreadedConnectionPool with 2-10 connections
 - **Benefits**: Eliminates connection overhead, handles concurrency
 - **Implementation**: Global pool with lazy initialization
 

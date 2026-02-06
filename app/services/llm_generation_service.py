@@ -1,5 +1,7 @@
+import configparser
 import json
 import logging
+import os
 from typing import Optional, TypeVar, Union
 
 from openai import OpenAI
@@ -12,11 +14,26 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 
-model_name = "mistralai/mistral-small-3.2-24b-instruct:free"
+_LLM_CONFIG_PATH = os.getenv("LLM_CONFIG_FILE", "config/llm.config.ini")
 
 T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
+
+
+def _load_llm_config() -> configparser.ConfigParser:
+    cfg = configparser.ConfigParser()
+    if not cfg.read(_LLM_CONFIG_PATH):
+        raise FileNotFoundError(f"LLM config file not found: {_LLM_CONFIG_PATH}")
+    return cfg
+
+
+def _get_model_name() -> str:
+    env_override = os.getenv("LLM_MODEL_NAME")
+    if env_override:
+        return env_override
+    cfg = _load_llm_config()
+    return cfg.get("llm", "model_name", fallback="").strip()
 
 
 def _get_openai_client() -> OpenAI:
@@ -46,6 +63,9 @@ def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     ]
 
     client = _get_openai_client()
+    model_name = _get_model_name()
+    if not model_name:
+        raise ValueError("LLM model name is not set.")
     completion = client.chat.completions.create(model=model_name, messages=messages)
 
     print(completion.choices[0].message.content)
@@ -91,6 +111,10 @@ def make_llm_call_structured_output_generic(
         )
 
         # Call with proper JSON schema format
+        model_name = _get_model_name()
+        if not model_name:
+            raise ValueError("LLM model name is not set.")
+
         completion = client.chat.completions.create(
             model=model_name,
             messages=messages,
