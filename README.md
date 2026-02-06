@@ -60,17 +60,14 @@ Create a `.env` file in the project root with the following variables:
 ```bash
 # Database Configuration (Required)
 SUPABASE_PASSWORD=your_supabase_password
-SUPABASE_PROJECT_ID=your_project_id
-SUPABASE_API_KEY=your_supabase_api_key
-SUPABASE_ACCESS_TOKEN=your_access_token
+
+# Optional database password override
+DB_PASSWORD=your_database_password
 
 # AI Service Configuration (Required)
 OPEN_ROUTER_API_KEY=your_openrouter_api_key
 
-# Optional Database Configuration
-DATABASE_HOST=db.your-project.supabase.co  # Default uses project ID
-DATABASE_PORT=5432  # Default port
-DATABASE_URL=postgresql://...  # Alternative: full connection string
+# Database host/user are configured in config/db.config.ini
 ```
 
 ## Running the Application
@@ -96,7 +93,7 @@ docker run -p 8000:8000 --env-file .env forkfolio
 
 **Access Points:**
 - API Server: http://localhost:8000
-- Health Check: http://localhost:8000/health
+- Health Check: http://localhost:8000/api/v1/health
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
@@ -104,7 +101,7 @@ docker run -p 8000:8000 --env-file .env forkfolio
 
 The core feature of ForkFolio is the **Recipe Processing Pipeline** - a complete system for converting raw, unstructured recipe text into structured data stored in the database.
 
-### Key Endpoint: `/api/v1/process-and-store-recipe`
+### Key Endpoint: `/api/v1/recipes/process-and-store`
 
 This endpoint handles messy input like scraped web content, HTML, or poorly formatted text through a three-stage pipeline:
 
@@ -114,7 +111,7 @@ This endpoint handles messy input like scraped web content, HTML, or poorly form
 
 **Example Usage:**
 ```bash
-curl -X POST "http://localhost:8000/api/v1/process-and-store-recipe" \
+curl -X POST "http://localhost:8000/api/v1/recipes/process-and-store" \
   -H "Content-Type: application/json" \
   -d '{"raw_input": "Chocolate Chip Cookies\n\nIngredients:\n- 2 cups flour\n- 1 cup sugar..."}'
 ```
@@ -132,7 +129,7 @@ For detailed information about the recipe processing flow, see [docs/recipe-proc
 **Database & Connection Management:**
 - **PostgreSQL** - Primary database (via Supabase)
 - **psycopg2** - PostgreSQL adapter for Python
-- **Connection Pooling** - ThreadedConnectionPool (2-20 connections)
+- **Connection Pooling** - ThreadedConnectionPool (2-10 connections)
 - **Supabase** - Database-as-a-Service with built-in APIs
 
 **AI & Processing:**
@@ -209,7 +206,7 @@ forkfolio/
 ## Architecture Highlights
 
 ### 🏗️ **Production-Ready Infrastructure**
-- **Connection Pooling**: ThreadedConnectionPool (2-20 connections) with automatic failover
+- **Connection Pooling**: ThreadedConnectionPool (2-10 connections) with automatic failover
 - **Smart Database Routing**: Session Pooler support for GitHub Actions IPv4 compatibility  
 - **Context Managers**: Automatic transaction handling with rollback/commit
 - **Custom Exceptions**: Hierarchical error handling with proper exception chaining
@@ -227,10 +224,9 @@ forkfolio/
 - **Exception Hierarchy**: Custom errors for different failure modes
 
 ### 📡 **API Endpoints**
-- `POST /api/v1/process-and-store-recipe` - Complete recipe processing pipeline
-- `GET /api/v1/recipe/{recipe_id}` - Retrieve recipe with ingredients/instructions  
+- `POST /api/v1/recipes/process-and-store` - Complete recipe processing pipeline
+- `GET /api/v1/recipes/{recipe_id}` - Retrieve recipe with ingredients/instructions  
 - `GET /api/v1/health` - Health check with database connectivity
-- `GET /health` - Simple health check endpoint
 - `GET /docs` - Interactive Swagger API documentation
 - `GET /redoc` - Alternative API documentation format
 
@@ -245,9 +241,9 @@ forkfolio/
 ```sql
 -- Core recipe information with metadata
 recipes (
-  id SERIAL PRIMARY KEY,
+  id UUID PRIMARY KEY,
   title VARCHAR NOT NULL,
-  servings INTEGER,
+  servings VARCHAR,
   total_time VARCHAR,  -- e.g., "30 minutes", "1 hour"
   source_url VARCHAR,
   created_at TIMESTAMP DEFAULT NOW(),
@@ -295,7 +291,7 @@ python app/tests/test_runner.py     # Run using test runner wrapper
 
 # Database
 # Health check includes database connectivity test
-curl http://localhost:8000/health
+curl http://localhost:8000/api/v1/health
 
 # Development Server
 python scripts/run.py               # Start development server
@@ -322,6 +318,6 @@ docker run -d \
 **Environment-Specific Configuration:**
 - Local: Direct Supabase connection
 - GitHub Actions: Session Pooler (IPv4 compatibility)  
-- Production: Configurable via `DATABASE_URL` or component variables
+- Production: Configure `config/db.config.ini` and `SUPABASE_PASSWORD` (or `DB_PASSWORD`)
 
 The application automatically detects Session Pooler usage and adjusts connection parameters accordingly.

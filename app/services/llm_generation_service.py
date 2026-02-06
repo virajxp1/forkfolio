@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 
-model_name = "mistralai/mistral-small-3.2-24b-instruct:free"
+model_name = "openai/gpt-oss-120b:free"
 
 T = TypeVar("T", bound=BaseModel)
 

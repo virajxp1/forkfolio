@@ -6,7 +6,6 @@ with each endpoint group accessible as a separate client instance.
 """
 
 from .health_client import HealthClient
-from .recipe_utilities_client import RecipeUtilitiesClient
 from .recipes_client import RecipesClient
 
 
@@ -23,12 +22,4 @@ class APIClient:
 
         # Client instances for each router/resource
         self.health = HealthClient(base_url)
-        self.recipe_utilities = RecipeUtilitiesClient(base_url)
         self.recipes = RecipesClient(base_url)
-
-    # Legacy methods for backward compatibility during transition
-    # These delegate to the appropriate specialized client
-
-    def extract_recipe(self, input_text: str):
-        """Legacy method - use recipe_utilities.extract_recipe instead."""
-        return self.recipe_utilities.extract_recipe(input_text)

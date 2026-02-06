@@ -42,5 +42,4 @@ jobs:
         DATABASE_PORT: 5432
         SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
         # Add any required environment variables for E2E tests
-        HUGGINGFACE_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}

@@ -22,6 +22,7 @@ recipe_processing_service_dep = Depends(get_recipe_processing_service)
 def process_and_store_recipe(
     ingestion_request: RecipeIngestionRequest = RECIPE_BODY,
     processing_service=recipe_processing_service_dep,
+    recipe_manager=recipe_manager_dep,
 ) -> dict:
     """
     Complete recipe processing pipeline: the main end-to-end recipe endpoint.
@@ -42,8 +43,17 @@ def process_and_store_recipe(
     if error:
         return {"error": error, "success": False}
 
+    recipe_data = recipe_manager.get_full_recipe(recipe_id)
+    if not recipe_data:
+        logger.error(f"Recipe stored but not found: {recipe_id}")
+        raise HTTPException(
+            status_code=500,
+            detail="Recipe stored but could not be retrieved",
+        )
+
     return {
         "recipe_id": recipe_id,
+        "recipe": recipe_data,
         "success": True,
         "message": "Recipe processed and stored successfully",
     }
@@ -83,4 +93,16 @@ def delete_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> bool:
     returns true on success
     """
     logger.info(f"Deleting recipe with ID: {recipe_id}")
-    return True
+    try:
+        deleted = recipe_manager.delete_recipe(recipe_id)
+        if not deleted:
+            logger.warning(f"Recipe not found for delete: {recipe_id}")
+            raise HTTPException(status_code=404, detail="Recipe not found")
+        return True
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting recipe {recipe_id}: {e!s}")
+        raise HTTPException(
+            status_code=500, detail=f"Error deleting recipe: {e!s}"
+        ) from e

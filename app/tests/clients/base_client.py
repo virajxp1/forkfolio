@@ -76,3 +76,9 @@ class BaseAPIClient:
         return self._make_request(
             "POST", endpoint, json_data=json_data, headers=headers
         )
+
+    def delete(
+        self, endpoint: str, headers: Optional[Dict[str, str]] = None
+    ) -> Dict[str, Any]:
+        """Make a DELETE request."""
+        return self._make_request("DELETE", endpoint, headers=headers)
