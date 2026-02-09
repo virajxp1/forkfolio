@@ -4,6 +4,7 @@ E2E tests for process-and-store using JSON test cases.
 
 import json
 import os
+import uuid
 
 import pytest
 from pydantic import ValidationError
@@ -15,7 +16,7 @@ from app.tests.utils.constants import (
     HTTP_NOT_FOUND,
     HTTP_UNPROCESSABLE_ENTITY,
 )
-from app.tests.utils.helpers import truncate_debug_text
+from app.tests.utils.helpers import maybe_throttle, truncate_debug_text
 
 
 def load_test_cases():
@@ -35,6 +36,7 @@ def test_process_and_store_from_json(api_client: APIClient, test_case: dict) -> 
 
     recipe_id = None
     try:
+        maybe_throttle()
         response = api_client.recipes.process_and_store_recipe(input_text)
 
         # Debug Output (always show for failed tests)
@@ -64,6 +66,7 @@ def test_process_and_store_from_json(api_client: APIClient, test_case: dict) -> 
 
         recipe_id = response_data.get("recipe_id")
         assert recipe_id
+        created = response_data.get("created", True)
 
         recipe_data = response_data.get("recipe")
         assert recipe_data, "Expected recipe data in response"
@@ -76,19 +79,25 @@ def test_process_and_store_from_json(api_client: APIClient, test_case: dict) -> 
                 f"Response: {recipe_data}"
             ) from e
     finally:
-        if recipe_id:
+        if recipe_id and created:
             api_client.recipes.delete_recipe(recipe_id)
 
 
 def test_process_and_store_then_delete(api_client: APIClient) -> None:
+    run_id = uuid.uuid4().hex[:8]
     input_text = (
-        "Simple Tomato Pasta\n\n"
+        f"Unique Test Curry {run_id}\n\n"
         "Servings: 2\n"
-        "Total time: 20 minutes\n\n"
-        "Ingredients:\n- 200g pasta\n- 1 cup tomato sauce\n- 1 tbsp olive oil\n\n"
-        "Instructions:\n1. Boil pasta\n2. Warm sauce with olive oil\n3. Combine and serve\n"
+        "Total time: 25 minutes\n\n"
+        "Ingredients:\n- 1 cup coconut milk\n- 2 tbsp curry paste\n- 200g tofu\n"
+        "- 1 tsp lime zest\n"
+        f"- 1 tsp test-spice-{run_id}\n\n"
+        "Instructions:\n1. Simmer curry paste in coconut milk.\n"
+        "2. Add tofu and lime zest.\n"
+        "3. Cook until warmed through.\n"
     )
 
+    maybe_throttle()
     create_response = api_client.recipes.process_and_store_recipe(input_text)
     assert create_response["status_code"] == HTTP_OK, (
         f"Expected 200 but got {create_response['status_code']}"
@@ -96,6 +105,7 @@ def test_process_and_store_then_delete(api_client: APIClient) -> None:
 
     create_data = create_response["data"]
     assert create_data.get("success") is True
+    assert create_data.get("created") is True
     recipe_id = create_data.get("recipe_id")
     assert recipe_id
 
@@ -120,3 +130,38 @@ def test_process_and_store_then_delete(api_client: APIClient) -> None:
 
     missing_response = api_client.recipes.get_recipe(recipe_id)
     assert missing_response["status_code"] == HTTP_NOT_FOUND
+
+
+def test_process_and_store_dedupes_similar_recipe(api_client: APIClient) -> None:
+    run_id = uuid.uuid4().hex[:8]
+    base_input = (
+        f"Zesty Lime Pasta {run_id}\n\n"
+        "Servings: 2\n"
+        "Total time: 15 minutes\n\n"
+        "Ingredients:\n- 200g pasta\n- 1 tbsp olive oil\n- 1 tbsp lime juice\n"
+        "- 1 tsp lime zest\n- 1/4 tsp salt\n"
+        f"- 1 tsp test-spice-{run_id}\n\n"
+        "Instructions:\n1. Boil pasta.\n2. Toss with oil, lime juice, zest, and salt.\n"
+    )
+
+    recipe_id = None
+    try:
+        maybe_throttle()
+        first_response = api_client.recipes.process_and_store_recipe(base_input)
+        assert first_response["status_code"] == HTTP_OK
+        first_data = first_response["data"]
+        assert first_data.get("success") is True
+        assert first_data.get("created") is True
+        recipe_id = first_data.get("recipe_id")
+        assert recipe_id
+
+        maybe_throttle()
+        duplicate_response = api_client.recipes.process_and_store_recipe(base_input)
+        assert duplicate_response["status_code"] == HTTP_OK
+        duplicate_data = duplicate_response["data"]
+        assert duplicate_data.get("success") is True
+        assert duplicate_data.get("created") is False
+        assert duplicate_data.get("recipe_id") == recipe_id
+    finally:
+        if recipe_id:
+            api_client.recipes.delete_recipe(recipe_id)

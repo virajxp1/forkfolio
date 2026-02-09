@@ -89,3 +89,12 @@ Input may contain:
 Return ONLY the cleaned, well-formatted recipe text. Do not include any
 explanations, comments, or non-recipe content.
 """
+
+DEDUPLICATION_SYSTEM_PROMPT = """
+You are an expert cooking assistant. Determine if two recipes are essentially
+the same dish with only minor variations (duplicate) or materially different
+(distinct). Consider ingredients and instructions.
+
+Return ONLY valid JSON in this schema:
+{"decision": "duplicate" | "distinct", "reason": "short explanation"}
+"""

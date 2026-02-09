@@ -9,6 +9,8 @@ from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 from app.services.recipe_embeddings import RecipeEmbeddingsService
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
+from app.services.recipe_dedupe import RecipeDedupeService
+from app.services.recipe_dedupe_impl import RecipeDedupeServiceImpl
 
 logger = get_logger(__name__)
 
@@ -28,15 +30,17 @@ class RecipeProcessingService:
         extractor_service: RecipeExtractorService = None,
         recipe_manager: RecipeManager = None,
         embeddings_service: RecipeEmbeddingsService = None,
+        dedupe_service: RecipeDedupeService = None,
     ):
         self.cleanup_service = cleanup_service or RecipeInputCleanupServiceImpl()
         self.extractor_service = extractor_service or RecipeExtractorImpl()
         self.recipe_manager = recipe_manager or RecipeManager()
         self.embeddings_service = embeddings_service or RecipeEmbeddingsServiceImpl()
+        self.dedupe_service = dedupe_service or RecipeDedupeServiceImpl()
 
     def process_raw_recipe(
         self, raw_input: str, source_url: Optional[str] = None
-    ) -> tuple[Optional[str], Optional[str]]:
+    ) -> tuple[Optional[str], Optional[str], bool]:
         """
         Process raw recipe input through the complete pipeline.
 
@@ -45,37 +49,43 @@ class RecipeProcessingService:
             source_url: Optional source URL for reference
 
         Returns:
-            Tuple of (recipe_id, error_message). If successful, recipe_id contains
-            the database ID and error_message is None. If failed, recipe_id is None
-            and error_message contains the error.
+            Tuple of (recipe_id, error_message, created).
+            If successful, recipe_id contains the database ID and created indicates
+            whether a new recipe was inserted.
         """
         try:
             # Step 1: Clean up the raw input
             cleaned_text = self._cleanup_input(raw_input)
             if not cleaned_text:
-                return None, "Failed to cleanup input text"
+                return None, "Failed to cleanup input text", False
 
             # Step 2: Extract structured recipe data
             recipe, extraction_error = self._extract_recipe(cleaned_text)
             if extraction_error or not recipe:
-                return None, f"Recipe extraction failed: {extraction_error}"
+                return None, f"Recipe extraction failed: {extraction_error}", False
 
-            # Step 3: Insert into database
+            # Step 3: Deduplicate
+            is_duplicate, existing_id = self.dedupe_service.find_duplicate(recipe)
+            if is_duplicate and existing_id:
+                logger.info(f"Duplicate recipe detected: {existing_id}")
+                return existing_id, None, False
+
+            # Step 4: Insert into database
             recipe_id = self._store_recipe(recipe, source_url)
             if not recipe_id:
-                return None, "Failed to store recipe in database"
+                return None, "Failed to store recipe in database", False
 
-            # Step 4: Store embeddings (title + ingredients)
+            # Step 5: Store embeddings (title + ingredients)
             if not self._store_embeddings(recipe_id, recipe):
-                return None, "Failed to store recipe embeddings"
+                return None, "Failed to store recipe embeddings", False
 
             logger.info(f"Successfully processed recipe with ID: {recipe_id}")
-            return recipe_id, None
+            return recipe_id, None, True
 
         except Exception as e:
             error_msg = f"Recipe processing failed: {e!s}"
             logger.error(error_msg)
-            return None, error_msg
+            return None, error_msg, False
 
     def _cleanup_input(self, raw_input: str) -> Optional[str]:
         """
