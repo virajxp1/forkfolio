@@ -9,7 +9,7 @@ The ForkFolio database uses **PostgreSQL** (via Supabase) with a relational sche
 - **Recipe Management**: Core recipe metadata and information
 - **Ordered Ingredients**: Preserved ingredient order for each recipe
 - **Step-by-Step Instructions**: Sequential cooking instructions
-- **Future Extensibility**: Schema designed for vector embeddings and similarity search
+- **Vector Embeddings**: Recipe embeddings for similarity search and recommendations
 
 ## Table Schemas
 
@@ -34,7 +34,7 @@ The primary table storing core recipe information and metadata.
 **Relationships:**
 - One-to-many with `recipe_ingredients` (CASCADE DELETE)
 - One-to-many with `recipe_instructions` (CASCADE DELETE)
-- One-to-many with `recipe_embeddings` (CASCADE DELETE, future)
+- One-to-many with `recipe_embeddings` (CASCADE DELETE)
 
 ---
 
@@ -87,9 +87,9 @@ Stores step-by-step cooking instructions for each recipe.
 
 ---
 
-### 4. `recipe_embeddings` (Future/Planned Table)
+### 4. `recipe_embeddings` (Embeddings Table)
 
-Planned table for storing vector embeddings to enable similarity search and ML-based recipe recommendations.
+Stores vector embeddings to enable similarity search and ML-based recipe recommendations.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -107,7 +107,7 @@ Planned table for storing vector embeddings to enable similarity search and ML-b
 **Relationships:**
 - Many-to-one with `recipes` (CASCADE DELETE)
 
-**Note:** This table is not yet implemented in the codebase but is planned for future ML features.
+**Note:** The embedding dimension should match your configured model (default: 768 for `baai/bge-base-en-v1.5`).
 
 ---
 
@@ -155,7 +155,7 @@ Use the following SQL commands to create the tables in your Supabase database. E
    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
    ```
 
-2. **Enable pgvector Extension** (for future `recipe_embeddings` table):
+2. **Enable pgvector Extension** (required for `recipe_embeddings` table):
    ```sql
    CREATE EXTENSION IF NOT EXISTS vector;
    ```
@@ -222,17 +222,14 @@ CREATE INDEX IF NOT EXISTS idx_recipe_instructions_recipe_id
     ON recipe_instructions(recipe_id);
 ```
 
-#### 4. Create `recipe_embeddings` Table (Future)
+#### 4. Create `recipe_embeddings` Table
 
 ```sql
--- Note: This table is planned but not yet used in the codebase
--- Requires pgvector extension to be enabled
-
 CREATE TABLE IF NOT EXISTS recipe_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     recipe_id UUID NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
     embedding_type VARCHAR NOT NULL,
-    embedding vector(1536), -- Adjust dimension based on your embedding model
+    embedding vector(768), -- bge-base-en-v1.5 default
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -335,13 +332,13 @@ CREATE INDEX IF NOT EXISTS idx_recipe_instructions_recipe_id
     ON recipe_instructions(recipe_id);
 
 -- ============================================
--- 4. Create recipe_embeddings table (future)
+-- 4. Create recipe_embeddings table
 -- ============================================
 CREATE TABLE IF NOT EXISTS recipe_embeddings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     recipe_id UUID NOT NULL REFERENCES recipes(id) ON DELETE CASCADE,
     embedding_type VARCHAR NOT NULL,
-    embedding vector(1536), -- Adjust dimension based on embedding model
+    embedding vector(768), -- bge-base-en-v1.5 default
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -350,7 +347,7 @@ CREATE INDEX IF NOT EXISTS idx_recipe_embeddings_recipe_id
 CREATE INDEX IF NOT EXISTS idx_recipe_embeddings_type 
     ON recipe_embeddings(embedding_type);
 
--- Vector index (commented out - uncomment when ready to use)
+-- Vector index (optional, recommended for similarity search)
 -- CREATE INDEX IF NOT EXISTS idx_recipe_embeddings_vector 
 --     ON recipe_embeddings 
 --     USING hnsw (embedding vector_cosine_ops)
@@ -429,7 +426,7 @@ CREATE TRIGGER update_recipes_updated_at
 - Consider adding full-text search indexes if implementing advanced search
 
 ### Future Optimizations
-- Vector indexes (HNSW) for similarity search when `recipe_embeddings` is implemented
+- Vector indexes (HNSW) for similarity search at scale
 - Consider partitioning `recipes` table by date if it grows very large
 - Materialized views for common query patterns
 
