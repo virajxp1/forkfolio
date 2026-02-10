@@ -20,8 +20,10 @@ class RecipeProcessingService:
     Service that handles the complete recipe processing pipeline:
     1. Cleanup raw input
     2. Extract structured recipe data
-    3. Store in database
-    4. Return database ID
+    3. Deduplicate
+    4. Generate embeddings
+    5. Store in database (recipe + embeddings)
+    6. Return database ID
     """
 
     def __init__(
@@ -70,15 +72,15 @@ class RecipeProcessingService:
                 logger.info(f"Duplicate recipe detected: {existing_id}")
                 return existing_id, None, False
 
-            # Step 4: Insert into database
-            recipe_id = self._store_recipe(recipe, source_url)
+            # Step 4: Generate embeddings (title + ingredients)
+            embedding = self._generate_title_ingredients_embedding(recipe)
+            if embedding is None:
+                return None, "Failed to generate recipe embeddings", False
+
+            # Step 5: Insert into database (recipe + embeddings)
+            recipe_id = self._store_recipe(recipe, source_url, embedding)
             if not recipe_id:
                 return None, "Failed to store recipe in database", False
-
-            # Step 5: Store embeddings (title + ingredients)
-            if not self._store_embeddings(recipe_id, recipe):
-                return None, "Failed to store recipe embeddings", False
-
             logger.info(f"Successfully processed recipe with ID: {recipe_id}")
             return recipe_id, None, True
 
@@ -137,22 +139,29 @@ class RecipeProcessingService:
             return None, error_msg
 
     def _store_recipe(
-        self, recipe: Recipe, source_url: Optional[str] = None
+        self,
+        recipe: Recipe,
+        source_url: Optional[str],
+        embedding: list[float],
     ) -> Optional[str]:
         """
-        Step 3: Store the recipe in the database.
+        Step 4: Store the recipe and embeddings in the database.
 
         Args:
             recipe: Recipe object to store
             source_url: Optional source URL
+            embedding: Embedding vector for title + ingredients
 
         Returns:
             Database ID of stored recipe or None if storage failed
         """
         try:
-            # Create the main recipe record
+            # Create the main recipe record and embeddings in one transaction
             recipe_id = self.recipe_manager.create_recipe_from_model(
-                recipe=recipe, source_url=source_url
+                recipe=recipe,
+                source_url=source_url,
+                embedding_type="title_ingredients",
+                embedding=embedding,
             )
 
             logger.info(f"Recipe stored successfully with ID: {recipe_id}")
@@ -162,15 +171,15 @@ class RecipeProcessingService:
             logger.error(f"Recipe storage failed: {e}")
             return None
 
-    def _store_embeddings(self, recipe_id: str, recipe: Recipe) -> bool:
-        """Step 4: Store embeddings for the recipe."""
+    def _generate_title_ingredients_embedding(
+        self, recipe: Recipe
+    ) -> Optional[list[float]]:
+        """Step 3: Generate embeddings for the recipe."""
         try:
-            self.embeddings_service.embed_title_ingredients(
-                recipe_id=recipe_id,
+            return self.embeddings_service.embed_title_ingredients(
                 title=recipe.title,
                 ingredients=recipe.ingredients,
             )
-            return True
         except Exception as e:
-            logger.error(f"Embedding storage failed: {e}")
-            return False
+            logger.error(f"Embedding generation failed: {e}")
+            return None

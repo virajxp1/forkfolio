@@ -19,6 +19,7 @@ The `process-and-store` endpoint provides a complete pipeline for converting raw
 ```json
 {
   "recipe_id": "uuid - database ID of stored recipe",
+  "recipe": "object - stored recipe with ingredients and instructions",
   "success": true,
   "message": "Recipe processed and stored successfully"
 }
@@ -34,7 +35,7 @@ The `process-and-store` endpoint provides a complete pipeline for converting raw
 
 ## Processing Pipeline
 
-The endpoint orchestrates a three-stage pipeline through the `RecipeProcessingService`:
+The endpoint orchestrates a four-stage pipeline through the `RecipeProcessingService`:
 
 ### Stage 1: Input Cleanup
 **Service**: `RecipeInputCleanupServiceImpl`
@@ -59,17 +60,26 @@ The endpoint orchestrates a three-stage pipeline through the `RecipeProcessingSe
   - Total time (string)
 - **Output**: Validated `Recipe` Pydantic model
 
-### Stage 3: Database Storage
+### Stage 3: Embedding Generation
+**Service**: `RecipeEmbeddingsServiceImpl`
+**Location**: `app/services/recipe_embeddings_impl.py`
+
+- **Purpose**: Generate embeddings for recipe title + ingredients
+- **Method**: OpenRouter embeddings API via `make_embedding()`
+- **Output**: Embedding vector (list of floats)
+
+### Stage 4: Database Storage
 **Service**: `RecipeManager`
 **Location**: `app/services/data/managers/recipe_manager.py`
 
-- **Purpose**: Store structured recipe in database
-- **Method**: `create_recipe_from_model()`
+- **Purpose**: Store structured recipe and embeddings in database
+- **Method**: `create_recipe_from_model()` with `embedding_type` + `embedding`
 - **Database Operations**:
   1. Insert main recipe record (`recipes` table)
   2. Insert ingredients with order indices (`recipe_ingredients` table)
   3. Insert instructions with step numbers (`recipe_instructions` table)
-- **Transaction**: Uses database transactions for atomicity
+  4. Insert embeddings (`recipe_embeddings` table)
+- **Transaction**: Uses a single database transaction for atomicity
 - **Output**: Recipe UUID
 
 ## Database Schema
@@ -95,6 +105,13 @@ The endpoint orchestrates a three-stage pipeline through the `RecipeProcessingSe
 - `instruction_text` (TEXT)
 - `step_number` (INTEGER)
 
+### recipe_embeddings
+- `id` (UUID, Primary Key)
+- `recipe_id` (UUID, Foreign Key → recipes.id)
+- `embedding_type` (VARCHAR)
+- `embedding` (VECTOR(768))
+- `created_at` (TIMESTAMP)
+
 ## Error Handling
 
 The pipeline implements comprehensive error handling:
@@ -102,8 +119,9 @@ The pipeline implements comprehensive error handling:
 1. **Input Validation**: Empty or whitespace-only input rejected
 2. **Cleanup Validation**: LLM output must meet minimum length requirements
 3. **Extraction Validation**: Structured output must conform to Recipe schema
-4. **Database Transactions**: Rollback on any storage failure
-5. **Exception Handling**: All stages wrapped in try-catch blocks
+4. **Embedding Generation**: Embedding API failures return an error before storage
+5. **Database Transactions**: Rollback on any storage failure
+6. **Exception Handling**: All stages wrapped in try-catch blocks
 
 ## Flow Diagram
 
@@ -121,24 +139,31 @@ graph TD
     E --> E1[RecipeExtractorImpl]
     E1 --> E2[LLM Call with Structured Output]
     E2 --> E3[Validate Recipe Schema]
-    E3 --> F[Stage 3: Database Storage]
+    E3 --> F[Stage 3: Embedding Generation]
     
-    F --> F1[RecipeManager]
-    F1 --> F2[Begin Transaction]
-    F2 --> F3[Insert Recipe Record]
-    F3 --> F4[Insert Ingredients]
-    F4 --> F5[Insert Instructions]
-    F5 --> F6[Commit Transaction]
-    F6 --> G[Return Recipe ID]
+    F --> F1[RecipeEmbeddingsServiceImpl]
+    F1 --> F2[OpenRouter Embeddings API]
+    F2 --> G[Stage 4: Database Storage]
     
-    D3 --> H[Error: Cleanup Failed]
-    E3 --> I[Error: Extraction Failed]
-    F6 --> J[Error: Storage Failed]
+    G --> G1[RecipeManager]
+    G1 --> G2[Begin Transaction]
+    G2 --> G3[Insert Recipe Record]
+    G3 --> G4[Insert Ingredients]
+    G4 --> G5[Insert Instructions]
+    G5 --> G6[Insert Embeddings]
+    G6 --> G7[Commit Transaction]
+    G7 --> H[Return Recipe ID]
     
-    H --> K[Return Error Response]
-    I --> K
-    J --> K
-    G --> L[Return Success Response]
+    D3 --> I[Error: Cleanup Failed]
+    E3 --> J[Error: Extraction Failed]
+    F2 --> K[Error: Embedding Failed]
+    G7 --> L[Error: Storage Failed]
+    
+    I --> M[Return Error Response]
+    J --> M
+    K --> M
+    L --> M
+    H --> N[Return Success Response]
 ```
 
 ## Usage Example
@@ -154,7 +179,9 @@ curl -X POST "http://localhost:8000/api/v1/recipes/process-and-store" \
 ## Dependencies
 
 - **LLM Service**: Text generation and structured output
+- **Embeddings Service**: OpenRouter embeddings API
 - **Database**: PostgreSQL with psycopg2
+- **Extensions**: pgvector for storing embeddings
 - **Validation**: Pydantic models
 - **Logging**: Python logging module
 - **UUID Generation**: Python uuid module

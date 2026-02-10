@@ -105,9 +105,13 @@ class RecipeManager(BaseManager):
             raise DatabaseError(f"Failed to search recipes: {e!s}") from e
 
     def create_recipe_from_model(
-        self, recipe: Recipe, source_url: Optional[str] = None
+        self,
+        recipe: Recipe,
+        source_url: Optional[str] = None,
+        embedding_type: Optional[str] = None,
+        embedding: Optional[list[float]] = None,
     ) -> str:
-        """Create recipe from Recipe model with ingredients and instructions"""
+        """Create recipe from Recipe model with ingredients, instructions, and embeddings"""
         recipe_id = str(uuid.uuid4())
 
         try:
@@ -155,6 +159,19 @@ class RecipeManager(BaseManager):
                     cursor.execute(
                         instruction_sql,
                         (instruction_id, recipe_id, instruction_text, step_num),
+                    )
+
+                if embedding_type and embedding is not None:
+                    embedding_sql = """
+                    INSERT INTO recipe_embeddings (
+                        id, recipe_id, embedding_type, embedding
+                    )
+                    VALUES (%s, %s, %s, %s)
+                    """
+                    embedding_id = str(uuid.uuid4())
+                    cursor.execute(
+                        embedding_sql,
+                        (embedding_id, recipe_id, embedding_type, embedding),
                     )
 
                 # Transaction will auto-commit via context manager
