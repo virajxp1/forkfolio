@@ -19,7 +19,8 @@ https://docs.google.com/document/d/1rZlcXuCXt82Ffm7Lrw6L8zqdgDa_wjvsGm_BX-Xw4iI/
 ### Prerequisites
 - Python 3.11+ (recommended)
 - PostgreSQL database (Supabase)
-- OpenRouter API key for LLM access
+- OpenRouter API key for LLM access and embeddings
+- pgvector extension enabled in Postgres
 - Environment variables configured in `.env`
 
 ### Setup
@@ -67,7 +68,10 @@ DB_PASSWORD=your_database_password
 # AI Service Configuration (Required)
 OPEN_ROUTER_API_KEY=your_openrouter_api_key
 
-# LLM model selection is configured in config/llm.config.ini
+# LLM + embeddings model selection is configured in config/llm.config.ini
+# Optional overrides:
+# LLM_MODEL_NAME=your_chat_model
+# EMBEDDINGS_MODEL_NAME=your_embeddings_model
 
 # Database host/user are configured in config/db.config.ini
 ```
@@ -105,11 +109,12 @@ The core feature of ForkFolio is the **Recipe Processing Pipeline** - a complete
 
 ### Key Endpoint: `/api/v1/recipes/process-and-store`
 
-This endpoint handles messy input like scraped web content, HTML, or poorly formatted text through a three-stage pipeline:
+This endpoint handles messy input like scraped web content, HTML, or poorly formatted text through a four-stage pipeline:
 
 1. **Input Cleanup** - Removes HTML, ads, and navigation elements using LLM
-2. **Recipe Extraction** - Extracts structured data (title, ingredients, instructions, timing) using LLM with schema validation  
-3. **Database Storage** - Stores recipe with ingredients and instructions in separate tables using database transactions
+2. **Recipe Extraction** - Extracts structured data (title, ingredients, instructions, timing) using LLM with schema validation
+3. **Embedding Generation** - Generates embeddings for title + ingredients (OpenRouter)
+4. **Database Storage** - Stores recipe, ingredients, instructions, and embeddings in a single transaction
 
 **Example Usage:**
 ```bash
@@ -135,7 +140,7 @@ For detailed information about the recipe processing flow, see [docs/recipe-proc
 - **Supabase** - Database-as-a-Service with built-in APIs
 
 **AI & Processing:**
-- **OpenRouter API** - LLM access for recipe extraction
+- **OpenRouter API** - LLM access for extraction and embeddings
 - **Custom Processing Pipeline** - Multi-stage recipe parsing
 
 **Testing & Quality:**
@@ -228,6 +233,7 @@ forkfolio/
 ### 📡 **API Endpoints**
 - `POST /api/v1/recipes/process-and-store` - Complete recipe processing pipeline
 - `GET /api/v1/recipes/{recipe_id}` - Retrieve recipe with ingredients/instructions  
+- `GET /api/v1/recipes/{recipe_id}/all` - Retrieve recipe with ingredients/instructions/embeddings
 - `GET /api/v1/health` - Health check with database connectivity
 - `GET /docs` - Interactive Swagger API documentation
 - `GET /redoc` - Alternative API documentation format
@@ -254,26 +260,26 @@ recipes (
 
 -- Ordered ingredients list with flexible text storage
 recipe_ingredients (
-  id SERIAL PRIMARY KEY,
-  recipe_id INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY,
+  recipe_id UUID REFERENCES recipes(id) ON DELETE CASCADE,
   ingredient_text VARCHAR NOT NULL,  -- e.g., "2 cups all-purpose flour"
   order_index INTEGER NOT NULL
 )
 
 -- Step-by-step cooking instructions
 recipe_instructions (
-  id SERIAL PRIMARY KEY,
-  recipe_id INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY,
+  recipe_id UUID REFERENCES recipes(id) ON DELETE CASCADE,
   instruction_text TEXT NOT NULL,
   step_number INTEGER NOT NULL
 )
 
--- Future: Vector embeddings for similarity search and recommendations
+-- Vector embeddings for similarity search and recommendations
 recipe_embeddings (
-  id SERIAL PRIMARY KEY,
-  recipe_id INTEGER REFERENCES recipes(id) ON DELETE CASCADE,
-  embedding_type VARCHAR NOT NULL,  -- e.g., "ingredient", "instruction"
-  embedding VECTOR,  -- Vector representation for ML features
+  id UUID PRIMARY KEY,
+  recipe_id UUID REFERENCES recipes(id) ON DELETE CASCADE,
+  embedding_type VARCHAR NOT NULL,  -- e.g., "title_ingredients"
+  embedding VECTOR(768),  -- Vector representation (bge-base-en-v1.5)
   created_at TIMESTAMP DEFAULT NOW()
 )
 ```

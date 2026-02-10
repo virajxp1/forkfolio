@@ -105,9 +105,13 @@ class RecipeManager(BaseManager):
             raise DatabaseError(f"Failed to search recipes: {e!s}") from e
 
     def create_recipe_from_model(
-        self, recipe: Recipe, source_url: Optional[str] = None
+        self,
+        recipe: Recipe,
+        source_url: Optional[str] = None,
+        embedding_type: Optional[str] = None,
+        embedding: Optional[list[float]] = None,
     ) -> str:
-        """Create recipe from Recipe model with ingredients and instructions"""
+        """Create recipe from Recipe model with ingredients, instructions, and embeddings"""
         recipe_id = str(uuid.uuid4())
 
         try:
@@ -157,6 +161,19 @@ class RecipeManager(BaseManager):
                         (instruction_id, recipe_id, instruction_text, step_num),
                     )
 
+                if embedding_type and embedding is not None:
+                    embedding_sql = """
+                    INSERT INTO recipe_embeddings (
+                        id, recipe_id, embedding_type, embedding
+                    )
+                    VALUES (%s, %s, %s, %s)
+                    """
+                    embedding_id = str(uuid.uuid4())
+                    cursor.execute(
+                        embedding_sql,
+                        (embedding_id, recipe_id, embedding_type, embedding),
+                    )
+
                 # Transaction will auto-commit via context manager
                 return recipe_id
 
@@ -204,3 +221,84 @@ class RecipeManager(BaseManager):
 
         except Exception as e:
             raise DatabaseError(f"Failed to get recipe: {e!s}") from e
+
+    def get_full_recipe_with_embeddings(self, recipe_id: str) -> Optional[dict]:
+        """Get a complete recipe with ingredients, instructions, and embeddings."""
+        try:
+            with self.get_db_context() as (conn, cursor):
+                recipe_sql = "SELECT * FROM recipes WHERE id = %s"
+                cursor.execute(recipe_sql, (recipe_id,))
+                recipe = cursor.fetchone()
+
+                if not recipe:
+                    return None
+
+                recipe_data = dict(recipe)
+
+                ingredients_sql = """
+                SELECT ingredient_text 
+                FROM recipe_ingredients 
+                WHERE recipe_id = %s 
+                ORDER BY order_index
+                """
+                cursor.execute(ingredients_sql, (recipe_id,))
+                ingredients = [row["ingredient_text"] for row in cursor.fetchall()]
+
+                instructions_sql = """
+                SELECT instruction_text 
+                FROM recipe_instructions 
+                WHERE recipe_id = %s 
+                ORDER BY step_number
+                """
+                cursor.execute(instructions_sql, (recipe_id,))
+                instructions = [row["instruction_text"] for row in cursor.fetchall()]
+
+                embeddings_sql = """
+                SELECT id, embedding_type, embedding, created_at
+                FROM recipe_embeddings
+                WHERE recipe_id = %s
+                ORDER BY created_at
+                """
+                cursor.execute(embeddings_sql, (recipe_id,))
+                embeddings = [dict(row) for row in cursor.fetchall()]
+                for embedding in embeddings:
+                    embedding_vector = embedding.get("embedding")
+                    if embedding_vector is None:
+                        continue
+                    if hasattr(embedding_vector, "tolist"):
+                        embedding["embedding"] = embedding_vector.tolist()
+                    else:
+                        try:
+                            embedding["embedding"] = list(embedding_vector)
+                        except TypeError:
+                            embedding["embedding"] = embedding_vector
+
+                recipe_data["ingredients"] = ingredients
+                recipe_data["instructions"] = instructions
+                recipe_data["embeddings"] = embeddings
+
+                return recipe_data
+
+        except Exception as e:
+            raise DatabaseError(f"Failed to get recipe with embeddings: {e!s}") from e
+
+    def create_recipe_embedding(
+        self,
+        recipe_id: str,
+        embedding_type: str,
+        embedding: list[float],
+    ) -> None:
+        """Store an embedding for a recipe."""
+        try:
+            with self.get_db_context() as (conn, cursor):
+                sql = """
+                INSERT INTO recipe_embeddings (id, recipe_id, embedding_type, embedding)
+                VALUES (%s, %s, %s, %s)
+                """
+                embedding_id = str(uuid.uuid4())
+                cursor.execute(
+                    sql,
+                    (embedding_id, recipe_id, embedding_type, embedding),
+                )
+        except Exception as e:
+            raise DatabaseError(f"Failed to create recipe embedding: {e!s}") from e

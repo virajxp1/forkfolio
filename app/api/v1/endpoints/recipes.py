@@ -88,6 +88,35 @@ def get_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
         ) from e
 
 
+@router.get("/{recipe_id}/all")
+def get_recipe_all(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
+    """
+    Get a complete recipe by its UUID, including embeddings.
+
+    Returns the recipe with ingredients, instructions, and embeddings,
+    or 404 if the recipe is not found.
+    """
+    logger.info(f"Retrieving full recipe with embeddings for ID: {recipe_id}")
+
+    try:
+        recipe_data = recipe_manager.get_full_recipe_with_embeddings(recipe_id)
+
+        if not recipe_data:
+            logger.warning(f"Recipe not found: {recipe_id}")
+            raise HTTPException(status_code=404, detail="Recipe not found")
+
+        logger.info(f"Successfully retrieved full recipe: {recipe_id}")
+        return {"recipe": recipe_data, "success": True}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error retrieving recipe {recipe_id}: {e!s}")
+        raise HTTPException(
+            status_code=500, detail=f"Error retrieving recipe: {e!s}"
+        ) from e
+
+
 @router.delete("/delete/{recipe_id}")
 def delete_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> bool:
     """

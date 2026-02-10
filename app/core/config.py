@@ -1,11 +1,16 @@
 import os
+from pathlib import Path
 
 from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    model_config = ConfigDict(env_file=".env", case_sensitive=True)
+    _repo_root = Path(__file__).resolve().parents[2]
+    model_config = ConfigDict(
+        env_file=str(_repo_root / ".env"),
+        case_sensitive=True,
+    )
 
     PROJECT_NAME: str = "ForkFolio"
     PROJECT_DESCRIPTION: str = "Recipe management API"

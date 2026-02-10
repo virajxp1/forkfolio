@@ -2,6 +2,7 @@ import configparser
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Optional, TypeVar, Union
 
 from openai import OpenAI
@@ -14,7 +15,9 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 
-_LLM_CONFIG_PATH = os.getenv("LLM_CONFIG_FILE", "config/llm.config.ini")
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_LLM_CONFIG_PATH = _REPO_ROOT / "config" / "llm.config.ini"
+_LLM_CONFIG_PATH = os.getenv("LLM_CONFIG_FILE", str(_DEFAULT_LLM_CONFIG_PATH))
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -28,12 +31,20 @@ def _load_llm_config() -> configparser.ConfigParser:
     return cfg
 
 
-def _get_model_name() -> str:
+def _get_chat_model_name() -> str:
     env_override = os.getenv("LLM_MODEL_NAME")
     if env_override:
         return env_override
     cfg = _load_llm_config()
     return cfg.get("llm", "model_name", fallback="").strip()
+
+
+def _get_embeddings_model_name() -> str:
+    env_override = os.getenv("EMBEDDINGS_MODEL_NAME")
+    if env_override:
+        return env_override
+    cfg = _load_llm_config()
+    return cfg.get("embeddings", "model_name", fallback="").strip()
 
 
 def _get_openai_client() -> OpenAI:
@@ -63,9 +74,10 @@ def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     ]
 
     client = _get_openai_client()
-    model_name = _get_model_name()
+    model_name = _get_chat_model_name()
     if not model_name:
         raise ValueError("LLM model name is not set.")
+
     completion = client.chat.completions.create(model=model_name, messages=messages)
 
     print(completion.choices[0].message.content)
@@ -111,7 +123,7 @@ def make_llm_call_structured_output_generic(
         )
 
         # Call with proper JSON schema format
-        model_name = _get_model_name()
+        model_name = _get_chat_model_name()
         if not model_name:
             raise ValueError("LLM model name is not set.")
 
@@ -144,3 +156,13 @@ def make_llm_call_structured_output_generic(
         error_msg = f"LLM API call failed: {e}"
         logger.error(error_msg)
         return None, error_msg
+
+
+def make_embedding(text: str) -> list[float]:
+    model_name = _get_embeddings_model_name()
+    if not model_name:
+        raise ValueError("Embeddings model name is not set.")
+
+    client = _get_openai_client()
+    response = client.embeddings.create(model=model_name, input=text)
+    return response.data[0].embedding

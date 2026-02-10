@@ -15,6 +15,12 @@ class BaseManager:
     def get_db_context(self) -> Generator[tuple[Any, Any], None, None]:
         """Get database connection and cursor with automatic cleanup"""
         with get_db_context() as conn:
+            try:
+                from pgvector.psycopg2 import register_vector
+
+                register_vector(conn)
+            except Exception:
+                pass
             cursor = conn.cursor()
             try:
                 yield conn, cursor
