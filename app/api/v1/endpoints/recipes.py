@@ -44,7 +44,20 @@ def process_and_store_recipe(
         return {"error": error, "success": False}
 
     if not created:
+        if not recipe_id:
+            logger.error("Duplicate recipe detected but no recipe_id was returned")
+            return {
+                "error": "Duplicate recipe detected but no recipe_id was returned",
+                "success": False,
+            }
         recipe_data = recipe_manager.get_full_recipe(recipe_id)
+        if not recipe_data:
+            logger.error(f"Duplicate recipe found but not retrieved: {recipe_id}")
+            raise HTTPException(
+                status_code=500,
+                detail="Duplicate recipe found but could not be retrieved",
+            )
+        logger.info(f"Duplicate recipe found; returning existing recipe: {recipe_id}")
         return {
             "recipe_id": recipe_id,
             "recipe": recipe_data,
