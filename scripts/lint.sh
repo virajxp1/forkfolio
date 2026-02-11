@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -euo pipefail
 
 # Get project root directory (parent of scripts directory)
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -7,12 +9,16 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 # Change to project root
 cd "$PROJECT_ROOT"
 
-# Run Ruff linter and auto-fix issues when possible
-echo "Running Ruff linter..."
-ruff check --fix .
+if [[ -x ".venv/bin/ruff" ]]; then
+  RUFF_BIN=".venv/bin/ruff"
+else
+  RUFF_BIN="ruff"
+fi
 
-# Format code with Ruff formatter
+echo "Running Ruff linter..."
+"$RUFF_BIN" check --fix .
+
 echo "Formatting code with Ruff..."
-ruff format .
+"$RUFF_BIN" format .
 
 echo "Linting complete!"

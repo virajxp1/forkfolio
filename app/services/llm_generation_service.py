@@ -113,9 +113,9 @@ def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     completion = _with_retries(
         lambda: client.chat.completions.create(model=model_name, messages=messages)
     )
-
-    print(completion.choices[0].message.content)
-    return completion.choices[0].message.content
+    content = completion.choices[0].message.content
+    logger.info("Text generation response received")
+    return content
 
 
 def make_llm_call_structured_output_generic(

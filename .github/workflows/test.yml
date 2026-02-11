@@ -24,7 +24,7 @@ jobs:
 
     - name: Run unit tests
       run: |
-        python -m pytest app/tests/unit/ -v
+        python -m pytest -c pytest.ini app/tests/unit/ -v
       env:
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
 
@@ -58,7 +58,7 @@ jobs:
     
     - name: Run E2E tests
       run: |
-        python -m pytest app/tests/e2e/ -v
+        python -m pytest -c pytest.ini app/tests/e2e/ -v
       env:
         SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
