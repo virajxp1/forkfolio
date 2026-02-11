@@ -19,6 +19,7 @@ from app.tests.clients.api_client import APIClient
 
 DEFAULT_PORT = 8000
 MAX_RETRIES = 30
+REQUIRED_LIVE_TEST_ENV_VARS = ("SUPABASE_PASSWORD", "OPEN_ROUTER_API_KEY")
 
 
 class ServerManager:
@@ -63,6 +64,18 @@ class ServerManager:
 @pytest.fixture(scope="session", autouse=True)
 def server() -> Generator[str, None, None]:
     """Start the server once for all tests and clean up afterwards."""
+    missing_vars = [
+        variable for variable in REQUIRED_LIVE_TEST_ENV_VARS if not os.getenv(variable)
+    ]
+    if missing_vars:
+        missing_message = (
+            "Missing required environment variables for live E2E tests: "
+            f"{', '.join(missing_vars)}"
+        )
+        if os.getenv("CI"):
+            pytest.fail(missing_message)
+        pytest.skip(f"{missing_message}. Skipping live E2E suite.")
+
     server_manager = ServerManager()
 
     # Find project root (go up from app/tests/e2e to project root)

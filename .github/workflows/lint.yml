@@ -23,11 +23,6 @@ jobs:
     
     - name: Check with Ruff
       run: |
-        # Run Ruff linting in check mode (don't auto-fix)
         ruff check .
-    
-    - name: Check formatting with Ruff
-      run: |
-        # Verify code format
         ruff format --check .
         
