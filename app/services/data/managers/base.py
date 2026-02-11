@@ -19,8 +19,10 @@ class BaseManager:
                 from pgvector.psycopg2 import register_vector
 
                 register_vector(conn)
-            except Exception:
-                pass
+            except ImportError:
+                logger.debug("pgvector is not installed; skipping vector registration")
+            except Exception as e:
+                logger.debug(f"Unable to register pgvector extension: {e!s}")
             cursor = conn.cursor()
             try:
                 yield conn, cursor

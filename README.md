@@ -194,8 +194,7 @@ forkfolio/
 │   └── lint.yml            # Code quality checks
 ├── config/                 # Configuration files
 │   ├── .pre-commit-config.yaml # Pre-commit hooks configuration
-│   ├── pyproject.toml      # Python project configuration
-│   └── pytest.ini         # Test configuration
+│   └── pyproject.toml      # Python project configuration
 ├── docker/                 # Docker-related files
 │   ├── Dockerfile          # Multi-stage Docker build
 │   ├── docker-compose.yml  # Local development orchestration
@@ -206,6 +205,7 @@ forkfolio/
 │   ├── run.py              # Application runner script
 │   └── start_test_server.py # Test server startup script
 ├── .pre-commit-config.yaml # Pre-commit hooks (symlink to config/)
+├── pytest.ini              # Pytest configuration
 ├── requirements.txt        # Python dependencies
 └── .env                    # Environment variables (gitignored)
 ```
@@ -288,14 +288,17 @@ recipe_embeddings (
 
 ```bash
 # Code Quality
-scripts/lint.sh                     # Run Ruff linter and formatter
+./scripts/lint.sh                   # Auto-fix + format with Ruff
+ruff check .                        # Lint check (CI-style)
+ruff format --check .               # Format check (CI-style)
 pre-commit install                  # Install pre-commit hooks
 pre-commit run --all-files          # Run hooks on all files
 
 # Testing
-python -m pytest app/tests/e2e/ -v  # Run E2E tests (recommended)
-python -m pytest app/tests/ -v      # Run all tests
-python app/tests/test_runner.py     # Run using test runner wrapper
+python -m pytest -c pytest.ini app/tests/unit/ -v  # Live smoke tests (needs OPEN_ROUTER_API_KEY)
+python -m pytest -c pytest.ini app/tests/e2e/ -v   # Full E2E (needs OPEN_ROUTER_API_KEY + SUPABASE_PASSWORD)
+python -m pytest -c pytest.ini app/tests/ -v       # Run all tests
+python app/tests/test_runner.py                     # Test runner wrapper
 
 # Database
 # Health check includes database connectivity test
@@ -306,6 +309,14 @@ python scripts/run.py               # Start development server
 # or
 uvicorn app.main:app --reload       # Alternative server startup
 ```
+
+### Testing Lanes
+
+- `app/tests/unit/`: Bite-sized live smoke tests against real LLM/embeddings services.
+- `app/tests/e2e/`: End-to-end API + DB + LLM workflow tests.
+- Required env vars:
+  - Unit smoke: `OPEN_ROUTER_API_KEY`
+  - E2E: `OPEN_ROUTER_API_KEY`, `SUPABASE_PASSWORD`
 
 ## Deployment
 

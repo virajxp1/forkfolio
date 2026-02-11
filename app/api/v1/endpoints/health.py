@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter
 
 from app.core.config import settings
@@ -24,23 +26,29 @@ def health_check() -> dict:
         pool_status = get_pool_status()
 
         # Try a simple database query
-        with get_db_context() as (conn, cursor):
-            cursor.execute("SELECT 1 as health_check")
-            result = cursor.fetchone()
-            db_healthy = result["health_check"] == 1
+        with get_db_context() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1 as health_check")
+                result = cursor.fetchone()
+                db_healthy = result["health_check"] == 1
 
         status = (
             "healthy"
             if db_healthy and pool_status.get("pool_initialized")
             else "unhealthy"
         )
+        timestamp = datetime.now(timezone.utc).isoformat()
 
         return {
             "status": status,
             "database": {"connected": db_healthy, "pool": pool_status},
-            "timestamp": "now()",
+            "timestamp": timestamp,
         }
 
     except Exception as e:
         logger.error(f"Health check failed: {e!s}")
-        return {"status": "unhealthy", "error": str(e), "timestamp": "now()"}
+        return {
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
