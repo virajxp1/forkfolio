@@ -254,6 +254,7 @@ recipes (
   servings VARCHAR,
   total_time VARCHAR,  -- e.g., "30 minutes", "1 hour"
   source_url VARCHAR,
+  is_test_data BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 )
