@@ -38,6 +38,7 @@ def process_and_store_recipe(
     recipe_id, error = processing_service.process_raw_recipe(
         raw_input=ingestion_request.raw_input,
         source_url=None,  # Could extend request model to include source_url if needed
+        is_test=ingestion_request.is_test,
     )
 
     if error:
