@@ -15,7 +15,8 @@ from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 
 logger = get_logger(__name__)
 
-_DEDUPLICATION_DISTANCE_THRESHOLD = 0.15
+_DEDUPLICATION_DISTANCE_THRESHOLD = 0.3
+_STRICT_DUPLICATE_DISTANCE_THRESHOLD = 0.05
 
 
 class DedupeDecision(BaseModel):
@@ -42,7 +43,13 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
             return False, None
 
         distance = nearest["distance"]
-        if distance is None or distance > _DEDUPLICATION_DISTANCE_THRESHOLD:
+        if distance is None:
+            return False, None
+
+        if distance <= _STRICT_DUPLICATE_DISTANCE_THRESHOLD:
+            return True, nearest["recipe_id"]
+
+        if distance > _DEDUPLICATION_DISTANCE_THRESHOLD:
             return False, None
 
         existing_recipe = self.recipe_manager.get_full_recipe(nearest["recipe_id"])
