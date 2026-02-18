@@ -17,3 +17,10 @@ class RecipeIngestionRequest(BaseModel):
             )
         },
     )
+    enforce_deduplication: bool = Field(
+        True,
+        description=(
+            "When true, attempt to detect and return duplicates instead of inserting."
+        ),
+        json_schema_extra={"example": True},
+    )

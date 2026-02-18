@@ -37,7 +37,9 @@ def test_process_and_store_from_json(api_client: APIClient, test_case: dict) -> 
     recipe_id = None
     try:
         maybe_throttle()
-        response = api_client.recipes.process_and_store_recipe(input_text)
+        response = api_client.recipes.process_and_store_recipe(
+            input_text, enforce_deduplication=False
+        )
 
         # Debug Output (always show for failed tests)
         print(f"\n=== Test: {test_case['name']} ===")
@@ -98,7 +100,9 @@ def test_process_and_store_then_delete(api_client: APIClient) -> None:
     )
 
     maybe_throttle()
-    create_response = api_client.recipes.process_and_store_recipe(input_text)
+    create_response = api_client.recipes.process_and_store_recipe(
+        input_text, enforce_deduplication=False
+    )
     assert create_response["status_code"] == HTTP_OK, (
         f"Expected 200 but got {create_response['status_code']}"
     )
@@ -147,17 +151,21 @@ def test_process_and_store_dedupes_similar_recipe(api_client: APIClient) -> None
     recipe_id = None
     try:
         maybe_throttle()
-        first_response = api_client.recipes.process_and_store_recipe(base_input)
+        first_response = api_client.recipes.process_and_store_recipe(
+            base_input, enforce_deduplication=False
+        )
         assert first_response["status_code"] == HTTP_OK
         first_data = first_response["data"]
         assert first_data.get("success") is True
         created_first = first_data.get("created", True)
-        assert isinstance(created_first, bool)
+        assert created_first is True
         recipe_id = first_data.get("recipe_id")
         assert recipe_id
 
         maybe_throttle()
-        duplicate_response = api_client.recipes.process_and_store_recipe(base_input)
+        duplicate_response = api_client.recipes.process_and_store_recipe(
+            base_input, enforce_deduplication=True
+        )
         assert duplicate_response["status_code"] == HTTP_OK
         duplicate_data = duplicate_response["data"]
         assert duplicate_data.get("success") is True

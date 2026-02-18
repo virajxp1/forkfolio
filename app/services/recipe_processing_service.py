@@ -41,7 +41,10 @@ class RecipeProcessingService:
         self.dedupe_service = dedupe_service or RecipeDedupeServiceImpl()
 
     def process_raw_recipe(
-        self, raw_input: str, source_url: Optional[str] = None
+        self,
+        raw_input: str,
+        source_url: Optional[str] = None,
+        enforce_deduplication: bool = True,
     ) -> tuple[Optional[str], Optional[str], bool]:
         """
         Process raw recipe input through the complete pipeline.
@@ -49,6 +52,7 @@ class RecipeProcessingService:
         Args:
             raw_input: Raw unstructured recipe text
             source_url: Optional source URL for reference
+            enforce_deduplication: When true, attempt to dedupe before inserting
 
         Returns:
             Tuple of (recipe_id, error_message, created).
@@ -67,10 +71,11 @@ class RecipeProcessingService:
                 return None, f"Recipe extraction failed: {extraction_error}", False
 
             # Step 3: Deduplicate
-            is_duplicate, existing_id = self.dedupe_service.find_duplicate(recipe)
-            if is_duplicate and existing_id:
-                logger.info(f"Duplicate recipe detected: {existing_id}")
-                return existing_id, None, False
+            if enforce_deduplication:
+                is_duplicate, existing_id = self.dedupe_service.find_duplicate(recipe)
+                if is_duplicate and existing_id:
+                    logger.info(f"Duplicate recipe detected: {existing_id}")
+                    return existing_id, None, False
 
             # Step 4: Generate embeddings (title + ingredients)
             embedding = self._generate_title_ingredients_embedding(recipe)
