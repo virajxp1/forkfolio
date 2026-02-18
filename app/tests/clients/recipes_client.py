@@ -17,7 +17,10 @@ class RecipesClient(BaseAPIClient):
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_V1_STR}/recipes/process-and-store"
 
     def process_and_store_recipe(
-        self, raw_input: str, enforce_deduplication: Optional[bool] = None
+        self,
+        raw_input: str,
+        is_test: bool = True,
+        enforce_deduplication: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Complete recipe processing pipeline: the main end-to-end recipe endpoint.
@@ -30,7 +33,7 @@ class RecipesClient(BaseAPIClient):
         Endpoint: POST /api/v1/recipes/process-and-store
         Router: app.routers.recipes:process_and_store_recipe
         """
-        payload = {"raw_input": raw_input}
+        payload = {"raw_input": raw_input, "isTest": is_test}
         if enforce_deduplication is not None:
             payload["enforce_deduplication"] = enforce_deduplication
         return self.post(self.PROCESS_AND_STORE_ENDPOINT, json_data=payload)

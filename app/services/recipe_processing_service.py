@@ -45,6 +45,7 @@ class RecipeProcessingService:
         raw_input: str,
         source_url: Optional[str] = None,
         enforce_deduplication: bool = True,
+        is_test: bool = False,
     ) -> tuple[Optional[str], Optional[str], bool]:
         """
         Process raw recipe input through the complete pipeline.
@@ -53,6 +54,7 @@ class RecipeProcessingService:
             raw_input: Raw unstructured recipe text
             source_url: Optional source URL for reference
             enforce_deduplication: When true, attempt to dedupe before inserting
+            is_test: Mark the resulting recipe as test data
 
         Returns:
             Tuple of (recipe_id, error_message, created).
@@ -83,7 +85,7 @@ class RecipeProcessingService:
                 return None, "Failed to generate recipe embeddings", False
 
             # Step 5: Insert into database (recipe + embeddings)
-            recipe_id = self._store_recipe(recipe, source_url, embedding)
+            recipe_id = self._store_recipe(recipe, source_url, embedding, is_test)
             if not recipe_id:
                 return None, "Failed to store recipe in database", False
             logger.info(f"Successfully processed recipe with ID: {recipe_id}")
@@ -148,6 +150,7 @@ class RecipeProcessingService:
         recipe: Recipe,
         source_url: Optional[str],
         embedding: list[float],
+        is_test: bool,
     ) -> Optional[str]:
         """
         Step 4: Store the recipe and embeddings in the database.
@@ -167,6 +170,7 @@ class RecipeProcessingService:
                 source_url=source_url,
                 embedding_type="title_ingredients",
                 embedding=embedding,
+                is_test_data=is_test,
             )
 
             logger.info(f"Recipe stored successfully with ID: {recipe_id}")

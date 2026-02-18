@@ -24,6 +24,7 @@ The primary table storing core recipe information and metadata.
 | `servings` | VARCHAR | NULL | Number of servings (e.g., "4 servings", "6-8 people") |
 | `total_time` | VARCHAR | NULL | Total preparation and cooking time (e.g., "30 minutes", "1 hour 15 minutes") |
 | `source_url` | VARCHAR | NULL | Optional URL where the recipe was sourced from |
+| `is_test_data` | BOOLEAN | DEFAULT FALSE | Marks records created from testing scripts |
 | `created_at` | TIMESTAMP | DEFAULT NOW() | Timestamp when the recipe was created |
 | `updated_at` | TIMESTAMP | DEFAULT NOW() | Timestamp when the recipe was last updated |
 
@@ -171,6 +172,7 @@ CREATE TABLE IF NOT EXISTS recipes (
     servings VARCHAR,
     total_time VARCHAR,
     source_url VARCHAR,
+    is_test_data BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -292,6 +294,7 @@ CREATE TABLE IF NOT EXISTS recipes (
     servings VARCHAR,
     total_time VARCHAR,
     source_url VARCHAR,
+    is_test_data BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
 );

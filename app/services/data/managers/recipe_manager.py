@@ -64,21 +64,27 @@ class RecipeManager(BaseManager):
         title: str,
         servings: Optional[str],
         total_time: Optional[str],
+        is_test_data: bool = False,
         source_url: Optional[str] = None,
     ) -> None:
         if source_url is None:
             sql = """
-            INSERT INTO recipes (id, title, servings, total_time)
-            VALUES (%s, %s, %s, %s)
+            INSERT INTO recipes (id, title, servings, total_time, is_test_data)
+            VALUES (%s, %s, %s, %s, %s)
             """
-            cursor.execute(sql, (recipe_id, title, servings, total_time))
+            cursor.execute(sql, (recipe_id, title, servings, total_time, is_test_data))
             return
 
         sql = """
-        INSERT INTO recipes (id, title, servings, total_time, source_url)
-        VALUES (%s, %s, %s, %s, %s)
+        INSERT INTO recipes (
+            id, title, servings, total_time, source_url, is_test_data
+        )
+        VALUES (%s, %s, %s, %s, %s, %s)
         """
-        cursor.execute(sql, (recipe_id, title, servings, total_time, source_url))
+        cursor.execute(
+            sql,
+            (recipe_id, title, servings, total_time, source_url, is_test_data),
+        )
 
     def _insert_ingredients(
         self, cursor, recipe_id: str, ingredients: list[str]
@@ -150,6 +156,7 @@ class RecipeManager(BaseManager):
         title: str,
         servings: Optional[str] = None,
         total_time: Optional[str] = None,
+        is_test_data: bool = False,
     ) -> str:
         """Create a new recipe and return its ID"""
         recipe_id = self._generate_id()
@@ -162,6 +169,7 @@ class RecipeManager(BaseManager):
                     title=title,
                     servings=servings,
                     total_time=total_time,
+                    is_test_data=is_test_data,
                 )
                 return recipe_id
         except Exception as e:
@@ -239,6 +247,7 @@ class RecipeManager(BaseManager):
         source_url: Optional[str] = None,
         embedding_type: Optional[str] = None,
         embedding: Optional[list[float]] = None,
+        is_test_data: bool = False,
     ) -> str:
         """Create recipe from a model with ingredients, instructions, and embeddings."""
         recipe_id = self._generate_id()
@@ -252,6 +261,7 @@ class RecipeManager(BaseManager):
                     servings=recipe.servings,
                     total_time=recipe.total_time,
                     source_url=source_url,
+                    is_test_data=is_test_data,
                 )
                 self._insert_ingredients(cursor, recipe_id, recipe.ingredients)
                 self._insert_instructions(cursor, recipe_id, recipe.instructions)

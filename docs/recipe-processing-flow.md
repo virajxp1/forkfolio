@@ -90,6 +90,7 @@ The endpoint orchestrates a four-stage pipeline through the `RecipeProcessingSer
 - `servings` (VARCHAR)
 - `total_time` (VARCHAR)
 - `source_url` (VARCHAR, Optional)
+- `is_test_data` (BOOLEAN, Default FALSE)
 - `created_at` (TIMESTAMP)
 - `updated_at` (TIMESTAMP)
 

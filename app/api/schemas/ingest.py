@@ -1,9 +1,11 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # Request model for ingestion
 class RecipeIngestionRequest(BaseModel):
     """Request model for recipe extraction from raw text."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     raw_input: str = Field(
         ...,
@@ -23,4 +25,9 @@ class RecipeIngestionRequest(BaseModel):
             "When true, attempt to detect and return duplicates instead of inserting."
         ),
         json_schema_extra={"example": True},
+    )
+    is_test: bool = Field(
+        False,
+        description="Mark the resulting recipe as test data.",
+        alias="isTest",
     )
