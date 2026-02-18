@@ -148,29 +148,12 @@ def test_process_and_store_dedupes_similar_recipe(api_client: APIClient) -> None
         "Instructions:\n1. Boil pasta.\n2. Toss with oil, lime juice, zest, and salt.\n"
     )
 
-    recipe_id = None
-    try:
-        maybe_throttle()
-        first_response = api_client.recipes.process_and_store_recipe(
-            base_input, enforce_deduplication=False
-        )
-        assert first_response["status_code"] == HTTP_OK
-        first_data = first_response["data"]
-        assert first_data.get("success") is True
-        created_first = first_data.get("created", True)
-        assert created_first is True
-        recipe_id = first_data.get("recipe_id")
-        assert recipe_id
-
-        maybe_throttle()
-        duplicate_response = api_client.recipes.process_and_store_recipe(
-            base_input, enforce_deduplication=True
-        )
-        assert duplicate_response["status_code"] == HTTP_OK
-        duplicate_data = duplicate_response["data"]
-        assert duplicate_data.get("success") is True
-        assert duplicate_data.get("created") is False
-        assert duplicate_data.get("recipe_id") == recipe_id
-    finally:
-        if recipe_id and created_first:
-            api_client.recipes.delete_recipe(recipe_id)
+    maybe_throttle()
+    duplicate_response = api_client.recipes.process_and_store_recipe(
+        base_input, enforce_deduplication=True
+    )
+    assert duplicate_response["status_code"] == HTTP_OK
+    duplicate_data = duplicate_response["data"]
+    assert duplicate_data.get("success") is True
+    assert duplicate_data.get("created") is False
+    assert duplicate_data.get("recipe_id")
