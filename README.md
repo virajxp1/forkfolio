@@ -73,6 +73,8 @@ OPEN_ROUTER_API_KEY=your_openrouter_api_key
 # LLM_MODEL_NAME=your_chat_model
 # EMBEDDINGS_MODEL_NAME=your_embeddings_model
 
+# Dedupe thresholds are configured in config/dedupe.config.ini
+
 # Database host/user are configured in config/db.config.ini
 ```
 

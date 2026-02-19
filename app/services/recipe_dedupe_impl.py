@@ -1,3 +1,6 @@
+import configparser
+import os
+from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -15,8 +18,39 @@ from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 
 logger = get_logger(__name__)
 
-_DEDUPLICATION_DISTANCE_THRESHOLD = 0.3
-_STRICT_DUPLICATE_DISTANCE_THRESHOLD = 0.05
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_DEFAULT_DEDUPE_CONFIG_PATH = _REPO_ROOT / "config" / "dedupe.config.ini"
+_DEDUPE_CONFIG_PATH = os.getenv("DEDUPE_CONFIG_FILE", str(_DEFAULT_DEDUPE_CONFIG_PATH))
+
+_DEFAULT_DISTANCE_THRESHOLD = 0.3
+_DEFAULT_STRICT_DUPLICATE_DISTANCE_THRESHOLD = 0.05
+_DEFAULT_EMBEDDING_TYPE = "title_ingredients"
+
+
+def _load_dedupe_config() -> configparser.ConfigParser:
+    cfg = configparser.ConfigParser()
+    if not cfg.read(_DEDUPE_CONFIG_PATH):
+        logger.warning(
+            "Dedupe config file not found at %s; using defaults.",
+            _DEDUPE_CONFIG_PATH,
+        )
+    return cfg
+
+
+def _get_dedupe_settings() -> tuple[float, float, str]:
+    cfg = _load_dedupe_config()
+    distance_threshold = cfg.getfloat(
+        "dedupe", "distance_threshold", fallback=_DEFAULT_DISTANCE_THRESHOLD
+    )
+    strict_threshold = cfg.getfloat(
+        "dedupe",
+        "strict_duplicate_threshold",
+        fallback=_DEFAULT_STRICT_DUPLICATE_DISTANCE_THRESHOLD,
+    )
+    embedding_type = cfg.get(
+        "dedupe", "embedding_type", fallback=_DEFAULT_EMBEDDING_TYPE
+    )
+    return distance_threshold, strict_threshold, embedding_type
 
 
 class DedupeDecision(BaseModel):
@@ -29,6 +63,11 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
 
     def __init__(self, recipe_manager: RecipeManager = None):
         self.recipe_manager = recipe_manager or RecipeManager()
+        (
+            self.distance_threshold,
+            self.strict_duplicate_threshold,
+            self.embedding_type,
+        ) = _get_dedupe_settings()
 
     def find_duplicate(self, recipe: Recipe) -> tuple[bool, Optional[str]]:
         embedding_text = RecipeEmbeddingsServiceImpl._build_title_ingredients_text(
@@ -37,7 +76,7 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
         embedding = make_embedding(embedding_text)
         nearest = self.recipe_manager.find_nearest_embedding(
             embedding=embedding,
-            embedding_type="title_ingredients",
+            embedding_type=self.embedding_type,
         )
         if not nearest:
             return False, None
@@ -46,10 +85,10 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
         if distance is None:
             return False, None
 
-        if distance <= _STRICT_DUPLICATE_DISTANCE_THRESHOLD:
+        if distance <= self.strict_duplicate_threshold:
             return True, nearest["recipe_id"]
 
-        if distance > _DEDUPLICATION_DISTANCE_THRESHOLD:
+        if distance > self.distance_threshold:
             return False, None
 
         existing_recipe = self.recipe_manager.get_full_recipe(nearest["recipe_id"])
