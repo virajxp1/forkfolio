@@ -333,3 +333,24 @@ class RecipeManager(BaseManager):
                 )
         except Exception as e:
             raise DatabaseError(f"Failed to create recipe embedding: {e!s}") from e
+
+    def find_nearest_embedding(
+        self,
+        embedding: list[float],
+        embedding_type: str,
+    ) -> Optional[dict]:
+        """Find the nearest embedding by cosine distance."""
+        try:
+            with self.get_db_context() as (conn, cursor):
+                sql = """
+                SELECT recipe_id, embedding_type, embedding <=> %s::vector AS distance
+                FROM recipe_embeddings
+                WHERE embedding_type = %s
+                ORDER BY distance
+                LIMIT 1
+                """
+                cursor.execute(sql, (embedding, embedding_type))
+                row = cursor.fetchone()
+                return dict(row) if row else None
+        except Exception as e:
+            raise DatabaseError(f"Failed to find nearest embedding: {e!s}") from e

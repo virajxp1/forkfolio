@@ -5,7 +5,7 @@ Maps to: app/routers/recipes.py
 This contains the main recipe functionality endpoints.
 """
 
-from typing import Dict, Any
+from typing import Any, Dict, Optional
 from .base_client import BaseAPIClient
 from app.core.config import settings
 
@@ -17,7 +17,10 @@ class RecipesClient(BaseAPIClient):
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_V1_STR}/recipes/process-and-store"
 
     def process_and_store_recipe(
-        self, raw_input: str, is_test: bool = True
+        self,
+        raw_input: str,
+        is_test: bool = True,
+        enforce_deduplication: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
         Complete recipe processing pipeline: the main end-to-end recipe endpoint.
@@ -31,6 +34,8 @@ class RecipesClient(BaseAPIClient):
         Router: app.routers.recipes:process_and_store_recipe
         """
         payload = {"raw_input": raw_input, "isTest": is_test}
+        if enforce_deduplication is not None:
+            payload["enforce_deduplication"] = enforce_deduplication
         return self.post(self.PROCESS_AND_STORE_ENDPOINT, json_data=payload)
 
     def get_recipe(self, recipe_id: str) -> Dict[str, Any]:

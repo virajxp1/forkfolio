@@ -6,6 +6,8 @@ from .recipe_input_cleanup import RecipeInputCleanup
 from .recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 from .recipe_embeddings import RecipeEmbeddingsService
 from .recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
+from .recipe_dedupe import RecipeDedupeService
+from .recipe_dedupe_impl import RecipeDedupeServiceImpl
 
 __all__ = [
     "RecipeExtractorImpl",
@@ -14,4 +16,6 @@ __all__ = [
     "RecipeInputCleanupServiceImpl",
     "RecipeEmbeddingsService",
     "RecipeEmbeddingsServiceImpl",
+    "RecipeDedupeService",
+    "RecipeDedupeServiceImpl",
 ]

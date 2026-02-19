@@ -2,8 +2,9 @@ import configparser
 import json
 import logging
 import os
+import time
 from pathlib import Path
-from typing import Optional, TypeVar, Union
+from typing import Callable, Optional, TypeVar, Union
 
 from openai import OpenAI
 from openai.types.chat import (
@@ -65,6 +66,37 @@ def _get_openai_client() -> OpenAI:
     return OpenAI(base_url="https://openrouter.ai/api/v1", api_key=api_token)
 
 
+def _is_rate_limit_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    if "rate limit" in message or "free-models-per-min" in message:
+        return True
+    status = getattr(exc, "status_code", None)
+    if status == 429:
+        return True
+    return False
+
+
+def _with_retries(fn: Callable[[], T]) -> T:
+    max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
+    base_delay = float(os.getenv("LLM_RETRY_BASE_SECONDS", "1.0"))
+    max_delay = float(os.getenv("LLM_RETRY_MAX_SECONDS", "10.0"))
+
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            last_exc = exc
+            if not _is_rate_limit_error(exc) or attempt == max_retries:
+                raise
+            delay = min(max_delay, base_delay * (2**attempt))
+            time.sleep(delay)
+
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("LLM call failed without exception")
+
+
 def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
@@ -78,7 +110,9 @@ def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     if not model_name:
         raise ValueError("LLM model name is not set.")
 
-    completion = client.chat.completions.create(model=model_name, messages=messages)
+    completion = _with_retries(
+        lambda: client.chat.completions.create(model=model_name, messages=messages)
+    )
     content = completion.choices[0].message.content
     logger.info("Text generation response received")
     return content
@@ -127,11 +161,13 @@ def make_llm_call_structured_output_generic(
         if not model_name:
             raise ValueError("LLM model name is not set.")
 
-        completion = client.chat.completions.create(
-            model=model_name,
-            messages=messages,
-            response_format=response_format,
-            max_tokens=1000,
+        completion = _with_retries(
+            lambda: client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                response_format=response_format,
+                max_tokens=1000,
+            )
         )
 
         content = completion.choices[0].message.content
@@ -164,5 +200,7 @@ def make_embedding(text: str) -> list[float]:
         raise ValueError("Embeddings model name is not set.")
 
     client = _get_openai_client()
-    response = client.embeddings.create(model=model_name, input=text)
+    response = _with_retries(
+        lambda: client.embeddings.create(model=model_name, input=text)
+    )
     return response.data[0].embedding

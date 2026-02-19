@@ -6,6 +6,7 @@ import pytest
 
 from app.core.config import settings
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
+from app.tests.utils.helpers import maybe_throttle
 
 
 @pytest.mark.slow
@@ -28,3 +29,4 @@ def test_extract_recipe_from_text() -> None:
     assert recipe.title
     assert recipe.ingredients
     assert recipe.instructions
+    maybe_throttle()

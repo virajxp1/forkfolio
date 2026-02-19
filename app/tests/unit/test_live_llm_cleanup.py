@@ -6,6 +6,7 @@ import pytest
 
 from app.core.config import settings
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
+from app.tests.utils.helpers import maybe_throttle
 
 
 @pytest.mark.slow
@@ -24,3 +25,4 @@ def test_cleanup_returns_text() -> None:
     cleaned = service.cleanup_input(raw_text)
     assert isinstance(cleaned, str)
     assert len(cleaned.strip()) > 0
+    maybe_throttle()

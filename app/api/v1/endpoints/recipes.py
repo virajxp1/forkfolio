@@ -35,14 +35,38 @@ def process_and_store_recipe(
     Takes raw unstructured recipe text and returns the database ID
     of the stored recipe, or an error if processing fails.
     """
-    recipe_id, error = processing_service.process_raw_recipe(
+    recipe_id, error, created = processing_service.process_raw_recipe(
         raw_input=ingestion_request.raw_input,
         source_url=None,  # Could extend request model to include source_url if needed
+        enforce_deduplication=ingestion_request.enforce_deduplication,
         is_test=ingestion_request.is_test,
     )
 
     if error:
         return {"error": error, "success": False}
+
+    if not created:
+        if not recipe_id:
+            logger.error("Duplicate recipe detected but no recipe_id was returned")
+            return {
+                "error": "Duplicate recipe detected but no recipe_id was returned",
+                "success": False,
+            }
+        recipe_data = recipe_manager.get_full_recipe(recipe_id)
+        if not recipe_data:
+            logger.error(f"Duplicate recipe found but not retrieved: {recipe_id}")
+            raise HTTPException(
+                status_code=500,
+                detail="Duplicate recipe found but could not be retrieved",
+            )
+        logger.info(f"Duplicate recipe found; returning existing recipe: {recipe_id}")
+        return {
+            "recipe_id": recipe_id,
+            "recipe": recipe_data,
+            "success": True,
+            "created": False,
+            "message": "Duplicate recipe found; returning existing recipe.",
+        }
 
     recipe_data = recipe_manager.get_full_recipe(recipe_id)
     if not recipe_data:
@@ -56,6 +80,7 @@ def process_and_store_recipe(
         "recipe_id": recipe_id,
         "recipe": recipe_data,
         "success": True,
+        "created": True,
         "message": "Recipe processed and stored successfully",
     }
 
