@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     VERSION: str = "0.1.0"
     API_V1_STR: str = "/api/v1"
 
+    RATE_LIMIT_PER_MINUTE: int = 60
+    MAX_REQUEST_SIZE_MB: int = 1
+    REQUEST_TIMEOUT_SECONDS: float = 30.0
+    API_AUTH_TOKEN: str = ""
+
     # API tokens
     OPEN_ROUTER_API_KEY: str = os.environ.get("OPEN_ROUTER_API_KEY", "")
     SUPABASE_PASSWORD: str = os.environ.get("SUPABASE_PASSWORD", "")

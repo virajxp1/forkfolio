@@ -3,6 +3,7 @@ Base client class for API testing.
 """
 
 import requests
+import os
 from typing import Any, Dict, Optional
 
 from app.tests.utils.constants import REQUEST_TIMEOUT
@@ -14,6 +15,7 @@ class BaseAPIClient:
     def __init__(self, base_url: str):
         self.base_url = base_url
         self.timeout = REQUEST_TIMEOUT
+        self.auth_token = os.getenv("API_AUTH_TOKEN", "")
 
     def _make_request(
         self,
@@ -36,6 +38,8 @@ class BaseAPIClient:
         """
         url = f"{self.base_url}{endpoint}"
         default_headers = {"Content-Type": "application/json"}
+        if self.auth_token:
+            default_headers["X-API-Token"] = self.auth_token
         if headers:
             default_headers.update(headers)
 
