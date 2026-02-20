@@ -68,6 +68,12 @@ DB_PASSWORD=your_database_password
 # AI Service Configuration (Required)
 OPEN_ROUTER_API_KEY=your_openrouter_api_key
 
+# Request protection (Optional)
+# RATE_LIMIT_PER_MINUTE=60
+# MAX_REQUEST_SIZE_MB=1
+# REQUEST_TIMEOUT_SECONDS=30
+# API_AUTH_TOKEN=your_shared_token
+
 # LLM + embeddings model selection is configured in config/llm.config.ini
 # Optional overrides:
 # LLM_MODEL_NAME=your_chat_model
