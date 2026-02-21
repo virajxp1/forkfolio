@@ -56,32 +56,18 @@ docker-compose up --build
 
 ## Environment Configuration
 
-Create a `.env` file in the project root with the following variables:
+Primary app configuration now lives in:
+- `config/app.config.ini` (API, DB host/user/pool, LLM/embeddings, dedupe, search)
+
+Use environment variables for secrets (you can keep them in a local `.env` file):
 
 ```bash
-# Database Configuration (Required)
+# Secrets (required for DB + LLM calls)
 SUPABASE_PASSWORD=your_supabase_password
-
-# Optional database password override
-DB_PASSWORD=your_database_password
-
-# AI Service Configuration (Required)
 OPEN_ROUTER_API_KEY=your_openrouter_api_key
-
-# Request protection (Optional)
-# RATE_LIMIT_PER_MINUTE=60
-# MAX_REQUEST_SIZE_MB=1
-# REQUEST_TIMEOUT_SECONDS=30
-# API_AUTH_TOKEN=your_shared_token
-
-# LLM + embeddings model selection is configured in config/llm.config.ini
-# Optional overrides:
-# LLM_MODEL_NAME=your_chat_model
-# EMBEDDINGS_MODEL_NAME=your_embeddings_model
-
-# Dedupe thresholds are configured in config/dedupe.config.ini
-
-# Database host/user are configured in config/db.config.ini
+API_AUTH_TOKEN=your_api_auth_token
+# Optional alias
+DB_PASSWORD=your_database_password
 ```
 
 ## Running the Application
@@ -202,6 +188,7 @@ forkfolio/
 │   └── lint.yml            # Code quality checks
 ├── config/                 # Configuration files
 │   ├── .pre-commit-config.yaml # Pre-commit hooks configuration
+│   ├── app.config.ini      # Unified app/runtime configuration
 │   └── pyproject.toml      # Python project configuration
 ├── docker/                 # Docker-related files
 │   ├── Dockerfile          # Multi-stage Docker build
@@ -215,7 +202,7 @@ forkfolio/
 ├── .pre-commit-config.yaml # Pre-commit hooks (symlink to config/)
 ├── pytest.ini              # Pytest configuration
 ├── requirements.txt        # Python dependencies
-└── .env                    # Environment variables (gitignored)
+└── .env                    # Optional secrets overrides (gitignored)
 ```
 
 ## Architecture Highlights
@@ -240,6 +227,7 @@ forkfolio/
 
 ### 📡 **API Endpoints**
 - `POST /api/v1/recipes/process-and-store` - Complete recipe processing pipeline
+- `GET /api/v1/recipes/search/semantic` - Semantic search over recipes by vector similarity
 - `GET /api/v1/recipes/{recipe_id}` - Retrieve recipe with ingredients/instructions  
 - `GET /api/v1/recipes/{recipe_id}/all` - Retrieve recipe with ingredients/instructions/embeddings
 - `GET /api/v1/health` - Health check with database connectivity
@@ -304,8 +292,10 @@ pre-commit install                  # Install pre-commit hooks
 pre-commit run --all-files          # Run hooks on all files
 
 # Testing
-python -m pytest -c pytest.ini app/tests/unit/ -v  # Live smoke tests (needs OPEN_ROUTER_API_KEY)
-python -m pytest -c pytest.ini app/tests/e2e/ -v   # Full E2E (needs OPEN_ROUTER_API_KEY + SUPABASE_PASSWORD)
+# Live smoke tests (needs OPEN_ROUTER_API_KEY in env)
+python -m pytest -c pytest.ini app/tests/unit/ -v
+# Full E2E (needs OPEN_ROUTER_API_KEY + SUPABASE_PASSWORD in env)
+python -m pytest -c pytest.ini app/tests/e2e/ -v
 python -m pytest -c pytest.ini app/tests/ -v       # Run all tests
 python app/tests/test_runner.py                     # Test runner wrapper
 
@@ -323,9 +313,9 @@ uvicorn app.main:app --reload       # Alternative server startup
 
 - `app/tests/unit/`: Bite-sized live smoke tests against real LLM/embeddings services.
 - `app/tests/e2e/`: End-to-end API + DB + LLM workflow tests.
-- Required env vars:
-  - Unit smoke: `OPEN_ROUTER_API_KEY`
-  - E2E: `OPEN_ROUTER_API_KEY`, `SUPABASE_PASSWORD`
+- Required secrets:
+  - Unit smoke: `OPEN_ROUTER_API_KEY` (environment variable)
+  - E2E: `OPEN_ROUTER_API_KEY`, `SUPABASE_PASSWORD` (environment variables)
 
 ## Deployment
 
@@ -334,7 +324,7 @@ uvicorn app.main:app --reload       # Alternative server startup
 # Build production image
 docker build -f docker/Dockerfile -t forkfolio:latest .
 
-# Run with environment variables
+# Run (pass secrets via --env-file or env vars)
 docker run -d \
   --name forkfolio \
   -p 8000:8000 \
@@ -346,6 +336,7 @@ docker run -d \
 **Environment-Specific Configuration:**
 - Local: Direct Supabase connection
 - GitHub Actions: Session Pooler (IPv4 compatibility)  
-- Production: Configure `config/db.config.ini` and `SUPABASE_PASSWORD` (or `DB_PASSWORD`)
+- Production: Configure `config/app.config.ini` and provide secrets via
+  `SUPABASE_PASSWORD` / `OPEN_ROUTER_API_KEY` / `API_AUTH_TOKEN`
 
 The application automatically detects Session Pooler usage and adjusts connection parameters accordingly.

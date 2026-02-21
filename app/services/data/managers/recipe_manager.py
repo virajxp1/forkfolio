@@ -42,6 +42,18 @@ FROM recipe_embeddings
 WHERE recipe_id = %s
 ORDER BY created_at
 """
+SIMILAR_RECIPES_BY_EMBEDDING_SQL = """
+SELECT
+    r.id AS recipe_id,
+    r.title AS recipe_name,
+    e.embedding <=> %s::vector AS distance
+FROM recipe_embeddings e
+JOIN recipes r ON r.id = e.recipe_id
+WHERE e.embedding_type = %s
+  AND e.embedding <=> %s::vector <= %s
+ORDER BY distance
+LIMIT %s
+"""
 
 
 class RecipeManager(BaseManager):
@@ -177,6 +189,16 @@ class RecipeManager(BaseManager):
         for row in embeddings:
             row["embedding"] = self._normalize_embedding_value(row.get("embedding"))
         return embeddings
+
+    @staticmethod
+    def _format_semantic_search_row(row: dict) -> dict:
+        distance_value = row.get("distance")
+        distance = float(distance_value) if distance_value is not None else None
+        return {
+            "id": row.get("recipe_id"),
+            "name": row.get("recipe_name"),
+            "distance": distance,
+        }
 
     def create_recipe(
         self,
@@ -349,6 +371,31 @@ class RecipeManager(BaseManager):
                 )
         except Exception as e:
             raise DatabaseError(f"Failed to create recipe embedding: {e!s}") from e
+
+    def search_recipes_by_embedding(
+        self,
+        embedding: list[float],
+        embedding_type: str,
+        limit: int = 10,
+        max_distance: float = 0.35,
+    ) -> list[dict]:
+        """Find recipes with embeddings closest to the provided embedding."""
+        try:
+            with self.get_db_context() as (_conn, cursor):
+                cursor.execute(
+                    SIMILAR_RECIPES_BY_EMBEDDING_SQL,
+                    (
+                        embedding,
+                        embedding_type,
+                        embedding,
+                        max_distance,
+                        limit,
+                    ),
+                )
+                rows = cursor.fetchall()
+                return [self._format_semantic_search_row(dict(row)) for row in rows]
+        except Exception as e:
+            raise DatabaseError(f"Failed to search recipes by embedding: {e!s}") from e
 
     def find_nearest_embedding(
         self,
