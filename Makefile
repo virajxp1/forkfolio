@@ -10,6 +10,12 @@ start:
 test:
 	$(PYTHON_BIN) -m pytest -c pytest.ini app/tests/unit/ -q
 
+test-e2e:
+	$(PYTHON_BIN) -m pytest -c pytest.ini app/tests/e2e/ -v
+
+test-all:
+	$(PYTHON_BIN) -m pytest -c pytest.ini app/tests/ -v
+
 lint:
 	$(RUFF_BIN) check .
 	$(RUFF_BIN) format --check .
