@@ -248,12 +248,30 @@ class RecipeBookManager(BaseManager):
                     cursor, RECIPE_BOOK_EXISTS_SQL, recipe_book_id
                 )
                 if not book_exists:
-                    return {"book_exists": False, "removed": False}
+                    return {
+                        "book_exists": False,
+                        "recipe_exists": True,
+                        "removed": False,
+                    }
+
+                recipe_exists = self._record_exists(
+                    cursor, RECIPE_EXISTS_SQL, recipe_id
+                )
+                if not recipe_exists:
+                    return {
+                        "book_exists": True,
+                        "recipe_exists": False,
+                        "removed": False,
+                    }
 
                 cursor.execute(
                     DELETE_RECIPE_BOOK_RECIPE_SQL, (recipe_book_id, recipe_id)
                 )
-                return {"book_exists": True, "removed": cursor.rowcount > 0}
+                return {
+                    "book_exists": True,
+                    "recipe_exists": True,
+                    "removed": cursor.rowcount > 0,
+                }
         except Exception as e:
             raise DatabaseError(
                 f"Failed to remove recipe from recipe book: {e!s}"

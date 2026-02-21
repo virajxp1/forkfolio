@@ -203,6 +203,10 @@ def remove_recipe_from_book(
         )
         if not result["book_exists"]:
             raise HTTPException(status_code=404, detail="Recipe book not found")
+        if not result["recipe_exists"]:
+            raise HTTPException(status_code=404, detail="Recipe not found")
+        if not result["removed"]:
+            raise HTTPException(status_code=404, detail="Recipe is not in recipe book")
 
         return {
             "recipe_book_id": recipe_book_id_str,

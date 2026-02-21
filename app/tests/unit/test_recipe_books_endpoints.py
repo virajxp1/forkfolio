@@ -37,7 +37,11 @@ class StubRecipeBookManager:
         self.recipe_exists_result = True
         self.books_for_recipe_result = [self.recipe_book_by_name.copy()]
         self.add_result = {"book_exists": True, "recipe_exists": True, "added": True}
-        self.remove_result = {"book_exists": True, "removed": True}
+        self.remove_result = {
+            "book_exists": True,
+            "recipe_exists": True,
+            "removed": True,
+        }
 
     def create_recipe_book(self, name: str, description: str | None = None):
         return self.create_result
@@ -184,7 +188,11 @@ def test_add_recipe_to_book_endpoint_handles_missing_recipe() -> None:
 
 def test_remove_recipe_from_book_endpoint_returns_removed() -> None:
     manager = StubRecipeBookManager()
-    manager.remove_result = {"book_exists": True, "removed": True}
+    manager.remove_result = {
+        "book_exists": True,
+        "recipe_exists": True,
+        "removed": True,
+    }
     client = TestClient(build_recipe_books_app(manager))
 
     response = client.delete(f"/api/v1/recipe-books/{BOOK_ID}/recipes/{RECIPE_ID}")
@@ -193,6 +201,36 @@ def test_remove_recipe_from_book_endpoint_returns_removed() -> None:
     body = response.json()
     assert body["success"] is True
     assert body["removed"] is True
+
+
+def test_remove_recipe_from_book_endpoint_handles_missing_recipe() -> None:
+    manager = StubRecipeBookManager()
+    manager.remove_result = {
+        "book_exists": True,
+        "recipe_exists": False,
+        "removed": False,
+    }
+    client = TestClient(build_recipe_books_app(manager))
+
+    response = client.delete(f"/api/v1/recipe-books/{BOOK_ID}/recipes/{RECIPE_ID}")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Recipe not found"
+
+
+def test_remove_recipe_from_book_endpoint_handles_not_member() -> None:
+    manager = StubRecipeBookManager()
+    manager.remove_result = {
+        "book_exists": True,
+        "recipe_exists": True,
+        "removed": False,
+    }
+    client = TestClient(build_recipe_books_app(manager))
+
+    response = client.delete(f"/api/v1/recipe-books/{BOOK_ID}/recipes/{RECIPE_ID}")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Recipe is not in recipe book"
 
 
 def test_get_recipe_book_stats_endpoint_returns_stats() -> None:

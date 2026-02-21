@@ -131,14 +131,39 @@ def test_add_recipe_to_book_returns_added_flag(monkeypatch) -> None:
 def test_remove_recipe_from_book_returns_removed_flag(monkeypatch) -> None:
     manager = RecipeBookManager()
     cursor = FakeCursor(
-        fetchone_results=[{"exists": 1}],
-        rowcount_sequence=[0, 1],
+        fetchone_results=[{"exists": 1}, {"exists": 1}],
+        rowcount_sequence=[0, 0, 1],
     )
     _patch_db_context(monkeypatch, manager, cursor)
 
     result = manager.remove_recipe_from_book("book-1", "recipe-1")
 
-    assert result == {"book_exists": True, "removed": True}
+    assert result == {"book_exists": True, "recipe_exists": True, "removed": True}
+
+
+def test_remove_recipe_from_book_returns_missing_recipe(monkeypatch) -> None:
+    manager = RecipeBookManager()
+    cursor = FakeCursor(
+        fetchone_results=[{"exists": 1}, None], rowcount_sequence=[0, 0]
+    )
+    _patch_db_context(monkeypatch, manager, cursor)
+
+    result = manager.remove_recipe_from_book("book-1", "recipe-1")
+
+    assert result == {"book_exists": True, "recipe_exists": False, "removed": False}
+
+
+def test_remove_recipe_from_book_returns_not_member(monkeypatch) -> None:
+    manager = RecipeBookManager()
+    cursor = FakeCursor(
+        fetchone_results=[{"exists": 1}, {"exists": 1}],
+        rowcount_sequence=[0, 0, 0],
+    )
+    _patch_db_context(monkeypatch, manager, cursor)
+
+    result = manager.remove_recipe_from_book("book-1", "recipe-1")
+
+    assert result == {"book_exists": True, "recipe_exists": True, "removed": False}
 
 
 def test_get_recipe_book_stats_computes_average(monkeypatch) -> None:
