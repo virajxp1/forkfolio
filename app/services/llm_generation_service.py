@@ -6,6 +6,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional, TypeVar, Union
 
+from app.core.cache import hash_cache_key, llm_structured_cache, llm_text_cache
 from openai import OpenAI
 from openai.types.chat import (
     ChatCompletionSystemMessageParam,
@@ -98,6 +99,15 @@ def _with_retries(fn: Callable[[], T]) -> T:
 
 
 def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
+    model_name = _get_chat_model_name()
+    if not model_name:
+        raise ValueError("LLM model name is not set.")
+
+    cache_key = hash_cache_key("llm_text", model_name, system_prompt, user_prompt)
+    cached = llm_text_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     messages: list[
         Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
     ] = [
@@ -106,15 +116,13 @@ def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     ]
 
     client = _get_openai_client()
-    model_name = _get_chat_model_name()
-    if not model_name:
-        raise ValueError("LLM model name is not set.")
-
     completion = _with_retries(
         lambda: client.chat.completions.create(model=model_name, messages=messages)
     )
     content = completion.choices[0].message.content
     logger.info("Text generation response received")
+    if content is not None:
+        llm_text_cache.set(cache_key, content)
     return content
 
 
@@ -138,18 +146,35 @@ def make_llm_call_structured_output_generic(
         result contains the model instance and error_message is None.
         If failed, result is None and error_message contains the error.
     """
-    messages: list[
-        Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
-    ] = [
-        ChatCompletionSystemMessageParam(role="system", content=system_prompt),
-        ChatCompletionUserMessageParam(role="user", content=user_prompt),
-    ]
-
     try:
-        client = _get_openai_client()
+        model_name = _get_chat_model_name()
+        if not model_name:
+            raise ValueError("LLM model name is not set.")
 
-        # Get the JSON schema from the provided model class
         schema = model_class.model_json_schema()
+        schema_fingerprint = json.dumps(schema, sort_keys=True)
+        cache_key = hash_cache_key(
+            "llm_structured",
+            model_name,
+            system_prompt,
+            user_prompt,
+            schema_name,
+            model_class.__module__,
+            model_class.__name__,
+            schema_fingerprint,
+        )
+        cached = llm_structured_cache.get(cache_key)
+        if cached is not None:
+            try:
+                return model_class.model_validate(cached), None
+            except Exception as exc:
+                logger.warning(
+                    "Cached structured response failed validation; evicting. Error: %s",
+                    exc,
+                )
+                llm_structured_cache.delete(cache_key)
+
+        client = _get_openai_client()
 
         response_format = ResponseFormatJSONSchema(
             type="json_schema",
@@ -157,14 +182,15 @@ def make_llm_call_structured_output_generic(
         )
 
         # Call with proper JSON schema format
-        model_name = _get_chat_model_name()
-        if not model_name:
-            raise ValueError("LLM model name is not set.")
-
         completion = _with_retries(
             lambda: client.chat.completions.create(
                 model=model_name,
-                messages=messages,
+                messages=[
+                    ChatCompletionSystemMessageParam(
+                        role="system", content=system_prompt
+                    ),
+                    ChatCompletionUserMessageParam(role="user", content=user_prompt),
+                ],
                 response_format=response_format,
                 max_tokens=1000,
             )
@@ -178,6 +204,7 @@ def make_llm_call_structured_output_generic(
         try:
             response_data = json.loads(content)
             result = model_class.model_validate(response_data)
+            llm_structured_cache.set(cache_key, result.model_dump())
             return result, None
         except json.JSONDecodeError as e:
             error_msg = f"Failed to parse JSON response: {e}. Raw content: {content!r}"

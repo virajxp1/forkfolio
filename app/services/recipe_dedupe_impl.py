@@ -69,7 +69,9 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
             self.embedding_type,
         ) = _get_dedupe_settings()
 
-    def find_duplicate(self, recipe: Recipe) -> tuple[bool, Optional[str]]:
+    def find_duplicate(
+        self, recipe: Recipe
+    ) -> tuple[bool, Optional[str], Optional[list[float]]]:
         embedding_text = RecipeEmbeddingsServiceImpl._build_title_ingredients_text(
             recipe.title, recipe.ingredients
         )
@@ -79,21 +81,21 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
             embedding_type=self.embedding_type,
         )
         if not nearest:
-            return False, None
+            return False, None, embedding
 
         distance = nearest["distance"]
         if distance is None:
-            return False, None
+            return False, None, embedding
 
         if distance <= self.strict_duplicate_threshold:
-            return True, nearest["recipe_id"]
+            return True, nearest["recipe_id"], embedding
 
         if distance > self.distance_threshold:
-            return False, None
+            return False, None, embedding
 
         existing_recipe = self.recipe_manager.get_full_recipe(nearest["recipe_id"])
         if not existing_recipe:
-            return False, None
+            return False, None, embedding
 
         decision, error = make_llm_call_structured_output_generic(
             user_prompt=self._build_user_prompt(recipe, existing_recipe),
@@ -103,12 +105,12 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
         )
         if error or not decision:
             logger.warning(f"Dedupe LLM failed; allowing insert. Error: {error}")
-            return False, None
+            return False, None, embedding
 
         if decision.decision == "duplicate":
-            return True, nearest["recipe_id"]
+            return True, nearest["recipe_id"], embedding
 
-        return False, None
+        return False, None, embedding
 
     @staticmethod
     def _build_user_prompt(recipe: Recipe, existing_recipe: dict) -> str:
