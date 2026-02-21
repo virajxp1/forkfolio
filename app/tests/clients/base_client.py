@@ -22,6 +22,7 @@ class BaseAPIClient:
         method: str,
         endpoint: str,
         json_data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
@@ -47,6 +48,7 @@ class BaseAPIClient:
             method=method,
             url=url,
             json=json_data,
+            params=params,
             headers=default_headers,
             timeout=self.timeout,
         )
@@ -65,24 +67,51 @@ class BaseAPIClient:
         }
 
     def get(
-        self, endpoint: str, headers: Optional[Dict[str, str]] = None
+        self,
+        endpoint: str,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """Make a GET request."""
-        return self._make_request("GET", endpoint, headers=headers)
+        return self._make_request("GET", endpoint, params=params, headers=headers)
 
     def post(
         self,
         endpoint: str,
         json_data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """Make a POST request."""
         return self._make_request(
-            "POST", endpoint, json_data=json_data, headers=headers
+            "POST",
+            endpoint,
+            json_data=json_data,
+            params=params,
+            headers=headers,
+        )
+
+    def put(
+        self,
+        endpoint: str,
+        json_data: Optional[Dict[str, Any]] = None,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Make a PUT request."""
+        return self._make_request(
+            "PUT",
+            endpoint,
+            json_data=json_data,
+            params=params,
+            headers=headers,
         )
 
     def delete(
-        self, endpoint: str, headers: Optional[Dict[str, str]] = None
+        self,
+        endpoint: str,
+        params: Optional[Dict[str, Any]] = None,
+        headers: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """Make a DELETE request."""
-        return self._make_request("DELETE", endpoint, headers=headers)
+        return self._make_request("DELETE", endpoint, params=params, headers=headers)
