@@ -51,7 +51,7 @@ cd forkfolio
 # Configure environment variables in .env file
 
 # Build and run with Docker Compose
-docker-compose up --build
+docker compose -f docker/docker-compose.yml up --build
 ```
 
 ## Environment Configuration
@@ -75,7 +75,7 @@ DB_PASSWORD=your_database_password
 **Local Development:**
 ```bash
 # Using the runner script (recommended)
-python scripts/run.py
+python3 scripts/run.py --reload
 
 # Or using uvicorn directly
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
@@ -84,7 +84,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 **Docker:**
 ```bash
 # Using Docker Compose (recommended)
-docker-compose -f docker/docker-compose.yml up
+docker compose -f docker/docker-compose.yml up --build
 
 # Or build and run manually
 docker build -f docker/Dockerfile -t forkfolio .
@@ -213,7 +213,7 @@ forkfolio/
 - **Context Managers**: Automatic transaction handling with rollback/commit
 - **Custom Exceptions**: Hierarchical error handling with proper exception chaining
 - **Dependency Injection**: Clean FastAPI integration with typed providers
-- **Health Monitoring**: Built-in health checks with database connectivity validation
+- **Health Monitoring**: Lightweight liveness endpoint
 - **Graceful Shutdown**: Proper resource cleanup on application termination
 
 ### 🔧 **Key Components**
@@ -230,7 +230,7 @@ forkfolio/
 - `GET /api/v1/recipes/search/semantic` - Semantic search over recipes by vector similarity
 - `GET /api/v1/recipes/{recipe_id}` - Retrieve recipe with ingredients/instructions  
 - `GET /api/v1/recipes/{recipe_id}/all` - Retrieve recipe with ingredients/instructions/embeddings
-- `GET /api/v1/health` - Health check with database connectivity
+- `GET /api/v1/health` - Lightweight liveness check (no DB/LLM dependencies)
 - `GET /docs` - Interactive Swagger API documentation
 - `GET /redoc` - Alternative API documentation format
 
@@ -293,18 +293,18 @@ pre-commit run --all-files          # Run hooks on all files
 
 # Testing
 # Live smoke tests (needs OPEN_ROUTER_API_KEY in env)
-python -m pytest -c pytest.ini app/tests/unit/ -v
+python3 -m pytest -c pytest.ini app/tests/unit/ -v
 # Full E2E (needs OPEN_ROUTER_API_KEY + SUPABASE_PASSWORD in env)
-python -m pytest -c pytest.ini app/tests/e2e/ -v
-python -m pytest -c pytest.ini app/tests/ -v       # Run all tests
-python app/tests/test_runner.py                     # Test runner wrapper
+python3 -m pytest -c pytest.ini app/tests/e2e/ -v
+python3 -m pytest -c pytest.ini app/tests/ -v       # Run all tests
+python3 app/tests/test_runner.py                     # Test runner wrapper
 
 # Database
-# Health check includes database connectivity test
+# Health check (lightweight liveness)
 curl http://localhost:8000/api/v1/health
 
 # Development Server
-python scripts/run.py               # Start development server
+python3 scripts/run.py --reload     # Start development server (dev mode)
 # or
 uvicorn app.main:app --reload       # Alternative server startup
 ```
@@ -332,6 +332,25 @@ docker run -d \
   --restart unless-stopped \
   forkfolio:latest
 ```
+
+**Render Web Service:**
+```bash
+# Start command (non-Docker service)
+python3 scripts/run.py
+```
+
+- Health check path: `/api/v1/health`
+- `scripts/run.py` binds to `PORT` automatically (Render sets this).
+- Auto-reload is disabled by default in production.
+- Set environment variables in Render:
+  - `SUPABASE_PASSWORD`
+  - `OPEN_ROUTER_API_KEY`
+  - `API_AUTH_TOKEN`
+- Auth behavior:
+  - `/api/v1/health` and `/api/v1/` are unauthenticated for platform checks.
+  - All other API routes require `X-API-Token` or `Authorization: Bearer <token>`.
+- Health behavior:
+  - `/api/v1/health` returns `200` with `{"status":"ok"}` for liveness.
 
 **Environment-Specific Configuration:**
 - Local: Direct Supabase connection

@@ -9,11 +9,8 @@ from app.core.config import settings
 
 
 def _default_healthcheck_url() -> str:
-    api_base_path = settings.API_V1_STR.strip() or "/api/v1"
-    if not api_base_path.startswith("/"):
-        api_base_path = f"/{api_base_path}"
-    api_base_path = api_base_path.rstrip("/")
-    return f"http://localhost:8000{api_base_path}/health"
+    port = os.getenv("PORT", "8000").strip() or "8000"
+    return f"http://localhost:{port}{settings.API_BASE_PATH}/health"
 
 
 def main() -> int:

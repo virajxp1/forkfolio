@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Iterable
 from collections import deque
 from typing import Deque
 
@@ -17,14 +18,17 @@ from starlette.status import (
 
 
 class AuthTokenMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, token: str) -> None:
+    def __init__(self, app, token: str, exempt_paths: Iterable[str] = ()) -> None:
         super().__init__(app)
         self._token = token.strip()
+        self._exempt_paths = {_normalize_path(path) for path in exempt_paths}
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
         if not self._token:
+            return await call_next(request)
+        if _normalize_path(request.url.path) in self._exempt_paths:
             return await call_next(request)
 
         header_token = request.headers.get("x-api-token")
@@ -150,6 +154,15 @@ def _get_client_ip(request: Request) -> str:
     if request.client:
         return request.client.host
     return "unknown"
+
+
+def _normalize_path(path: str) -> str:
+    normalized = path.strip() or "/"
+    if not normalized.startswith("/"):
+        normalized = f"/{normalized}"
+    if normalized != "/":
+        normalized = normalized.rstrip("/")
+    return normalized
 
 
 async def _send_size_limit_response(scope, receive, send) -> None:

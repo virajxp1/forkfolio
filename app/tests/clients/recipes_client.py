@@ -16,8 +16,8 @@ class RecipesClient(BaseAPIClient):
     """Client for main recipe functionality endpoints."""
 
     # Endpoint paths - centralized in one place
-    PROCESS_AND_STORE_ENDPOINT = f"{settings.API_V1_STR}/recipes/process-and-store"
-    SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_V1_STR}/recipes/search/semantic"
+    PROCESS_AND_STORE_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/process-and-store"
+    SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/search/semantic"
 
     def process_and_store_recipe(
         self,
@@ -48,7 +48,7 @@ class RecipesClient(BaseAPIClient):
         Endpoint: GET /api/v1/recipes/{recipe_id}
         Router: app.routers.recipes:get_recipe
         """
-        endpoint = f"{settings.API_V1_STR}/recipes/{recipe_id}"
+        endpoint = f"{settings.API_BASE_PATH}/recipes/{recipe_id}"
         return self.get(endpoint)
 
     def get_recipe_all(self, recipe_id: str) -> Dict[str, Any]:
@@ -58,7 +58,7 @@ class RecipesClient(BaseAPIClient):
         Endpoint: GET /api/v1/recipes/{recipe_id}/all
         Router: app.routers.recipes:get_recipe_all
         """
-        endpoint = f"{settings.API_V1_STR}/recipes/{recipe_id}/all"
+        endpoint = f"{settings.API_BASE_PATH}/recipes/{recipe_id}/all"
         return self.get(endpoint)
 
     def delete_recipe(self, recipe_id: str) -> Dict[str, Any]:
@@ -68,7 +68,7 @@ class RecipesClient(BaseAPIClient):
         Endpoint: DELETE /api/v1/recipes/delete/{recipe_id}
         Router: app.routers.recipes:delete_recipe
         """
-        endpoint = f"{settings.API_V1_STR}/recipes/delete/{recipe_id}"
+        endpoint = f"{settings.API_BASE_PATH}/recipes/delete/{recipe_id}"
         return self.delete(endpoint)
 
     def search_semantic(

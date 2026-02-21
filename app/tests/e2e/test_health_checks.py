@@ -17,6 +17,4 @@ def test_health_endpoint_contract(api_client: APIClient) -> None:
     assert response["status_code"] == HTTP_OK
 
     payload = response["data"]
-    assert payload["status"] in {"healthy", "unhealthy"}
-    assert isinstance(payload.get("database"), dict)
-    assert isinstance(payload.get("timestamp"), str)
+    assert payload["status"] == "ok"

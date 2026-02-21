@@ -52,10 +52,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Configure database connection for IPv4
-      run: |
-        echo "Using repository config/db.config.ini for GitHub Actions"
-    
     - name: Run E2E tests
       run: |
         python -m pytest -c pytest.ini app/tests/e2e/ -v

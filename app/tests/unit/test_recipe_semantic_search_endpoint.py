@@ -67,6 +67,9 @@ def build_client(
     return TestClient(app)
 
 
+SEMANTIC_SEARCH_PATH = f"{settings.API_BASE_PATH}/recipes/search/semantic"
+
+
 def test_semantic_search_returns_results() -> None:
     expected_results = [
         {
@@ -80,7 +83,7 @@ def test_semantic_search_returns_results() -> None:
     client = build_client(fake_manager, fake_embeddings)
 
     response = client.get(
-        "/api/v1/recipes/search/semantic",
+        SEMANTIC_SEARCH_PATH,
         params={"query": "lasagna", "limit": 5},
     )
 
@@ -108,7 +111,7 @@ def test_semantic_search_validates_query_length() -> None:
     client = build_client(fake_manager, fake_embeddings)
 
     response = client.get(
-        "/api/v1/recipes/search/semantic",
+        SEMANTIC_SEARCH_PATH,
         params={"query": "a"},
     )
 
@@ -121,7 +124,7 @@ def test_semantic_search_rejects_whitespace_only_query() -> None:
     client = build_client(fake_manager, fake_embeddings)
 
     response = client.get(
-        "/api/v1/recipes/search/semantic",
+        SEMANTIC_SEARCH_PATH,
         params={"query": "   "},
     )
 
@@ -139,7 +142,7 @@ def test_semantic_search_returns_500_on_embedding_error() -> None:
     client = build_client(fake_manager, fake_embeddings)
 
     response = client.get(
-        "/api/v1/recipes/search/semantic",
+        SEMANTIC_SEARCH_PATH,
         params={"query": "lasagna"},
     )
 
