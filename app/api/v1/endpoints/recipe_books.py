@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
@@ -41,10 +42,8 @@ def create_recipe_book(
             "success": True,
         }
     except Exception as e:
-        logger.error(f"Error creating recipe book: {e!s}")
-        raise HTTPException(
-            status_code=500, detail=f"Error creating recipe book: {e!s}"
-        ) from e
+        logger.exception("Error creating recipe book: %s", e)
+        raise HTTPException(status_code=500, detail="Error creating recipe book") from e
 
 
 @router.get("/")
@@ -76,10 +75,8 @@ def get_recipe_books(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting recipe books: {e!s}")
-        raise HTTPException(
-            status_code=500, detail=f"Error getting recipe books: {e!s}"
-        ) from e
+        logger.exception("Error getting recipe books: %s", e)
+        raise HTTPException(status_code=500, detail="Error getting recipe books") from e
 
 
 @router.get("/stats")
@@ -91,49 +88,53 @@ def get_recipe_book_stats(recipe_book_manager=recipe_book_manager_dep) -> dict:
         stats = recipe_book_manager.get_recipe_book_stats()
         return {"stats": stats, "success": True}
     except Exception as e:
-        logger.error(f"Error getting recipe book stats: {e!s}")
+        logger.exception("Error getting recipe book stats: %s", e)
         raise HTTPException(
-            status_code=500, detail=f"Error getting recipe book stats: {e!s}"
+            status_code=500, detail="Error getting recipe book stats"
         ) from e
 
 
 @router.get("/by-recipe/{recipe_id}")
 def get_recipe_books_for_recipe(
-    recipe_id: str, recipe_book_manager=recipe_book_manager_dep
+    recipe_id: UUID, recipe_book_manager=recipe_book_manager_dep
 ) -> dict:
     """
     Return all recipe books that include the given recipe.
     """
+    recipe_id_str = str(recipe_id)
     try:
-        if not recipe_book_manager.recipe_exists(recipe_id):
+        if not recipe_book_manager.recipe_exists(recipe_id_str):
             raise HTTPException(status_code=404, detail="Recipe not found")
 
-        recipe_books = recipe_book_manager.get_recipe_books_for_recipe(recipe_id)
+        recipe_books = recipe_book_manager.get_recipe_books_for_recipe(recipe_id_str)
         return {
-            "recipe_id": recipe_id,
+            "recipe_id": recipe_id_str,
             "recipe_books": recipe_books,
             "success": True,
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting recipe books for recipe {recipe_id}: {e!s}")
+        logger.exception(
+            "Error getting recipe books for recipe %s: %s", recipe_id_str, e
+        )
         raise HTTPException(
             status_code=500,
-            detail=f"Error getting recipe books for recipe: {e!s}",
+            detail="Error getting recipe books for recipe",
         ) from e
 
 
 @router.get("/{recipe_book_id}")
 def get_recipe_book(
-    recipe_book_id: str,
+    recipe_book_id: UUID,
     recipe_book_manager=recipe_book_manager_dep,
 ) -> dict:
     """
     Get a recipe book by ID, including recipe IDs.
     """
+    recipe_book_id_str = str(recipe_book_id)
     try:
-        recipe_book = recipe_book_manager.get_full_recipe_book_by_id(recipe_book_id)
+        recipe_book = recipe_book_manager.get_full_recipe_book_by_id(recipe_book_id_str)
         if not recipe_book:
             raise HTTPException(status_code=404, detail="Recipe book not found")
 
@@ -141,73 +142,84 @@ def get_recipe_book(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error getting recipe book {recipe_book_id}: {e!s}")
-        raise HTTPException(
-            status_code=500, detail=f"Error getting recipe book: {e!s}"
-        ) from e
+        logger.exception("Error getting recipe book %s: %s", recipe_book_id_str, e)
+        raise HTTPException(status_code=500, detail="Error getting recipe book") from e
 
 
 @router.put("/{recipe_book_id}/recipes/{recipe_id}")
 def add_recipe_to_book(
-    recipe_book_id: str,
-    recipe_id: str,
+    recipe_book_id: UUID,
+    recipe_id: UUID,
     recipe_book_manager=recipe_book_manager_dep,
 ) -> dict:
     """
     Add a recipe to a recipe book (idempotent).
     """
+    recipe_book_id_str = str(recipe_book_id)
+    recipe_id_str = str(recipe_id)
     try:
-        result = recipe_book_manager.add_recipe_to_book(recipe_book_id, recipe_id)
+        result = recipe_book_manager.add_recipe_to_book(
+            recipe_book_id_str, recipe_id_str
+        )
         if not result["book_exists"]:
             raise HTTPException(status_code=404, detail="Recipe book not found")
         if not result["recipe_exists"]:
             raise HTTPException(status_code=404, detail="Recipe not found")
 
         return {
-            "recipe_book_id": recipe_book_id,
-            "recipe_id": recipe_id,
+            "recipe_book_id": recipe_book_id_str,
+            "recipe_id": recipe_id_str,
             "added": result["added"],
             "success": True,
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Error adding recipe {recipe_id} to recipe book {recipe_book_id}: {e!s}"
+        logger.exception(
+            "Error adding recipe %s to recipe book %s: %s",
+            recipe_id_str,
+            recipe_book_id_str,
+            e,
         )
         raise HTTPException(
-            status_code=500, detail=f"Error adding recipe to recipe book: {e!s}"
+            status_code=500, detail="Error adding recipe to recipe book"
         ) from e
 
 
 @router.delete("/{recipe_book_id}/recipes/{recipe_id}")
 def remove_recipe_from_book(
-    recipe_book_id: str,
-    recipe_id: str,
+    recipe_book_id: UUID,
+    recipe_id: UUID,
     recipe_book_manager=recipe_book_manager_dep,
 ) -> dict:
     """
     Remove a recipe from a recipe book.
     """
+    recipe_book_id_str = str(recipe_book_id)
+    recipe_id_str = str(recipe_id)
     try:
-        result = recipe_book_manager.remove_recipe_from_book(recipe_book_id, recipe_id)
+        result = recipe_book_manager.remove_recipe_from_book(
+            recipe_book_id_str, recipe_id_str
+        )
         if not result["book_exists"]:
             raise HTTPException(status_code=404, detail="Recipe book not found")
 
         return {
-            "recipe_book_id": recipe_book_id,
-            "recipe_id": recipe_id,
+            "recipe_book_id": recipe_book_id_str,
+            "recipe_id": recipe_id_str,
             "removed": result["removed"],
             "success": True,
         }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            f"Error removing recipe {recipe_id} from recipe book "
-            f"{recipe_book_id}: {e!s}"
+        logger.exception(
+            "Error removing recipe %s from recipe book %s: %s",
+            recipe_id_str,
+            recipe_book_id_str,
+            e,
         )
         raise HTTPException(
             status_code=500,
-            detail=f"Error removing recipe from recipe book: {e!s}",
+            detail="Error removing recipe from recipe book",
         ) from e
