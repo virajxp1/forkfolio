@@ -9,7 +9,7 @@ from app.core.dependencies import (
 from app.core.logging import get_logger
 from app.api.schemas import RecipeIngestionRequest
 
-router = APIRouter(prefix=f"{settings.API_V1_STR}/recipes", tags=["Recipes"])
+router = APIRouter(prefix=f"{settings.API_BASE_PATH}/recipes", tags=["Recipes"])
 logger = get_logger(__name__)
 
 RECIPE_BODY = Body()

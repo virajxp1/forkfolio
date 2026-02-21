@@ -12,8 +12,8 @@ class HealthClient(BaseAPIClient):
     """Client for health-related endpoints."""
 
     # Endpoint paths - centralized in one place
-    ROOT_ENDPOINT = f"{settings.API_V1_STR}/"
-    HEALTH_ENDPOINT = f"{settings.API_V1_STR}/health"
+    ROOT_ENDPOINT = f"{settings.API_BASE_PATH}/"
+    HEALTH_ENDPOINT = f"{settings.API_BASE_PATH}/health"
 
     def get_root(self) -> Dict[str, Any]:
         """
@@ -26,7 +26,7 @@ class HealthClient(BaseAPIClient):
 
     def health_check(self) -> Dict[str, Any]:
         """
-        Perform comprehensive health check including database connectivity.
+        Perform lightweight liveness check.
 
         Endpoint: GET /api/v1/health
         Router: app.routers.health:health_check

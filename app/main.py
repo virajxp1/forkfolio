@@ -47,6 +47,12 @@ async def lifespan(app: FastAPI):
 
 
 def create_application() -> FastAPI:
+    api_root_path = settings.API_BASE_PATH
+    auth_exempt_paths = (
+        api_root_path,
+        f"{api_root_path}/health",
+    )
+
     application = FastAPI(
         title=settings.PROJECT_NAME,
         description=settings.PROJECT_DESCRIPTION,
@@ -63,7 +69,11 @@ def create_application() -> FastAPI:
     application.add_middleware(
         RequestTimeoutMiddleware, timeout_seconds=settings.REQUEST_TIMEOUT_SECONDS
     )
-    application.add_middleware(AuthTokenMiddleware, token=settings.API_AUTH_TOKEN)
+    application.add_middleware(
+        AuthTokenMiddleware,
+        token=settings.API_AUTH_TOKEN,
+        exempt_paths=auth_exempt_paths,
+    )
     application.add_middleware(
         RateLimitMiddleware,
         requests_per_minute=settings.RATE_LIMIT_PER_MINUTE,

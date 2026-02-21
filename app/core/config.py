@@ -31,7 +31,11 @@ class Settings:
         self.VERSION: str = self._cfg.get("app", "version", fallback="0.1.0")
 
         # API settings
-        self.API_V1_STR: str = self._cfg.get("api", "base_path", fallback="/api/v1")
+        self.API_BASE_PATH: str = self._normalize_api_base_path(
+            self._cfg.get("api", "base_path", fallback="/api/v1")
+        )
+        # Backward-compatible alias.
+        self.API_V1_STR: str = self.API_BASE_PATH
         self.RATE_LIMIT_PER_MINUTE: int = self._cfg.getint(
             "api", "rate_limit_per_minute", fallback=60
         )
@@ -97,6 +101,16 @@ class Settings:
         if not cfg.read(config_path):
             raise FileNotFoundError(f"App config file not found: {config_path}")
         return cfg
+
+    @staticmethod
+    def _normalize_api_base_path(path: str) -> str:
+        normalized = (path or "").strip()
+        if not normalized:
+            return "/api/v1"
+        if not normalized.startswith("/"):
+            normalized = f"/{normalized}"
+        normalized = normalized.rstrip("/")
+        return normalized or "/api/v1"
 
 
 settings = Settings()

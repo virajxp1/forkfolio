@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import Sequence
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from app.core.middleware import (
 def build_app(
     *,
     token: str = "",
+    exempt_paths: Sequence[str] = (),
     rate_limit: int = 100,
     max_body_bytes: int = 1024,
     timeout_seconds: float = 1.0,
@@ -34,7 +36,11 @@ def build_app(
         return {"ok": True}
 
     app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=timeout_seconds)
-    app.add_middleware(AuthTokenMiddleware, token=token)
+    app.add_middleware(
+        AuthTokenMiddleware,
+        token=token,
+        exempt_paths=exempt_paths,
+    )
     app.add_middleware(
         RateLimitMiddleware,
         requests_per_minute=rate_limit,
@@ -59,6 +65,19 @@ def test_rate_limit_applies_to_unauthorized_requests() -> None:
 
     assert first.status_code == 401
     assert second.status_code == 429
+
+
+def test_auth_token_exempt_path_allowed_without_token() -> None:
+    app = FastAPI()
+
+    @app.get("/health")
+    async def health() -> dict[str, bool]:
+        return {"ok": True}
+
+    app.add_middleware(AuthTokenMiddleware, token="secret", exempt_paths=("/health",))
+    client = TestClient(app)
+
+    assert client.get("/health").status_code == 200
 
 
 def test_request_size_limit_blocks_large_payloads() -> None:

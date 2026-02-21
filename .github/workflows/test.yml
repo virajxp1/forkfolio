@@ -1,8 +1,17 @@
 name: Test Suite
 
 on:
+  push:
+    branches: [ main ]
   pull_request:
     branches: [ main ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # Unit tests - fast checks
@@ -16,6 +25,8 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
+        cache: pip
+        cache-dependency-path: requirements.txt
 
     - name: Install dependencies
       run: |
@@ -23,8 +34,7 @@ jobs:
         pip install -r requirements.txt
 
     - name: Run unit tests
-      run: |
-        python -m pytest -c pytest.ini app/tests/unit/ -v
+      run: make test
       env:
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
 
@@ -46,19 +56,16 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
+        cache: pip
+        cache-dependency-path: requirements.txt
     
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Configure database connection for IPv4
-      run: |
-        echo "Using repository config/db.config.ini for GitHub Actions"
-    
     - name: Run E2E tests
-      run: |
-        python -m pytest -c pytest.ini app/tests/e2e/ -v
+      run: make test-e2e
       env:
         SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
