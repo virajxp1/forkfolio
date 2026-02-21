@@ -1,9 +1,6 @@
-import configparser
 import json
 import logging
-import os
 import time
-from pathlib import Path
 from typing import Callable, Optional, TypeVar, Union
 
 from app.core.cache import hash_cache_key, llm_structured_cache, llm_text_cache
@@ -17,36 +14,17 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_LLM_CONFIG_PATH = _REPO_ROOT / "config" / "llm.config.ini"
-_LLM_CONFIG_PATH = os.getenv("LLM_CONFIG_FILE", str(_DEFAULT_LLM_CONFIG_PATH))
-
 T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger(__name__)
 
 
-def _load_llm_config() -> configparser.ConfigParser:
-    cfg = configparser.ConfigParser()
-    if not cfg.read(_LLM_CONFIG_PATH):
-        raise FileNotFoundError(f"LLM config file not found: {_LLM_CONFIG_PATH}")
-    return cfg
-
-
 def _get_chat_model_name() -> str:
-    env_override = os.getenv("LLM_MODEL_NAME")
-    if env_override:
-        return env_override
-    cfg = _load_llm_config()
-    return cfg.get("llm", "model_name", fallback="").strip()
+    return settings.LLM_MODEL_NAME
 
 
 def _get_embeddings_model_name() -> str:
-    env_override = os.getenv("EMBEDDINGS_MODEL_NAME")
-    if env_override:
-        return env_override
-    cfg = _load_llm_config()
-    return cfg.get("embeddings", "model_name", fallback="").strip()
+    return settings.EMBEDDINGS_MODEL_NAME
 
 
 def _get_openai_client() -> OpenAI:
@@ -78,9 +56,9 @@ def _is_rate_limit_error(exc: Exception) -> bool:
 
 
 def _with_retries(fn: Callable[[], T]) -> T:
-    max_retries = int(os.getenv("LLM_MAX_RETRIES", "3"))
-    base_delay = float(os.getenv("LLM_RETRY_BASE_SECONDS", "1.0"))
-    max_delay = float(os.getenv("LLM_RETRY_MAX_SECONDS", "10.0"))
+    max_retries = settings.LLM_MAX_RETRIES
+    base_delay = settings.LLM_RETRY_BASE_SECONDS
+    max_delay = settings.LLM_RETRY_MAX_SECONDS
 
     last_exc: Exception | None = None
     for attempt in range(max_retries + 1):

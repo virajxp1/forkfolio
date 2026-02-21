@@ -13,13 +13,13 @@ from typing import Optional
 import pytest
 import requests
 
+from app.core.config import settings
 from app.tests.utils.constants import HTTP_OK
 from app.tests.clients.health_client import HealthClient
 from app.tests.clients.api_client import APIClient
 
 DEFAULT_PORT = 8000
 MAX_RETRIES = 30
-REQUIRED_LIVE_TEST_ENV_VARS = ("SUPABASE_PASSWORD", "OPEN_ROUTER_API_KEY")
 
 
 class ServerManager:
@@ -64,13 +64,16 @@ class ServerManager:
 @pytest.fixture(scope="session", autouse=True)
 def server() -> Generator[str, None, None]:
     """Start the server once for all tests and clean up afterwards."""
-    missing_vars = [
-        variable for variable in REQUIRED_LIVE_TEST_ENV_VARS if not os.getenv(variable)
-    ]
-    if missing_vars:
+    missing_config = []
+    if not settings.SUPABASE_PASSWORD:
+        missing_config.append("database password")
+    if not settings.OPEN_ROUTER_API_KEY:
+        missing_config.append("open router api key")
+
+    if missing_config:
         missing_message = (
-            "Missing required environment variables for live E2E tests: "
-            f"{', '.join(missing_vars)}"
+            "Missing required configuration for live E2E tests: "
+            f"{', '.join(missing_config)}"
         )
         if os.getenv("CI"):
             pytest.fail(missing_message)
