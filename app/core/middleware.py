@@ -9,11 +9,15 @@ from typing import Deque
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
+from starlette import status
 from starlette.status import (
     HTTP_401_UNAUTHORIZED,
-    HTTP_413_CONTENT_TOO_LARGE,
     HTTP_429_TOO_MANY_REQUESTS,
     HTTP_504_GATEWAY_TIMEOUT,
+)
+
+HTTP_413_REQUEST_TOO_LARGE = getattr(
+    status, "HTTP_413_CONTENT_TOO_LARGE", status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
 )
 
 
@@ -173,6 +177,6 @@ def _normalize_path(path: str) -> str:
 async def _send_size_limit_response(scope, receive, send) -> None:
     response = JSONResponse(
         {"detail": "Request too large"},
-        status_code=HTTP_413_CONTENT_TOO_LARGE,
+        status_code=HTTP_413_REQUEST_TOO_LARGE,
     )
     await response(scope=scope, receive=receive, send=send)
