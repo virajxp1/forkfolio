@@ -6,6 +6,7 @@ with each endpoint group accessible as a separate client instance.
 """
 
 from .health_client import HealthClient
+from .recipe_books_client import RecipeBooksClient
 from .recipes_client import RecipesClient
 
 
@@ -23,3 +24,4 @@ class APIClient:
         # Client instances for each router/resource
         self.health = HealthClient(base_url)
         self.recipes = RecipesClient(base_url)
+        self.recipe_books = RecipeBooksClient(base_url)
