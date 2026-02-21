@@ -52,16 +52,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self,
         app,
         requests_per_minute: int,
+        exempt_paths: Iterable[str] = (),
     ) -> None:
         super().__init__(app)
         self._limit = max(1, requests_per_minute)
         self._window_seconds = 60.0
+        self._exempt_paths = {_normalize_path(path) for path in exempt_paths}
         self._buckets: dict[str, Deque[float]] = {}
         self._lock = asyncio.Lock()
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
+        if _normalize_path(request.url.path) in self._exempt_paths:
+            return await call_next(request)
+
         client_ip = _get_client_ip(request)
         now = time.monotonic()
 
