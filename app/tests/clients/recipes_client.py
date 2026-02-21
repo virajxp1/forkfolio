@@ -5,9 +5,11 @@ Maps to: app/routers/recipes.py
 This contains the main recipe functionality endpoints.
 """
 
+from urllib.parse import urlencode
 from typing import Any, Dict, Optional
-from .base_client import BaseAPIClient
+
 from app.core.config import settings
+from .base_client import BaseAPIClient
 
 
 class RecipesClient(BaseAPIClient):
@@ -15,6 +17,7 @@ class RecipesClient(BaseAPIClient):
 
     # Endpoint paths - centralized in one place
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_V1_STR}/recipes/process-and-store"
+    SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_V1_STR}/recipes/search/semantic"
 
     def process_and_store_recipe(
         self,
@@ -67,3 +70,23 @@ class RecipesClient(BaseAPIClient):
         """
         endpoint = f"{settings.API_V1_STR}/recipes/delete/{recipe_id}"
         return self.delete(endpoint)
+
+    def search_semantic(
+        self,
+        query: str,
+        limit: int = 10,
+    ) -> Dict[str, Any]:
+        """
+        Semantic search over recipes using vector similarity.
+
+        Endpoint: GET /api/v1/recipes/search/semantic
+        Router: app.api.v1.endpoints.recipes:semantic_search_recipes
+        """
+        query_string = urlencode(
+            {
+                "query": query,
+                "limit": limit,
+            }
+        )
+        endpoint = f"{self.SEMANTIC_SEARCH_ENDPOINT}?{query_string}"
+        return self.get(endpoint)

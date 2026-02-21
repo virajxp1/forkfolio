@@ -1,7 +1,8 @@
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 from app.core.config import settings
 from app.core.dependencies import (
+    get_recipe_embeddings_service,
     get_recipe_manager,
     get_recipe_processing_service,
 )
@@ -16,6 +17,7 @@ RECIPE_BODY = Body()
 # Dependency instances to satisfy Ruff B008
 recipe_manager_dep = Depends(get_recipe_manager)
 recipe_processing_service_dep = Depends(get_recipe_processing_service)
+recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
 
 
 @router.post("/process-and-store")
@@ -83,6 +85,63 @@ def process_and_store_recipe(
         "created": True,
         "message": "Recipe processed and stored successfully",
     }
+
+
+@router.get("/search/semantic")
+def semantic_search_recipes(
+    query: str = Query(
+        ...,
+        min_length=2,
+        description="Free-text recipe query for vector similarity search.",
+    ),
+    limit: int = Query(
+        10,
+        ge=1,
+        le=50,
+        description="Maximum number of similar recipes to return.",
+    ),
+    recipe_manager=recipe_manager_dep,
+    embeddings_service=recipe_embeddings_service_dep,
+) -> dict:
+    """
+    Semantic search over recipes using title+ingredients embeddings.
+
+    Uses a server-side cosine distance threshold and returns nearest recipe hits
+    with lightweight metadata and cosine distance.
+    """
+    normalized_query = query.strip()
+    if len(normalized_query) < 2:
+        raise HTTPException(
+            status_code=422,
+            detail="Query must contain at least 2 non-whitespace characters.",
+        )
+
+    logger.info(
+        "Semantic recipe search query='%s' limit=%s max_distance=%.3f",
+        normalized_query,
+        limit,
+        settings.SEMANTIC_SEARCH_MAX_DISTANCE,
+    )
+    try:
+        query_embedding = embeddings_service.embed_search_query(normalized_query)
+        matches = recipe_manager.search_recipes_by_embedding(
+            embedding=query_embedding,
+            embedding_type="title_ingredients",
+            limit=limit,
+            max_distance=settings.SEMANTIC_SEARCH_MAX_DISTANCE,
+        )
+        return {
+            "query": normalized_query,
+            "count": len(matches),
+            "results": matches,
+            "success": True,
+        }
+    except Exception as e:
+        logger.error(f"Error performing semantic recipe search: {e!s}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error performing semantic search: {e!s}",
+        ) from e
 
 
 @router.get("/{recipe_id}")

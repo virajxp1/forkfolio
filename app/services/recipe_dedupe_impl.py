@@ -1,11 +1,9 @@
-import configparser
-import os
-from pathlib import Path
 from typing import Optional
 
 from pydantic import BaseModel, Field
 
 from app.api.schemas import Recipe
+from app.core.config import settings
 from app.core.logging import get_logger
 from app.core.prompts import DEDUPLICATION_SYSTEM_PROMPT
 from app.services.data.managers.recipe_manager import RecipeManager
@@ -18,39 +16,13 @@ from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 
 logger = get_logger(__name__)
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_DEFAULT_DEDUPE_CONFIG_PATH = _REPO_ROOT / "config" / "dedupe.config.ini"
-_DEDUPE_CONFIG_PATH = os.getenv("DEDUPE_CONFIG_FILE", str(_DEFAULT_DEDUPE_CONFIG_PATH))
-
-_DEFAULT_DISTANCE_THRESHOLD = 0.3
-_DEFAULT_STRICT_DUPLICATE_DISTANCE_THRESHOLD = 0.05
-_DEFAULT_EMBEDDING_TYPE = "title_ingredients"
-
-
-def _load_dedupe_config() -> configparser.ConfigParser:
-    cfg = configparser.ConfigParser()
-    if not cfg.read(_DEDUPE_CONFIG_PATH):
-        logger.warning(
-            "Dedupe config file not found at %s; using defaults.",
-            _DEDUPE_CONFIG_PATH,
-        )
-    return cfg
-
 
 def _get_dedupe_settings() -> tuple[float, float, str]:
-    cfg = _load_dedupe_config()
-    distance_threshold = cfg.getfloat(
-        "dedupe", "distance_threshold", fallback=_DEFAULT_DISTANCE_THRESHOLD
+    return (
+        settings.DEDUPE_DISTANCE_THRESHOLD,
+        settings.DEDUPE_STRICT_DUPLICATE_DISTANCE_THRESHOLD,
+        settings.DEDUPE_EMBEDDING_TYPE,
     )
-    strict_threshold = cfg.getfloat(
-        "dedupe",
-        "strict_duplicate_threshold",
-        fallback=_DEFAULT_STRICT_DUPLICATE_DISTANCE_THRESHOLD,
-    )
-    embedding_type = cfg.get(
-        "dedupe", "embedding_type", fallback=_DEFAULT_EMBEDDING_TYPE
-    )
-    return distance_threshold, strict_threshold, embedding_type
 
 
 class DedupeDecision(BaseModel):

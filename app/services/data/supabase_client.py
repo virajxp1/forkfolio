@@ -1,5 +1,3 @@
-import os
-import configparser
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any, Optional
@@ -10,19 +8,12 @@ import psycopg2.pool
 
 from app.core.exceptions import ConnectionPoolError
 from app.core.logging import get_logger
+from app.core.config import settings
 
 logger = get_logger(__name__)
 
 # Global connection pool
 _connection_pool: Optional[psycopg2.pool.ThreadedConnectionPool] = None
-_CONFIG_PATH = os.getenv("DB_CONFIG_FILE", "config/db.config.ini")
-
-
-def _load_config() -> configparser.ConfigParser:
-    cfg = configparser.ConfigParser()
-    if not cfg.read(_CONFIG_PATH):
-        raise FileNotFoundError(f"Database config file not found: {_CONFIG_PATH}")
-    return cfg
 
 
 def init_connection_pool() -> None:
@@ -31,37 +22,28 @@ def init_connection_pool() -> None:
     if _connection_pool is not None:
         return
 
-    cfg = _load_config()
-    password = os.getenv("SUPABASE_PASSWORD") or os.getenv("DB_PASSWORD")
+    password = settings.SUPABASE_PASSWORD
     if not password:
         raise ValueError(
-            "SUPABASE_PASSWORD (or DB_PASSWORD) must be set in the environment"
+            "Database password is not configured. "
+            "Set SUPABASE_PASSWORD (or DB_PASSWORD) in environment variables."
         )
 
-    host = cfg.get("database", "host")
-    port = int(cfg.get("database", "port", fallback="5432"))
-    user = cfg.get("database", "user")
-    name = cfg.get("database", "name", fallback="postgres")
-    sslmode = cfg.get("database", "sslmode", fallback="require")
-
-    minconn = int(cfg.get("pool", "minconn", fallback="2"))
-    maxconn = int(cfg.get("pool", "maxconn", fallback="10"))
-
     conn_args = {
-        "host": host,
-        "port": port,
-        "dbname": name,
-        "user": user,
+        "host": settings.DB_HOST,
+        "port": settings.DB_PORT,
+        "dbname": settings.DB_NAME,
+        "user": settings.DB_USER,
         "password": password,
-        "sslmode": sslmode,
+        "sslmode": settings.DB_SSLMODE,
         "cursor_factory": psycopg2.extras.RealDictCursor,
         "connect_timeout": 5,
     }
 
     try:
         _connection_pool = psycopg2.pool.ThreadedConnectionPool(
-            minconn=minconn,
-            maxconn=maxconn,
+            minconn=settings.DB_POOL_MINCONN,
+            maxconn=settings.DB_POOL_MAXCONN,
             **conn_args,
         )
         logger.info("Database connection pool initialized")
