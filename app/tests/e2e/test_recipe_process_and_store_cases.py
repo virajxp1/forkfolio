@@ -148,12 +148,41 @@ def test_process_and_store_dedupes_similar_recipe(api_client: APIClient) -> None
         "Instructions:\n1. Boil pasta.\n2. Toss with oil, lime juice, zest, and salt.\n"
     )
 
-    maybe_throttle()
-    duplicate_response = api_client.recipes.process_and_store_recipe(
-        base_input, enforce_deduplication=True
-    )
-    assert duplicate_response["status_code"] == HTTP_OK
-    duplicate_data = duplicate_response["data"]
-    assert duplicate_data.get("success") is True
-    assert duplicate_data.get("created") is False
-    assert duplicate_data.get("recipe_id")
+    seed_recipe_id = None
+    duplicate_recipe_id = None
+    duplicate_created = True
+    try:
+        # Seed a known recipe so this test does not depend on pre-existing DB state.
+        maybe_throttle()
+        create_response = api_client.recipes.process_and_store_recipe(
+            base_input, enforce_deduplication=False
+        )
+        assert create_response["status_code"] == HTTP_OK
+        create_data = create_response["data"]
+        assert create_data.get("success") is True
+        assert create_data.get("created") is True
+        seed_recipe_id = create_data.get("recipe_id")
+        assert seed_recipe_id
+
+        maybe_throttle()
+        duplicate_response = api_client.recipes.process_and_store_recipe(
+            base_input, enforce_deduplication=True
+        )
+        assert duplicate_response["status_code"] == HTTP_OK
+        duplicate_data = duplicate_response["data"]
+        assert duplicate_data.get("success") is True
+        duplicate_created = duplicate_data.get("created", True)
+        duplicate_recipe_id = duplicate_data.get("recipe_id")
+        assert duplicate_created is False
+        assert duplicate_recipe_id
+        assert duplicate_recipe_id == seed_recipe_id
+    finally:
+        if seed_recipe_id:
+            api_client.recipes.delete_recipe(seed_recipe_id)
+        # Defensive cleanup in case dedupe unexpectedly inserted a second row.
+        if (
+            duplicate_recipe_id
+            and duplicate_created
+            and duplicate_recipe_id != seed_recipe_id
+        ):
+            api_client.recipes.delete_recipe(duplicate_recipe_id)
