@@ -46,12 +46,16 @@ async def lifespan(app: FastAPI):
     close_connection_pool()
 
 
-def create_application() -> FastAPI:
-    api_root_path = settings.API_BASE_PATH
-    auth_exempt_paths = (
+def _public_paths(api_root_path: str) -> tuple[str, ...]:
+    return (
         api_root_path,
         f"{api_root_path}/health",
     )
+
+
+def create_application() -> FastAPI:
+    api_root_path = settings.API_BASE_PATH
+    public_paths = _public_paths(api_root_path)
 
     application = FastAPI(
         title=settings.PROJECT_NAME,
@@ -72,11 +76,12 @@ def create_application() -> FastAPI:
     application.add_middleware(
         AuthTokenMiddleware,
         token=settings.API_AUTH_TOKEN,
-        exempt_paths=auth_exempt_paths,
+        exempt_paths=public_paths,
     )
     application.add_middleware(
         RateLimitMiddleware,
         requests_per_minute=settings.RATE_LIMIT_PER_MINUTE,
+        exempt_paths=public_paths,
     )
     application.add_middleware(
         RequestSizeLimitMiddleware,
