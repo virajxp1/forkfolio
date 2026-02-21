@@ -3,6 +3,7 @@ Dependency injection providers for the application.
 """
 
 from app.services.data.managers.recipe_manager import RecipeManager
+from app.services.data.managers.recipe_book_manager import RecipeBookManager
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
@@ -38,6 +39,16 @@ def get_recipe_manager() -> RecipeManager:
         RecipeManager instance
     """
     return RecipeManager()
+
+
+def get_recipe_book_manager() -> RecipeBookManager:
+    """
+    Dependency provider for RecipeBookManager.
+
+    Returns:
+        RecipeBookManager instance
+    """
+    return RecipeBookManager()
 
 
 def get_recipe_embeddings_service() -> RecipeEmbeddingsServiceImpl:
