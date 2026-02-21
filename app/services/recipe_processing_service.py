@@ -73,16 +73,20 @@ class RecipeProcessingService:
                 return None, f"Recipe extraction failed: {extraction_error}", False
 
             # Step 3: Deduplicate
+            embedding: Optional[list[float]] = None
             if enforce_deduplication:
-                is_duplicate, existing_id = self.dedupe_service.find_duplicate(recipe)
+                is_duplicate, existing_id, embedding = (
+                    self.dedupe_service.find_duplicate(recipe)
+                )
                 if is_duplicate and existing_id:
                     logger.info(f"Duplicate recipe detected: {existing_id}")
                     return existing_id, None, False
 
             # Step 4: Generate embeddings (title + ingredients)
-            embedding = self._generate_title_ingredients_embedding(recipe)
             if embedding is None:
-                return None, "Failed to generate recipe embeddings", False
+                embedding = self._generate_title_ingredients_embedding(recipe)
+                if embedding is None:
+                    return None, "Failed to generate recipe embeddings", False
 
             # Step 5: Insert into database (recipe + embeddings)
             recipe_id = self._store_recipe(recipe, source_url, embedding, is_test)

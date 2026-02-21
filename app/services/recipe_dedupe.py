@@ -8,6 +8,8 @@ class RecipeDedupeService(ABC):
     """Interface for recipe deduplication checks."""
 
     @abstractmethod
-    def find_duplicate(self, recipe: Recipe) -> tuple[bool, Optional[str]]:
-        """Return (is_duplicate, existing_recipe_id)."""
+    def find_duplicate(
+        self, recipe: Recipe
+    ) -> tuple[bool, Optional[str], Optional[list[float]]]:
+        """Return (is_duplicate, existing_recipe_id, embedding)."""
         raise NotImplementedError

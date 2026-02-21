@@ -7,6 +7,23 @@ from app.core.exceptions import DatabaseError
 from .base import BaseManager
 
 RECIPE_SELECT_SQL = "SELECT * FROM recipes WHERE id = %s"
+RECIPE_WITH_CHILDREN_SQL = """
+SELECT r.*,
+    COALESCE(i.ingredients, ARRAY[]::text[]) AS ingredients,
+    COALESCE(s.instructions, ARRAY[]::text[]) AS instructions
+FROM recipes r
+LEFT JOIN LATERAL (
+    SELECT array_agg(ingredient_text ORDER BY order_index) AS ingredients
+    FROM recipe_ingredients
+    WHERE recipe_id = r.id
+) i ON true
+LEFT JOIN LATERAL (
+    SELECT array_agg(instruction_text ORDER BY step_number) AS instructions
+    FROM recipe_instructions
+    WHERE recipe_id = r.id
+) s ON true
+WHERE r.id = %s
+"""
 INGREDIENTS_SELECT_SQL = """
 SELECT ingredient_text
 FROM recipe_ingredients
@@ -135,6 +152,16 @@ class RecipeManager(BaseManager):
     def _fetch_recipe(self, cursor, recipe_id: str) -> Optional[dict]:
         cursor.execute(RECIPE_SELECT_SQL, (recipe_id,))
         return self._to_dict(cursor.fetchone())
+
+    def _fetch_recipe_with_children(self, cursor, recipe_id: str) -> Optional[dict]:
+        cursor.execute(RECIPE_WITH_CHILDREN_SQL, (recipe_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        recipe_data = dict(row)
+        recipe_data["ingredients"] = list(recipe_data.get("ingredients") or [])
+        recipe_data["instructions"] = list(recipe_data.get("instructions") or [])
+        return recipe_data
 
     def _fetch_ingredients(self, cursor, recipe_id: str) -> list[str]:
         cursor.execute(INGREDIENTS_SELECT_SQL, (recipe_id,))
@@ -283,15 +310,9 @@ class RecipeManager(BaseManager):
         """Get a complete recipe with ingredients and instructions"""
         try:
             with self.get_db_context() as (_conn, cursor):
-                recipe_data = self._fetch_recipe(cursor, recipe_id)
+                recipe_data = self._fetch_recipe_with_children(cursor, recipe_id)
                 if not recipe_data:
                     return None
-
-                recipe_data["ingredients"] = self._fetch_ingredients(cursor, recipe_id)
-                recipe_data["instructions"] = self._fetch_instructions(
-                    cursor, recipe_id
-                )
-
                 return recipe_data
 
         except Exception as e:
@@ -301,16 +322,11 @@ class RecipeManager(BaseManager):
         """Get a complete recipe with ingredients, instructions, and embeddings."""
         try:
             with self.get_db_context() as (_conn, cursor):
-                recipe_data = self._fetch_recipe(cursor, recipe_id)
+                recipe_data = self._fetch_recipe_with_children(cursor, recipe_id)
                 if not recipe_data:
                     return None
 
-                recipe_data["ingredients"] = self._fetch_ingredients(cursor, recipe_id)
-                recipe_data["instructions"] = self._fetch_instructions(
-                    cursor, recipe_id
-                )
                 recipe_data["embeddings"] = self._fetch_embeddings(cursor, recipe_id)
-
                 return recipe_data
 
         except Exception as e:
