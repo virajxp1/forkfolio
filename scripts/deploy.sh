@@ -27,12 +27,21 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 
-env_args=()
+run_args=(
+  -d
+  --name "${APP_NAME}"
+  --restart unless-stopped
+)
 if [ -f "${ENV_FILE}" ]; then
-  env_args=(--env-file "${ENV_FILE}")
+  run_args+=(--env-file "${ENV_FILE}")
 else
   echo "Env file not found at ${ENV_FILE}; continuing without --env-file."
 fi
+run_args+=(
+  -p "${PORT}:8000"
+  "${IMAGE_NAME}:${TAG}"
+  uvicorn app.main:app --host 0.0.0.0 --port 8000
+)
 
 echo "Building ${IMAGE_NAME}:${TAG}..."
 docker build -f docker/Dockerfile -t "${IMAGE_NAME}:${TAG}" .
@@ -44,13 +53,7 @@ if docker ps -a --format '{{.Names}}' | grep -qx "${APP_NAME}"; then
 fi
 
 echo "Starting ${APP_NAME} on port ${PORT}..."
-docker run -d \
-  --name "${APP_NAME}" \
-  --restart unless-stopped \
-  "${env_args[@]}" \
-  -p "${PORT}:8000" \
-  "${IMAGE_NAME}:${TAG}" \
-  uvicorn app.main:app --host 0.0.0.0 --port 8000
+docker run "${run_args[@]}"
 
 echo "Waiting for health check..."
 for _ in $(seq 1 30); do
