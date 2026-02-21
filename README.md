@@ -8,7 +8,7 @@ A production-ready recipe management API that transforms raw recipe text into st
 - 🔄 Complete processing pipeline with error handling
 - 📊 Health monitoring and observability  
 - 🚀 Production-ready architecture with connection pooling
-- 🐳 Containerized deployment with Docker
+- ☁️ Render-ready deployment with optional Docker workflows
 - 🧪 Comprehensive testing with GitHub Actions CI/CD
 
 V0 design docs:
@@ -42,7 +42,7 @@ pip install -r requirements.txt
 # Create .env file with required variables (see Environment Configuration below)
 ```
 
-**Option 2: Docker Development**
+**Option 2: Optional Docker Development**
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -83,7 +83,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 **Docker:**
 ```bash
-# Using Docker Compose (recommended)
+# Using Docker Compose (optional)
 docker compose -f docker/docker-compose.yml up --build
 
 # Or build and run manually
@@ -144,8 +144,8 @@ For detailed information about the recipe processing flow, see [docs/recipe-proc
 - **GitHub Actions** - CI/CD pipeline
 
 **Deployment & Infrastructure:**
-- **Docker** - Containerization with multi-stage builds
-- **Docker Compose** - Local development orchestration
+- **Render** - Primary production hosting target
+- **Docker / Docker Compose** - Optional local container workflows
 - **Health Checks** - Built-in monitoring endpoints
 
 ## Development
@@ -195,6 +195,7 @@ forkfolio/
 │   ├── docker-compose.yml  # Local development orchestration
 │   └── .dockerignore       # Docker ignore patterns
 ├── docs/                   # Project documentation
+├── render.yaml             # Render Blueprint configuration
 ├── scripts/                # Executable scripts
 │   ├── lint.sh             # Local linting script
 │   ├── run.py              # Application runner script
@@ -319,23 +320,10 @@ uvicorn app.main:app --reload       # Alternative server startup
 
 ## Deployment
 
-**Docker Production:**
-```bash
-# Build production image
-docker build -f docker/Dockerfile -t forkfolio:latest .
-
-# Run (pass secrets via --env-file or env vars)
-docker run -d \
-  --name forkfolio \
-  -p 8000:8000 \
-  --env-file .env \
-  --restart unless-stopped \
-  forkfolio:latest
-```
-
 **Render Web Service:**
 ```bash
-# Start command (non-Docker service)
+# Recommended: create service from render.yaml
+# Or use this start command in Render settings:
 python3 scripts/run.py
 ```
 
@@ -351,6 +339,12 @@ python3 scripts/run.py
   - All other API routes require `X-API-Token` or `Authorization: Bearer <token>`.
 - Health behavior:
   - `/api/v1/health` returns `200` with `{"status":"ok"}` for liveness.
+
+**Optional Docker Deploy**
+```bash
+docker build -f docker/Dockerfile -t forkfolio:latest .
+docker run -d --name forkfolio -p 8000:8000 --env-file .env forkfolio:latest
+```
 
 **Environment-Specific Configuration:**
 - Local: Direct Supabase connection
