@@ -50,14 +50,28 @@ class RecipeSearchRerankerServiceImpl(RecipeSearchRerankerService):
         return [{"id": item.id, "score": item.score} for item in response.ranked]
 
     @staticmethod
+    def _to_json_distance(distance_value: object) -> float | None:
+        if distance_value is None:
+            return None
+        try:
+            return float(distance_value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
     def _build_user_prompt(query: str, candidates: list[dict], max_results: int) -> str:
         serialized_candidates = []
         for item in candidates:
+            candidate_id = item.get("id")
+            if candidate_id is None:
+                continue
             serialized_candidates.append(
                 {
-                    "id": item.get("id"),
+                    "id": str(candidate_id),
                     "title": item.get("name"),
-                    "distance": item.get("distance"),
+                    "distance": RecipeSearchRerankerServiceImpl._to_json_distance(
+                        item.get("distance")
+                    ),
                     "ingredients_preview": item.get("ingredients_preview", []),
                 }
             )

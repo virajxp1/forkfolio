@@ -35,28 +35,41 @@ def _normalize_search_query(raw_query: str) -> str:
     return normalized
 
 
+def _normalize_recipe_id(recipe_id: object) -> str | None:
+    if recipe_id is None:
+        return None
+    return str(recipe_id)
+
+
 def _build_rerank_candidates(matches: list[dict], recipe_manager) -> list[dict]:
+    recipe_ids = []
+    for item in matches:
+        recipe_id = _normalize_recipe_id(item.get("id"))
+        if recipe_id:
+            recipe_ids.append(recipe_id)
+
+    ingredient_previews: dict[str, list[str]] = {}
+    if recipe_ids:
+        try:
+            ingredient_previews = recipe_manager.get_ingredient_previews(
+                recipe_ids=recipe_ids,
+                max_ingredients=8,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Failed to load ingredient previews for rerank candidates: %s",
+                exc,
+            )
+
     candidates: list[dict] = []
     for item in matches:
-        recipe_id = item.get("id")
-        ingredients_preview: list[str] = []
-        if recipe_id:
-            try:
-                recipe_data = recipe_manager.get_full_recipe(recipe_id)
-                if recipe_data:
-                    ingredients_preview = list(recipe_data.get("ingredients") or [])[:8]
-            except Exception as exc:
-                logger.warning(
-                    "Failed to load recipe details for rerank candidate '%s': %s",
-                    recipe_id,
-                    exc,
-                )
+        recipe_id = _normalize_recipe_id(item.get("id"))
         candidates.append(
             {
                 "id": recipe_id,
                 "name": item.get("name"),
                 "distance": item.get("distance"),
-                "ingredients_preview": ingredients_preview,
+                "ingredients_preview": list(ingredient_previews.get(recipe_id, [])),
             }
         )
     return candidates
@@ -70,14 +83,17 @@ def _apply_rerank(
     if not ranked_items:
         return matches[:limit]
 
-    match_by_id = {
-        item.get("id"): item for item in matches if item.get("id") is not None
-    }
+    match_by_id = {}
+    for item in matches:
+        recipe_id = _normalize_recipe_id(item.get("id"))
+        if recipe_id is not None:
+            match_by_id[recipe_id] = item
+
     ordered_matches: list[dict] = []
     used_ids: set[str] = set()
 
     for ranked in ranked_items:
-        recipe_id = ranked.get("id")
+        recipe_id = _normalize_recipe_id(ranked.get("id"))
         if recipe_id is None or recipe_id in used_ids or recipe_id not in match_by_id:
             continue
         row = dict(match_by_id[recipe_id])
@@ -86,7 +102,7 @@ def _apply_rerank(
         used_ids.add(recipe_id)
 
     for item in matches:
-        recipe_id = item.get("id")
+        recipe_id = _normalize_recipe_id(item.get("id"))
         if recipe_id is not None and recipe_id in used_ids:
             continue
         ordered_matches.append(item)
@@ -211,12 +227,19 @@ def semantic_search_recipes(
             max_distance=settings.SEMANTIC_SEARCH_MAX_DISTANCE,
         )
         if settings.SEMANTIC_SEARCH_RERANK_ENABLED and len(matches) > 1:
-            rerank_candidates = _build_rerank_candidates(matches, recipe_manager)
-            ranked_items = reranker_service.rerank(
-                query=normalized_query,
-                candidates=rerank_candidates,
-                max_results=limit,
-            )
+            ranked_items = []
+            try:
+                rerank_candidates = _build_rerank_candidates(matches, recipe_manager)
+                ranked_items = reranker_service.rerank(
+                    query=normalized_query,
+                    candidates=rerank_candidates,
+                    max_results=limit,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Rerank execution failed; falling back to embedding order. Error: %s",
+                    exc,
+                )
             matches = _apply_rerank(matches, ranked_items, limit)
         else:
             matches = matches[:limit]
