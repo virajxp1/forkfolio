@@ -1,11 +1,10 @@
 from ..core.prompts import CLEANUP_SYSTEM_PROMPT
 from .llm_generation_service import make_llm_call_text_generation
-from .recipe_input_cleanup import RecipeInputCleanup
 
 
-class RecipeInputCleanupServiceImpl(RecipeInputCleanup):
+class RecipeInputCleanupServiceImpl:
     """
-    Implementation of RecipeInputCleanup that uses LLM to clean messy input data.
+    LLM-backed cleanup service for noisy recipe input.
 
     This class takes messy scraped content (HTML, ads, navigation, etc.)
     and returns clean text focusing on recipe content only.
@@ -20,7 +19,6 @@ class RecipeInputCleanupServiceImpl(RecipeInputCleanup):
                                      output. Defaults to 50 characters.
         """
         self.minimum_valid_text_length = minimum_valid_text_length
-        # TODO: Add LLM client initialization here
 
     def cleanup_input(self, messy_input: str) -> str:
         """

@@ -147,20 +147,6 @@ class RecipeBookManager(BaseManager):
         except Exception as e:
             raise DatabaseError(f"Failed to create recipe book: {e!s}") from e
 
-    def get_recipe_book_by_id(self, recipe_book_id: str) -> Optional[dict]:
-        try:
-            with self.get_db_context() as (_conn, cursor):
-                return self._fetch_recipe_book_by_id(cursor, recipe_book_id)
-        except Exception as e:
-            raise DatabaseError(f"Failed to get recipe book: {e!s}") from e
-
-    def get_recipe_book_by_name(self, name: str) -> Optional[dict]:
-        try:
-            with self.get_db_context() as (_conn, cursor):
-                return self._fetch_recipe_book_by_name(cursor, name)
-        except Exception as e:
-            raise DatabaseError(f"Failed to get recipe book by name: {e!s}") from e
-
     def get_full_recipe_book_by_id(self, recipe_book_id: str) -> Optional[dict]:
         try:
             with self.get_db_context() as (_conn, cursor):
@@ -205,15 +191,6 @@ class RecipeBookManager(BaseManager):
                 return self._record_exists(cursor, RECIPE_EXISTS_SQL, recipe_id)
         except Exception as e:
             raise DatabaseError(f"Failed to verify recipe existence: {e!s}") from e
-
-    def recipe_book_exists(self, recipe_book_id: str) -> bool:
-        try:
-            with self.get_db_context() as (_conn, cursor):
-                return self._record_exists(
-                    cursor, RECIPE_BOOK_EXISTS_SQL, recipe_book_id
-                )
-        except Exception as e:
-            raise DatabaseError(f"Failed to verify recipe book existence: {e!s}") from e
 
     def add_recipe_to_book(self, recipe_book_id: str, recipe_id: str) -> dict:
         try:

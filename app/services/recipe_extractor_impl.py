@@ -6,15 +6,13 @@ from app.api.schemas import Recipe
 from app.services.llm_generation_service import (
     make_llm_call_structured_output_generic,
 )
-from app.services.recipe_extractor import RecipeExtractorService
 
 logger = logging.getLogger(__name__)
 
 
-class RecipeExtractorImpl(RecipeExtractorService):
+class RecipeExtractorImpl:
     """
-    Implementation of RecipeExtractorService that uses LLM to extract recipe data
-    from raw text input.
+    LLM-backed extractor for structured recipe data from raw text input.
     """
 
     def extract_recipe_from_raw_text(
