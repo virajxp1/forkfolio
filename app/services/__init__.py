@@ -8,6 +8,8 @@ from .recipe_embeddings import RecipeEmbeddingsService
 from .recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 from .recipe_dedupe import RecipeDedupeService
 from .recipe_dedupe_impl import RecipeDedupeServiceImpl
+from .recipe_search_reranker import RecipeSearchRerankerService
+from .recipe_search_reranker_impl import RecipeSearchRerankerServiceImpl
 
 __all__ = [
     "RecipeExtractorImpl",
@@ -18,4 +20,6 @@ __all__ = [
     "RecipeEmbeddingsServiceImpl",
     "RecipeDedupeService",
     "RecipeDedupeServiceImpl",
+    "RecipeSearchRerankerService",
+    "RecipeSearchRerankerServiceImpl",
 ]

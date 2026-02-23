@@ -98,3 +98,20 @@ the same dish with only minor variations (duplicate) or materially different
 Return ONLY valid JSON in this schema:
 {"decision": "duplicate" | "distinct", "reason": "short explanation"}
 """
+
+
+SEARCH_RERANK_SYSTEM_PROMPT = """
+You are a recipe search reranker. You receive a user query and candidate recipes
+that were retrieved by embeddings. Re-rank candidates by how relevant they are
+to the query intent.
+
+Return ONLY valid JSON in this schema:
+{"ranked": [{"id": "candidate-id", "score": 0.0}]}
+
+Rules:
+- Only include candidate IDs from the provided list.
+- Sort by best match first.
+- Use score in [0.0, 1.0], where 1.0 is the best match.
+- Include at most max_results IDs.
+- Prefer directly relevant dishes and demote loosely related items.
+"""

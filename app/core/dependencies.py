@@ -9,6 +9,7 @@ from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 from app.services.recipe_dedupe_impl import RecipeDedupeServiceImpl
 from app.services.recipe_processing_service import RecipeProcessingService
+from app.services.recipe_search_reranker_impl import RecipeSearchRerankerServiceImpl
 
 
 def get_recipe_extractor() -> RecipeExtractorImpl:
@@ -59,6 +60,11 @@ def get_recipe_embeddings_service() -> RecipeEmbeddingsServiceImpl:
 def get_recipe_dedupe_service() -> RecipeDedupeServiceImpl:
     """Dependency provider for RecipeDedupeServiceImpl."""
     return RecipeDedupeServiceImpl()
+
+
+def get_recipe_search_reranker_service() -> RecipeSearchRerankerServiceImpl:
+    """Dependency provider for RecipeSearchRerankerServiceImpl."""
+    return RecipeSearchRerankerServiceImpl()
 
 
 def get_recipe_processing_service() -> RecipeProcessingService:

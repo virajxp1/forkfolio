@@ -49,6 +49,12 @@ class Settings:
         self.SEMANTIC_SEARCH_MAX_DISTANCE: float = self._cfg.getfloat(
             "api", "semantic_search_max_distance", fallback=0.22
         )
+        self.SEMANTIC_SEARCH_RERANK_ENABLED: bool = self._cfg.getboolean(
+            "api", "semantic_search_rerank_enabled", fallback=False
+        )
+        self.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT: int = self._cfg.getint(
+            "api", "semantic_search_rerank_candidate_count", fallback=15
+        )
 
         # DB settings
         self.DB_HOST: str = self._cfg.get("database", "host")

@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.core.dependencies import (
     get_recipe_embeddings_service,
     get_recipe_manager,
+    get_recipe_search_reranker_service,
 )
 
 
@@ -31,10 +32,13 @@ class FakeRecipeManager:
         self,
         results: list[dict] | None = None,
         error: Exception | None = None,
+        recipe_lookup: dict[str, dict] | None = None,
     ):
         self.results = results or []
         self.error = error
+        self.recipe_lookup = recipe_lookup or {}
         self.calls: list[dict] = []
+        self.recipe_calls: list[str] = []
 
     def search_recipes_by_embedding(
         self,
@@ -55,15 +59,48 @@ class FakeRecipeManager:
             raise self.error
         return self.results
 
+    def get_full_recipe(self, recipe_id: str) -> dict | None:
+        self.recipe_calls.append(recipe_id)
+        return self.recipe_lookup.get(recipe_id)
+
+
+class FakeRerankerService:
+    def __init__(
+        self,
+        ranked: list[dict] | None = None,
+    ):
+        self.ranked = ranked or []
+        self.calls: list[dict] = []
+
+    def rerank(
+        self,
+        query: str,
+        candidates: list[dict],
+        max_results: int,
+    ) -> list[dict]:
+        self.calls.append(
+            {
+                "query": query,
+                "candidates": candidates,
+                "max_results": max_results,
+            }
+        )
+        return self.ranked
+
 
 def build_client(
     recipe_manager: FakeRecipeManager,
     embeddings_service: FakeEmbeddingsService,
+    reranker_service: FakeRerankerService | None = None,
 ) -> TestClient:
     app = FastAPI()
     app.include_router(recipes.router)
     app.dependency_overrides[get_recipe_manager] = lambda: recipe_manager
     app.dependency_overrides[get_recipe_embeddings_service] = lambda: embeddings_service
+    if reranker_service is not None:
+        app.dependency_overrides[get_recipe_search_reranker_service] = lambda: (
+            reranker_service
+        )
     return TestClient(app)
 
 
@@ -150,3 +187,83 @@ def test_semantic_search_returns_500_on_embedding_error() -> None:
     assert response.json()["detail"] == (
         "Error performing semantic search: embeddings down"
     )
+
+
+def test_semantic_search_strips_wrapping_quotes() -> None:
+    expected_results = [
+        {
+            "id": "recipe-1",
+            "name": "Classic Lasagne",
+            "distance": 0.08,
+        }
+    ]
+    fake_manager = FakeRecipeManager(results=expected_results)
+    fake_embeddings = FakeEmbeddingsService()
+    client = build_client(fake_manager, fake_embeddings)
+
+    response = client.get(
+        SEMANTIC_SEARCH_PATH,
+        params={"query": '"lasagna"'},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["query"] == "lasagna"
+    assert fake_embeddings.calls == ["lasagna"]
+
+
+def test_semantic_search_applies_rerank_when_enabled(monkeypatch) -> None:
+    expected_results = [
+        {
+            "id": "recipe-1",
+            "name": "Herby Pasta",
+            "distance": 0.09,
+        },
+        {
+            "id": "recipe-2",
+            "name": "Carbonara",
+            "distance": 0.11,
+        },
+    ]
+    recipe_lookup = {
+        "recipe-1": {"ingredients": ["pasta", "herbs"]},
+        "recipe-2": {"ingredients": ["spaghetti", "egg", "pecorino"]},
+    }
+    fake_manager = FakeRecipeManager(
+        results=expected_results, recipe_lookup=recipe_lookup
+    )
+    fake_embeddings = FakeEmbeddingsService(embedding=[0.4, 0.5, 0.6])
+    fake_reranker = FakeRerankerService(
+        ranked=[
+            {"id": "recipe-2", "score": 0.97},
+            {"id": "recipe-1", "score": 0.76},
+        ]
+    )
+    client = build_client(fake_manager, fake_embeddings, fake_reranker)
+
+    original_enabled = settings.SEMANTIC_SEARCH_RERANK_ENABLED
+    original_candidate_count = settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_ENABLED", True)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT", 5)
+    try:
+        response = client.get(
+            SEMANTIC_SEARCH_PATH,
+            params={"query": "pasta", "limit": 2},
+        )
+    finally:
+        monkeypatch.setattr(
+            settings, "SEMANTIC_SEARCH_RERANK_ENABLED", original_enabled
+        )
+        monkeypatch.setattr(
+            settings,
+            "SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT",
+            original_candidate_count,
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["results"][0]["id"] == "recipe-2"
+    assert payload["results"][1]["id"] == "recipe-1"
+    assert payload["results"][0]["rerank_score"] == 0.97
+    assert payload["results"][1]["rerank_score"] == 0.76
+    assert len(fake_reranker.calls) == 1

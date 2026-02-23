@@ -5,6 +5,7 @@ from app.core.dependencies import (
     get_recipe_embeddings_service,
     get_recipe_manager,
     get_recipe_processing_service,
+    get_recipe_search_reranker_service,
 )
 from app.core.logging import get_logger
 from app.api.schemas import RecipeIngestionRequest
@@ -18,6 +19,79 @@ RECIPE_BODY = Body()
 recipe_manager_dep = Depends(get_recipe_manager)
 recipe_processing_service_dep = Depends(get_recipe_processing_service)
 recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
+recipe_search_reranker_service_dep = Depends(get_recipe_search_reranker_service)
+
+WRAPPING_QUOTES = {'"', "'"}
+
+
+def _normalize_search_query(raw_query: str) -> str:
+    normalized = " ".join(raw_query.strip().split())
+    if (
+        len(normalized) >= 2
+        and normalized[0] == normalized[-1]
+        and normalized[0] in WRAPPING_QUOTES
+    ):
+        normalized = " ".join(normalized[1:-1].strip().split())
+    return normalized
+
+
+def _build_rerank_candidates(matches: list[dict], recipe_manager) -> list[dict]:
+    candidates: list[dict] = []
+    for item in matches:
+        recipe_id = item.get("id")
+        ingredients_preview: list[str] = []
+        if recipe_id:
+            try:
+                recipe_data = recipe_manager.get_full_recipe(recipe_id)
+                if recipe_data:
+                    ingredients_preview = list(recipe_data.get("ingredients") or [])[:8]
+            except Exception as exc:
+                logger.warning(
+                    "Failed to load recipe details for rerank candidate '%s': %s",
+                    recipe_id,
+                    exc,
+                )
+        candidates.append(
+            {
+                "id": recipe_id,
+                "name": item.get("name"),
+                "distance": item.get("distance"),
+                "ingredients_preview": ingredients_preview,
+            }
+        )
+    return candidates
+
+
+def _apply_rerank(
+    matches: list[dict],
+    ranked_items: list[dict],
+    limit: int,
+) -> list[dict]:
+    if not ranked_items:
+        return matches[:limit]
+
+    match_by_id = {
+        item.get("id"): item for item in matches if item.get("id") is not None
+    }
+    ordered_matches: list[dict] = []
+    used_ids: set[str] = set()
+
+    for ranked in ranked_items:
+        recipe_id = ranked.get("id")
+        if recipe_id is None or recipe_id in used_ids or recipe_id not in match_by_id:
+            continue
+        row = dict(match_by_id[recipe_id])
+        row["rerank_score"] = ranked.get("score")
+        ordered_matches.append(row)
+        used_ids.add(recipe_id)
+
+    for item in matches:
+        recipe_id = item.get("id")
+        if recipe_id is not None and recipe_id in used_ids:
+            continue
+        ordered_matches.append(item)
+
+    return ordered_matches[:limit]
 
 
 @router.post("/process-and-store")
@@ -102,6 +176,7 @@ def semantic_search_recipes(
     ),
     recipe_manager=recipe_manager_dep,
     embeddings_service=recipe_embeddings_service_dep,
+    reranker_service=recipe_search_reranker_service_dep,
 ) -> dict:
     """
     Semantic search over recipes using title+ingredients embeddings.
@@ -109,7 +184,7 @@ def semantic_search_recipes(
     Uses a server-side cosine distance threshold and returns nearest recipe hits
     with lightweight metadata and cosine distance.
     """
-    normalized_query = query.strip()
+    normalized_query = _normalize_search_query(query)
     if len(normalized_query) < 2:
         raise HTTPException(
             status_code=422,
@@ -124,12 +199,27 @@ def semantic_search_recipes(
     )
     try:
         query_embedding = embeddings_service.embed_search_query(normalized_query)
+        candidate_limit = limit
+        if settings.SEMANTIC_SEARCH_RERANK_ENABLED:
+            candidate_limit = max(
+                limit, settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT
+            )
         matches = recipe_manager.search_recipes_by_embedding(
             embedding=query_embedding,
             embedding_type="title_ingredients",
-            limit=limit,
+            limit=candidate_limit,
             max_distance=settings.SEMANTIC_SEARCH_MAX_DISTANCE,
         )
+        if settings.SEMANTIC_SEARCH_RERANK_ENABLED and len(matches) > 1:
+            rerank_candidates = _build_rerank_candidates(matches, recipe_manager)
+            ranked_items = reranker_service.rerank(
+                query=normalized_query,
+                candidates=rerank_candidates,
+                max_results=limit,
+            )
+            matches = _apply_rerank(matches, ranked_items, limit)
+        else:
+            matches = matches[:limit]
         return {
             "query": normalized_query,
             "count": len(matches),
