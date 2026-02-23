@@ -157,7 +157,13 @@ def semantic_search_recipes(
                     "Rerank execution failed; falling back to embedding order. Error: %s",
                     exc,
                 )
-            matches = apply_rerank(matches, ranked_items, limit)
+            matches = apply_rerank(
+                matches,
+                ranked_items,
+                limit,
+                min_rerank_score=settings.SEMANTIC_SEARCH_RERANK_MIN_SCORE,
+                rerank_weight=settings.SEMANTIC_SEARCH_RERANK_WEIGHT,
+            )
         else:
             matches = matches[:limit]
         return {

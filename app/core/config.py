@@ -55,6 +55,16 @@ class Settings:
         self.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT: int = self._cfg.getint(
             "api", "semantic_search_rerank_candidate_count", fallback=15
         )
+        rerank_min_score = self._cfg.getfloat(
+            "api", "semantic_search_rerank_min_score", fallback=0.40
+        )
+        self.SEMANTIC_SEARCH_RERANK_MIN_SCORE: float = min(
+            max(rerank_min_score, 0.0), 1.0
+        )
+        rerank_weight = self._cfg.getfloat(
+            "api", "semantic_search_rerank_weight", fallback=0.70
+        )
+        self.SEMANTIC_SEARCH_RERANK_WEIGHT: float = min(max(rerank_weight, 0.0), 1.0)
 
         # DB settings
         self.DB_HOST: str = self._cfg.get("database", "host")

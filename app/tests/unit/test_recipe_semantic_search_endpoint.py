@@ -347,3 +347,38 @@ def test_semantic_search_falls_back_when_reranker_raises(monkeypatch) -> None:
     payload = response.json()
     assert payload["results"][0]["id"] == expected_results[0]["id"]
     assert payload["results"][1]["id"] == expected_results[1]["id"]
+
+
+def test_semantic_search_filters_low_rerank_scores(monkeypatch) -> None:
+    recipe_one = str(uuid.uuid4())
+    recipe_two = str(uuid.uuid4())
+    expected_results = [
+        {"id": recipe_one, "name": "Simple Pasta", "distance": 0.10},
+        {"id": recipe_two, "name": "Thai Green Curry", "distance": 0.12},
+    ]
+    fake_manager = FakeRecipeManager(results=expected_results)
+    fake_embeddings = FakeEmbeddingsService()
+    fake_reranker = FakeRerankerService(
+        ranked=[
+            {"id": recipe_one, "score": 0.72},
+            {"id": recipe_two, "score": 0.22},
+        ]
+    )
+    client = build_client(fake_manager, fake_embeddings, fake_reranker)
+
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_ENABLED", True)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT", 5)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_MIN_SCORE", 0.40)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_WEIGHT", 0.70)
+
+    response = client.get(
+        SEMANTIC_SEARCH_PATH,
+        params={"query": "lasagna", "limit": 5},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 1
+    assert payload["results"][0]["id"] == recipe_one
+    assert payload["results"][0]["rerank_score"] == 0.72
+    assert "combined_score" in payload["results"][0]

@@ -113,5 +113,9 @@ Rules:
 - Sort by best match first.
 - Use score in [0.0, 1.0], where 1.0 is the best match.
 - Include at most max_results IDs.
-- Prefer directly relevant dishes and demote loosely related items.
+- Score each candidate against the ideal result for the query, not relative rank only.
+- Use the full scale. Unrelated dishes should be near 0.0-0.2.
+- If there is no close match in candidates, do not give inflated scores.
+- Exact or near-exact dish matches should be highest. Different dish families should be lower.
+- Prefer directly relevant dishes and strongly demote loosely related items.
 """
