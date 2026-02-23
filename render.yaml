@@ -1,14 +1,24 @@
-services:
-  - type: web
-    name: forkfolio
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: python3 scripts/run.py
-    healthCheckPath: /api/v1/health
-    envVars:
-      - key: SUPABASE_PASSWORD
-        sync: false
-      - key: OPEN_ROUTER_API_KEY
-        sync: false
-      - key: API_AUTH_TOKEN
-        sync: false
+# Exported from Render on 2026-02-23T21:27:39Z
+version: "1"
+projects:
+  - name: Virajs Portfolio
+    environments:
+      - name: Production
+        services:
+          - type: web
+            name: forkfolio-be
+            runtime: python
+            repo: https://github.com/virajxp1/forkfolio
+            plan: free
+            envVars:
+              - key: API_AUTH_TOKEN
+                sync: false
+              - key: OPEN_ROUTER_API_KEY
+                sync: false
+              - key: SUPABASE_PASSWORD
+                sync: false
+            region: ohio
+            buildCommand: pip install -r requirements.txt
+            startCommand: python3 scripts/run.py
+            healthCheckPath: /api/v1/health
+            autoDeployTrigger: "commit"
