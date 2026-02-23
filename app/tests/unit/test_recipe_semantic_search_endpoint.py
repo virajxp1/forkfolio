@@ -382,3 +382,44 @@ def test_semantic_search_filters_low_rerank_scores(monkeypatch) -> None:
     assert payload["results"][0]["id"] == recipe_one
     assert payload["results"][0]["rerank_score"] == 0.72
     assert "combined_score" in payload["results"][0]
+
+
+def test_semantic_search_uses_fallback_boost_when_strict_is_empty(monkeypatch) -> None:
+    recipe_one = str(uuid.uuid4())
+    recipe_two = str(uuid.uuid4())
+    expected_results = [
+        {"id": recipe_one, "name": "Indian Chana Masala", "distance": 0.16},
+        {"id": recipe_two, "name": "Indian Aloo Gobi", "distance": 0.19},
+    ]
+    fake_manager = FakeRecipeManager(results=expected_results)
+    fake_embeddings = FakeEmbeddingsService()
+    fake_reranker = FakeRerankerService(
+        ranked=[
+            {"id": recipe_one, "score": 0.25},
+            {"id": recipe_two, "score": 0.15},
+        ]
+    )
+    client = build_client(fake_manager, fake_embeddings, fake_reranker)
+
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_ENABLED", True)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT", 5)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_MIN_SCORE", 0.40)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_FALLBACK_MIN_SCORE", 0.25)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_WEIGHT", 0.70)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_CUISINE_BOOST", 0.15)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_FAMILY_BOOST", 0.10)
+
+    response = client.get(
+        SEMANTIC_SEARCH_PATH,
+        params={"query": "paneer tikka masala", "limit": 5},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["count"] == 2
+    assert payload["results"][0]["id"] == recipe_one
+    assert payload["results"][1]["id"] == recipe_two
+    assert payload["results"][0]["rerank_mode"] == "fallback"
+    assert payload["results"][1]["rerank_mode"] == "fallback"
+    assert payload["results"][0]["rerank_score"] == 0.5
+    assert payload["results"][0]["raw_rerank_score"] == 0.25

@@ -162,7 +162,13 @@ def semantic_search_recipes(
                 ranked_items,
                 limit,
                 min_rerank_score=settings.SEMANTIC_SEARCH_RERANK_MIN_SCORE,
+                fallback_min_rerank_score=(
+                    settings.SEMANTIC_SEARCH_RERANK_FALLBACK_MIN_SCORE
+                ),
                 rerank_weight=settings.SEMANTIC_SEARCH_RERANK_WEIGHT,
+                query=normalized_query,
+                cuisine_boost=settings.SEMANTIC_SEARCH_RERANK_CUISINE_BOOST,
+                family_boost=settings.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST,
             )
         else:
             matches = matches[:limit]

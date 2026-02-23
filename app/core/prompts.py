@@ -114,8 +114,19 @@ Rules:
 - Use score in [0.0, 1.0], where 1.0 is the best match.
 - Include at most max_results IDs.
 - Score each candidate against the ideal result for the query, not relative rank only.
-- Use the full scale. Unrelated dishes should be near 0.0-0.2.
-- If there is no close match in candidates, do not give inflated scores.
-- Exact or near-exact dish matches should be highest. Different dish families should be lower.
-- Prefer directly relevant dishes and strongly demote loosely related items.
+- Judge semantic relevance using cuisine, dish family, cooking style, and core flavor profile.
+- Do not rely only on exact token/title overlap.
+- Use the full scale. Truly unrelated dishes should be near 0.0-0.2.
+- Exact or near-exact dish matches should be highest.
+- Same-cuisine, same-family dishes (for example masala/curry variants) should receive moderate scores, not near-zero.
+- If no direct match exists, keep top scores below exact-match range, but still credit close cuisine/family matches.
+- For cuisine-specific curry queries (for example paneer tikka masala), Indian curry-family dishes like chana masala or aloo gobi should usually be at least mid-range and rank above less related cuisines.
+- For broad queries (for example curry), dishes commonly considered curries across cuisines should not be heavily penalized for wording differences alone.
+
+Score calibration guide:
+- 0.90-1.00: Exact or near-exact dish.
+- 0.70-0.89: Very close variant in same cuisine/family.
+- 0.50-0.69: Same cuisine and clearly related dish family/flavor profile.
+- 0.30-0.49: Partially related.
+- 0.00-0.29: Weakly related or unrelated.
 """
