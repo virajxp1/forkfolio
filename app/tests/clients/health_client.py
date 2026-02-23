@@ -1,6 +1,6 @@
 """
 Client for Health router endpoints.
-Maps to: app/routers/health.py
+Maps to: app/api/v1/endpoints/health.py
 """
 
 from typing import Dict, Any
@@ -20,7 +20,7 @@ class HealthClient(BaseAPIClient):
         Get API root welcome message.
 
         Endpoint: GET /api/v1/
-        Router: app.routers.health:root
+        Router: app.api.v1.endpoints.health:root
         """
         return self.get(self.ROOT_ENDPOINT)
 
@@ -29,6 +29,6 @@ class HealthClient(BaseAPIClient):
         Perform lightweight liveness check.
 
         Endpoint: GET /api/v1/health
-        Router: app.routers.health:health_check
+        Router: app.api.v1.endpoints.health:health_check
         """
         return self.get(self.HEALTH_ENDPOINT)

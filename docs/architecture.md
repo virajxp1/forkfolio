@@ -65,13 +65,8 @@ The architecture has been thoroughly refactored to meet enterprise standards:
 ### 3. Custom Exception Hierarchy
 ```python
 ForkFolioError (base)
-├── DatabaseError
-│   └── ConnectionPoolError
-├── RecipeProcessingError
-│   ├── RecipeExtractionError
-│   └── RecipeCleanupError
-├── RecipeNotFoundError
-└── ValidationError
+└── DatabaseError
+    └── ConnectionPoolError
 ```
 
 ### 4. Dependency Injection
@@ -119,8 +114,7 @@ Service Instance ──────▶ Database Query ──────▶ Auto
 ## Error Handling Strategy
 
 ### 1. Exception Propagation
-- Database errors → `DatabaseError`
-- Business logic errors → `RecipeProcessingError`
+- Database and pool errors → `DatabaseError` / `ConnectionPoolError`
 - HTTP errors → `HTTPException` with proper status codes
 
 ### 2. Transaction Safety
@@ -143,16 +137,7 @@ GET /api/v1/health
 Returns:
 ```json
 {
-  "status": "healthy|unhealthy",
-  "database": {
-    "connected": true,
-    "pool": {
-      "pool_initialized": true,
-      "minconn": 2,
-      "maxconn": 20
-    }
-  },
-  "timestamp": "now()"
+  "status": "ok"
 }
 ```
 

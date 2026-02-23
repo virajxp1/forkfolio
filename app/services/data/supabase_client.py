@@ -72,17 +72,6 @@ def return_db_connection(conn) -> None:
             logger.warning(f"Failed to return connection to pool: {e!s}")
 
 
-def get_pool_status() -> dict:
-    """Basic pool status."""
-    if _connection_pool is None:
-        return {"pool_initialized": False}
-    return {
-        "pool_initialized": True,
-        "minconn": _connection_pool.minconn,
-        "maxconn": _connection_pool.maxconn,
-    }
-
-
 def close_connection_pool() -> None:
     """Close all connections in the pool."""
     global _connection_pool

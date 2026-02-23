@@ -49,10 +49,6 @@ class RecipeManager(BaseManager):
         return str(uuid.uuid4())
 
     @staticmethod
-    def _to_dict(row) -> Optional[dict]:
-        return dict(row) if row else None
-
-    @staticmethod
     def _normalize_embedding_value(embedding_value):
         if embedding_value is None:
             return None

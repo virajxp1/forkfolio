@@ -1,6 +1,6 @@
 """
 Client for Recipes router endpoints.
-Maps to: app/routers/recipes.py
+Maps to: app/api/v1/endpoints/recipes.py
 
 This contains the main recipe functionality endpoints.
 """
@@ -34,7 +34,7 @@ class RecipesClient(BaseAPIClient):
         4. Return database ID
 
         Endpoint: POST /api/v1/recipes/process-and-store
-        Router: app.routers.recipes:process_and_store_recipe
+        Router: app.api.v1.endpoints.recipes:process_and_store_recipe
         """
         payload = {"raw_input": raw_input, "isTest": is_test}
         if enforce_deduplication is not None:
@@ -46,7 +46,7 @@ class RecipesClient(BaseAPIClient):
         Get a complete recipe by its UUID.
 
         Endpoint: GET /api/v1/recipes/{recipe_id}
-        Router: app.routers.recipes:get_recipe
+        Router: app.api.v1.endpoints.recipes:get_recipe
         """
         endpoint = f"{settings.API_BASE_PATH}/recipes/{recipe_id}"
         return self.get(endpoint)
@@ -56,7 +56,7 @@ class RecipesClient(BaseAPIClient):
         Get a complete recipe by its UUID, including embeddings.
 
         Endpoint: GET /api/v1/recipes/{recipe_id}/all
-        Router: app.routers.recipes:get_recipe_all
+        Router: app.api.v1.endpoints.recipes:get_recipe_all
         """
         endpoint = f"{settings.API_BASE_PATH}/recipes/{recipe_id}/all"
         return self.get(endpoint)
@@ -66,7 +66,7 @@ class RecipesClient(BaseAPIClient):
         Delete a recipe by its UUID.
 
         Endpoint: DELETE /api/v1/recipes/delete/{recipe_id}
-        Router: app.routers.recipes:delete_recipe
+        Router: app.api.v1.endpoints.recipes:delete_recipe
         """
         endpoint = f"{settings.API_BASE_PATH}/recipes/delete/{recipe_id}"
         return self.delete(endpoint)
