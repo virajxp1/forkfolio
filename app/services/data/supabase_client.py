@@ -26,7 +26,7 @@ def init_connection_pool() -> None:
     if not password:
         raise ValueError(
             "Database password is not configured. "
-            "Set SUPABASE_PASSWORD (or DB_PASSWORD) in environment variables."
+            "Set SUPABASE_PASSWORD in environment variables."
         )
 
     conn_args = {

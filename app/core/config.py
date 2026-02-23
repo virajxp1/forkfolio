@@ -97,9 +97,7 @@ class Settings:
 
         # Secrets: environment-only.
         self.OPEN_ROUTER_API_KEY: str = os.getenv("OPEN_ROUTER_API_KEY", "").strip()
-        self.SUPABASE_PASSWORD: str = (
-            os.getenv("SUPABASE_PASSWORD") or os.getenv("DB_PASSWORD") or ""
-        ).strip()
+        self.SUPABASE_PASSWORD: str = os.getenv("SUPABASE_PASSWORD", "").strip()
 
     @staticmethod
     def _load_config(config_path: Path) -> configparser.ConfigParser:
