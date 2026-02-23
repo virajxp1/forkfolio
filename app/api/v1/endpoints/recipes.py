@@ -1,13 +1,19 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
+from app.api.schemas import RecipeIngestionRequest
+from app.api.v1.helpers.recipe_search import (
+    apply_rerank,
+    build_rerank_candidates,
+    normalize_search_query,
+)
 from app.core.config import settings
 from app.core.dependencies import (
     get_recipe_embeddings_service,
     get_recipe_manager,
     get_recipe_processing_service,
+    get_recipe_search_reranker_service,
 )
 from app.core.logging import get_logger
-from app.api.schemas import RecipeIngestionRequest
 
 router = APIRouter(prefix=f"{settings.API_BASE_PATH}/recipes", tags=["Recipes"])
 logger = get_logger(__name__)
@@ -18,6 +24,7 @@ RECIPE_BODY = Body()
 recipe_manager_dep = Depends(get_recipe_manager)
 recipe_processing_service_dep = Depends(get_recipe_processing_service)
 recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
+recipe_search_reranker_service_dep = Depends(get_recipe_search_reranker_service)
 
 
 @router.post("/process-and-store")
@@ -102,6 +109,7 @@ def semantic_search_recipes(
     ),
     recipe_manager=recipe_manager_dep,
     embeddings_service=recipe_embeddings_service_dep,
+    reranker_service=recipe_search_reranker_service_dep,
 ) -> dict:
     """
     Semantic search over recipes using title+ingredients embeddings.
@@ -109,7 +117,7 @@ def semantic_search_recipes(
     Uses a server-side cosine distance threshold and returns nearest recipe hits
     with lightweight metadata and cosine distance.
     """
-    normalized_query = query.strip()
+    normalized_query = normalize_search_query(query)
     if len(normalized_query) < 2:
         raise HTTPException(
             status_code=422,
@@ -124,12 +132,46 @@ def semantic_search_recipes(
     )
     try:
         query_embedding = embeddings_service.embed_search_query(normalized_query)
+        candidate_limit = limit
+        if settings.SEMANTIC_SEARCH_RERANK_ENABLED:
+            candidate_limit = max(
+                limit, settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT
+            )
         matches = recipe_manager.search_recipes_by_embedding(
             embedding=query_embedding,
             embedding_type="title_ingredients",
-            limit=limit,
+            limit=candidate_limit,
             max_distance=settings.SEMANTIC_SEARCH_MAX_DISTANCE,
         )
+        if settings.SEMANTIC_SEARCH_RERANK_ENABLED and len(matches) > 1:
+            ranked_items = []
+            try:
+                rerank_candidates = build_rerank_candidates(matches, recipe_manager)
+                ranked_items = reranker_service.rerank(
+                    query=normalized_query,
+                    candidates=rerank_candidates,
+                    max_results=limit,
+                )
+            except Exception as exc:
+                logger.warning(
+                    "Rerank execution failed; falling back to embedding order. Error: %s",
+                    exc,
+                )
+            matches = apply_rerank(
+                matches,
+                ranked_items,
+                limit,
+                min_rerank_score=settings.SEMANTIC_SEARCH_RERANK_MIN_SCORE,
+                fallback_min_rerank_score=(
+                    settings.SEMANTIC_SEARCH_RERANK_FALLBACK_MIN_SCORE
+                ),
+                rerank_weight=settings.SEMANTIC_SEARCH_RERANK_WEIGHT,
+                query=normalized_query,
+                cuisine_boost=settings.SEMANTIC_SEARCH_RERANK_CUISINE_BOOST,
+                family_boost=settings.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST,
+            )
+        else:
+            matches = matches[:limit]
         return {
             "query": normalized_query,
             "count": len(matches),

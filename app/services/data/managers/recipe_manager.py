@@ -41,6 +41,12 @@ WHERE e.embedding_type = %s
 ORDER BY distance
 LIMIT %s
 """
+INGREDIENTS_FOR_RECIPES_SQL = """
+SELECT recipe_id, ingredient_text
+FROM recipe_ingredients
+WHERE recipe_id = ANY(%s::uuid[])
+ORDER BY recipe_id, order_index
+"""
 
 
 class RecipeManager(BaseManager):
@@ -153,10 +159,11 @@ class RecipeManager(BaseManager):
 
     @staticmethod
     def _format_semantic_search_row(row: dict) -> dict:
+        recipe_id = row.get("recipe_id")
         distance_value = row.get("distance")
         distance = float(distance_value) if distance_value is not None else None
         return {
-            "id": row.get("recipe_id"),
+            "id": str(recipe_id) if recipe_id is not None else None,
             "name": row.get("recipe_name"),
             "distance": distance,
         }
@@ -234,6 +241,45 @@ class RecipeManager(BaseManager):
 
         except Exception as e:
             raise DatabaseError(f"Failed to get recipe with embeddings: {e!s}") from e
+
+    def get_ingredient_previews(
+        self,
+        recipe_ids: list[str],
+        max_ingredients: int = 8,
+    ) -> dict[str, list[str]]:
+        """
+        Fetch ingredient previews for many recipes in one query.
+
+        Returns a mapping of recipe_id -> first N ingredient strings ordered by index.
+        """
+        if not recipe_ids:
+            return {}
+
+        normalized_ids: list[str] = []
+        for recipe_id in recipe_ids:
+            try:
+                normalized_ids.append(str(uuid.UUID(str(recipe_id))))
+            except (TypeError, ValueError):
+                continue
+
+        if not normalized_ids:
+            return {}
+
+        max_items = max(1, max_ingredients)
+        previews: dict[str, list[str]] = {recipe_id: [] for recipe_id in normalized_ids}
+
+        try:
+            with self.get_db_context() as (_conn, cursor):
+                cursor.execute(INGREDIENTS_FOR_RECIPES_SQL, (normalized_ids,))
+                for row in cursor.fetchall():
+                    recipe_id = str(row["recipe_id"])
+                    ingredient = row["ingredient_text"]
+                    bucket = previews.setdefault(recipe_id, [])
+                    if len(bucket) < max_items and ingredient is not None:
+                        bucket.append(ingredient)
+            return previews
+        except Exception as e:
+            raise DatabaseError(f"Failed to get ingredient previews: {e!s}") from e
 
     def search_recipes_by_embedding(
         self,
