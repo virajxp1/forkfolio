@@ -35,6 +35,7 @@ def test_process_and_store_from_json(api_client: APIClient, test_case: dict) -> 
     expect_error = test_case.get("expect_error", False)
 
     recipe_id = None
+    created = False
     try:
         maybe_throttle()
         response = api_client.recipes.process_and_store_recipe(
