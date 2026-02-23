@@ -11,7 +11,6 @@ from app.services.llm_generation_service import (
     make_embedding,
     make_llm_call_structured_output_generic,
 )
-from app.services.recipe_dedupe import RecipeDedupeService
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 
 logger = get_logger(__name__)
@@ -30,10 +29,10 @@ class DedupeDecision(BaseModel):
     reason: str = ""
 
 
-class RecipeDedupeServiceImpl(RecipeDedupeService):
+class RecipeDedupeServiceImpl:
     """Deduplicate recipes using embeddings + LLM adjudication."""
 
-    def __init__(self, recipe_manager: RecipeManager = None):
+    def __init__(self, recipe_manager: RecipeManager | None = None):
         self.recipe_manager = recipe_manager or RecipeManager()
         (
             self.distance_threshold,

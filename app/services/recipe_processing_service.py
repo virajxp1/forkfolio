@@ -2,14 +2,10 @@ from typing import Optional
 
 from app.core.logging import get_logger
 from app.api.schemas import Recipe
-from app.services.recipe_input_cleanup import RecipeInputCleanup
-from app.services.recipe_extractor import RecipeExtractorService
 from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
-from app.services.recipe_embeddings import RecipeEmbeddingsService
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
-from app.services.recipe_dedupe import RecipeDedupeService
 from app.services.recipe_dedupe_impl import RecipeDedupeServiceImpl
 
 logger = get_logger(__name__)
@@ -28,11 +24,11 @@ class RecipeProcessingService:
 
     def __init__(
         self,
-        cleanup_service: RecipeInputCleanup = None,
-        extractor_service: RecipeExtractorService = None,
-        recipe_manager: RecipeManager = None,
-        embeddings_service: RecipeEmbeddingsService = None,
-        dedupe_service: RecipeDedupeService = None,
+        cleanup_service: RecipeInputCleanupServiceImpl | None = None,
+        extractor_service: RecipeExtractorImpl | None = None,
+        recipe_manager: RecipeManager | None = None,
+        embeddings_service: RecipeEmbeddingsServiceImpl | None = None,
+        dedupe_service: RecipeDedupeServiceImpl | None = None,
     ):
         self.cleanup_service = cleanup_service or RecipeInputCleanupServiceImpl()
         self.extractor_service = extractor_service or RecipeExtractorImpl()
