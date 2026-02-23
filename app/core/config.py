@@ -50,7 +50,7 @@ class Settings:
             "api", "semantic_search_max_distance", fallback=0.22
         )
         self.SEMANTIC_SEARCH_RERANK_ENABLED: bool = self._cfg.getboolean(
-            "api", "semantic_search_rerank_enabled", fallback=False
+            "api", "semantic_search_rerank_enabled", fallback=True
         )
         self.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT: int = self._cfg.getint(
             "api", "semantic_search_rerank_candidate_count", fallback=15

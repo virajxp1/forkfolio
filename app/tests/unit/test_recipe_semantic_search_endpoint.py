@@ -150,11 +150,14 @@ def test_semantic_search_returns_results() -> None:
     assert payload["results"] == expected_results
 
     assert fake_embeddings.calls == ["lasagna"]
+    expected_limit = 5
+    if settings.SEMANTIC_SEARCH_RERANK_ENABLED:
+        expected_limit = max(5, settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT)
     assert fake_manager.calls == [
         {
             "embedding": [0.4, 0.5, 0.6],
             "embedding_type": "title_ingredients",
-            "limit": 5,
+            "limit": expected_limit,
             "max_distance": settings.SEMANTIC_SEARCH_MAX_DISTANCE,
         }
     ]
