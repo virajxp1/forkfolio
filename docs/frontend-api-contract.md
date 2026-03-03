@@ -17,6 +17,8 @@ This document captures the frontend-facing API contract expectations while the
 
 - Most successful responses include `success: true`.
 - Non-2xx responses use FastAPI `detail` payloads for errors.
+- Exception: `POST /recipes/process-and-store` may return `200` with
+  `success: false` and an `error` field when processing fails.
 - IDs are UUID strings.
 - The ingestion request field `is_test` is exposed as `isTest` over the wire.
 
@@ -28,12 +30,15 @@ This document captures the frontend-facing API contract expectations while the
     - `raw_input` (string, required, min length 10)
     - `enforce_deduplication` (boolean, optional, default `true`)
     - `isTest` (boolean, optional, default `false`)
-  - Response includes:
+  - Success response (`200`) includes:
     - `recipe_id`
     - `recipe`
     - `created`
-    - `success`
+    - `success: true`
     - `message`
+  - Processing failure response (`200`) includes:
+    - `error`
+    - `success: false`
 
 - `GET /api/v1/recipes/search/semantic`
   - Query params:
