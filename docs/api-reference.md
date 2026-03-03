@@ -108,7 +108,7 @@ Request body:
 
 Field notes:
 
-- `start_url` (string, required)
+- `start_url` (string, required, must be a public `http/https` URL)
 - `target_instruction` (string, required)
 - `target_prompt` (string, optional alias for `target_instruction`)
 - `max_steps` (integer, optional, default `10`, min `1`, max `50`)

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import ipaddress
+import socket
 from typing import Optional
+from urllib.parse import urlparse
+
+import anyio
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -14,6 +19,12 @@ RECIPE_TEXT_SCHEMA = {
         "Full recipe text from the page, including title, ingredients, instructions, "
         "servings, and total time when available."
     )
+}
+
+BLOCKED_HOSTNAMES = {
+    "localhost",
+    "metadata",
+    "metadata.google.internal",
 }
 
 
@@ -40,6 +51,10 @@ class RecipePreviewService:
         """
         Scrape + clean + extract a recipe preview from a URL without saving to DB.
         """
+        validation_error = self._validate_external_url(start_url)
+        if validation_error:
+            return None, validation_error
+
         scraped_result, scrape_error = await self._scrape_recipe_text(
             start_url=start_url,
             target_instruction=target_instruction,
@@ -51,7 +66,10 @@ class RecipePreviewService:
 
         raw_scraped_text = scraped_result["raw_scraped_text"]
         try:
-            cleaned_text = self.cleanup_service.cleanup_input(raw_scraped_text)
+            cleaned_text = await anyio.to_thread.run_sync(
+                self.cleanup_service.cleanup_input,
+                raw_scraped_text,
+            )
         except Exception as exc:
             logger.error("Preview cleanup failed: %s", exc)
             return None, f"Failed to clean scraped content: {exc!s}"
@@ -59,8 +77,9 @@ class RecipePreviewService:
         recipe = None
         extraction_error = None
         try:
-            recipe, extraction_error = (
-                self.extractor_service.extract_recipe_from_raw_text(cleaned_text)
+            recipe, extraction_error = await anyio.to_thread.run_sync(
+                self.extractor_service.extract_recipe_from_raw_text,
+                cleaned_text,
             )
         except Exception as exc:
             extraction_error = f"Recipe extraction error: {exc!s}"
@@ -132,7 +151,7 @@ class RecipePreviewService:
             "source_url": result.source_url or start_url,
             "evidence": result.evidence,
             "confidence": result.confidence,
-            "trace_steps": len(result.trace),
+            "trace_steps": len(getattr(result, "trace", None) or []),
         }, None
 
     @staticmethod
@@ -150,4 +169,52 @@ class RecipePreviewService:
         if isinstance(answer, str) and answer.strip():
             return answer.strip()
 
+        return None
+
+    @staticmethod
+    def _is_blocked_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+        # Allow only globally routable targets to reduce SSRF attack surface.
+        return not ip.is_global
+
+    @classmethod
+    def _validate_external_url(cls, start_url: str) -> Optional[str]:
+        parsed = urlparse(start_url)
+        if parsed.scheme not in {"http", "https"}:
+            return "start_url must use http or https."
+
+        hostname = (parsed.hostname or "").strip().lower().rstrip(".")
+        if not hostname:
+            return "start_url must include a valid hostname."
+        if hostname in BLOCKED_HOSTNAMES:
+            return "start_url host is not allowed."
+
+        try:
+            literal_ip = ipaddress.ip_address(hostname)
+        except ValueError:
+            literal_ip = None
+        if literal_ip and cls._is_blocked_ip(literal_ip):
+            return "start_url resolves to a blocked address."
+
+        try:
+            resolved = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+        except socket.gaierror:
+            return "start_url hostname could not be resolved."
+        except Exception as exc:
+            logger.error("Failed to resolve start_url hostname '%s': %s", hostname, exc)
+            return "Failed to validate start_url hostname."
+
+        found_ip = False
+        for info in resolved:
+            address = info[4][0]
+            normalized = address.split("%", 1)[0]
+            try:
+                ip = ipaddress.ip_address(normalized)
+            except ValueError:
+                continue
+            found_ip = True
+            if cls._is_blocked_ip(ip):
+                return "start_url resolves to a blocked address."
+
+        if not found_ip:
+            return "start_url hostname did not resolve to an IP address."
         return None

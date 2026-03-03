@@ -132,3 +132,18 @@ def test_preview_recipe_from_url_returns_error_payload() -> None:
     assert payload["error"] == (
         "auto-browse is not installed. Install and configure it before using URL preview."
     )
+
+
+def test_preview_recipe_from_url_rejects_malformed_url() -> None:
+    service = FakeRecipePreviewService()
+    client = build_client(service)
+
+    response = client.post(
+        PREVIEW_PATH,
+        json={
+            "start_url": "not-a-url",
+            "target_instruction": "Extract recipe text from this page.",
+        },
+    )
+
+    assert response.status_code == 422

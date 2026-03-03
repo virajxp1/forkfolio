@@ -107,7 +107,7 @@ async def preview_recipe_from_url(
     Returns cleaned preview data for FE confirmation before calling save.
     """
     preview, error = await preview_service.preview_from_url(
-        start_url=preview_request.start_url,
+        start_url=str(preview_request.start_url),
         target_instruction=preview_request.target_instruction,
         max_steps=preview_request.max_steps,
         max_actions_per_step=preview_request.max_actions_per_step,

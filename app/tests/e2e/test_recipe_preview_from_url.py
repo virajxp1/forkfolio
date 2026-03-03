@@ -9,7 +9,6 @@ from app.tests.clients.api_client import APIClient
 from app.tests.utils.constants import HTTP_OK
 from app.tests.utils.helpers import maybe_throttle, truncate_debug_text
 
-DEFAULT_RECIPE_URL = "https://www.bbcgoodfood.com/recipes/easy-pancakes"
 DEFAULT_TARGET_INSTRUCTION = (
     "Extract the primary recipe from this page. "
     "Do not summarize. "
@@ -22,7 +21,9 @@ def test_preview_from_url_then_save(api_client: APIClient) -> None:
     if importlib.util.find_spec("auto_browse") is None:
         pytest.skip("auto-browse is not installed in the test environment.")
 
-    recipe_url = os.getenv("RECIPE_PREVIEW_TEST_URL", DEFAULT_RECIPE_URL)
+    recipe_url = os.getenv("RECIPE_PREVIEW_TEST_URL", "").strip()
+    if not recipe_url:
+        pytest.skip("Set RECIPE_PREVIEW_TEST_URL to run URL preview e2e.")
     target_instruction = os.getenv(
         "RECIPE_PREVIEW_TEST_TARGET_INSTRUCTION", DEFAULT_TARGET_INSTRUCTION
     )

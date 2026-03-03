@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 
 class RecipeUrlPreviewRequest(BaseModel):
@@ -8,10 +8,9 @@ class RecipeUrlPreviewRequest(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    start_url: str = Field(
+    start_url: HttpUrl = Field(
         ...,
         description="Starting URL to scrape for recipe content.",
-        min_length=5,
         json_schema_extra={"example": "https://www.example.com/recipes/pasta"},
     )
     target_instruction: str = Field(
