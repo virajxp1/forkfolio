@@ -353,25 +353,16 @@ class RecipePreviewService:
                     {"Accept-Language": "en-US,en;q=0.9"}
                 )
 
-                request_validation_cache: dict[tuple[str, bool], Optional[str]] = {}
-
                 async def _route_handler(route, request) -> None:
                     request_url = (getattr(request, "url", "") or "").strip()
-                    request_host = policy.service._normalized_hostname(request_url)
                     navigation_request = bool(request.is_navigation_request())
-                    cache_key = (request_host, navigation_request)
-
-                    if cache_key in request_validation_cache:
-                        validation_error = request_validation_cache[cache_key]
-                    else:
-                        validation_error = (
-                            await policy.service._validate_navigation_request_url(
-                                request_url=request_url,
-                                start_host=policy.start_host,
-                                navigation_request=navigation_request,
-                            )
+                    validation_error = (
+                        await policy.service._validate_navigation_request_url(
+                            request_url=request_url,
+                            start_host=policy.start_host,
+                            navigation_request=navigation_request,
                         )
-                        request_validation_cache[cache_key] = validation_error
+                    )
 
                     if validation_error:
                         logger.warning(
