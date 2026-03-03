@@ -70,6 +70,7 @@ def test_scrape_recipe_text_handles_missing_trace(monkeypatch) -> None:
     monkeypatch.setattr(settings, "LLM_MODEL_NAME", "test-model")
 
     service = RecipePreviewService()
+    monkeypatch.setattr(service, "_ensure_auto_browse_route_guard", lambda: None)
     payload, error = asyncio.run(
         service._scrape_recipe_text(
             start_url="https://example.com/recipe",
@@ -82,3 +83,60 @@ def test_scrape_recipe_text_handles_missing_trace(monkeypatch) -> None:
     assert error is None
     assert payload is not None
     assert payload["trace_steps"] == 0
+
+
+def test_scrape_recipe_text_handles_run_agent_exception(monkeypatch) -> None:
+    class FakeOpenRouterClient:
+        def __init__(self, api_key: str, model_name: str):
+            self.api_key = api_key
+            self.model_name = model_name
+
+    async def fake_run_agent(*args, **kwargs):
+        raise RuntimeError("temporary upstream failure")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "auto_browse",
+        SimpleNamespace(
+            OpenRouterClient=FakeOpenRouterClient,
+            run_agent=fake_run_agent,
+        ),
+    )
+    monkeypatch.setattr(settings, "OPEN_ROUTER_API_KEY", "test-key")
+    monkeypatch.setattr(settings, "LLM_MODEL_NAME", "test-model")
+
+    service = RecipePreviewService()
+    monkeypatch.setattr(service, "_ensure_auto_browse_route_guard", lambda: None)
+    payload, error = asyncio.run(
+        service._scrape_recipe_text(
+            start_url="https://example.com/recipe",
+            target_instruction="Extract recipe",
+            max_steps=5,
+            max_actions_per_step=2,
+        )
+    )
+
+    assert payload is None
+    assert error == "URL scrape failed: temporary upstream failure"
+
+
+def test_validate_navigation_request_url_rejects_cross_host_navigation(
+    monkeypatch,
+) -> None:
+    service = RecipePreviewService()
+
+    async def _allow_all(_: str):
+        return None
+
+    monkeypatch.setattr(service, "_validate_external_url_async", _allow_all)
+
+    error = asyncio.run(
+        service._validate_navigation_request_url(
+            request_url="https://evil.example/path",
+            start_host="example.com",
+            navigation_request=True,
+        )
+    )
+
+    assert error is not None
+    assert "Navigation to a different host is not allowed" in error
