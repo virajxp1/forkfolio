@@ -19,6 +19,10 @@ test-all:
 lint:
 	$(RUFF_BIN) check .
 	$(RUFF_BIN) format --check .
+	$(PYTHON_BIN) -m scripts.validate_openapi
+
+validate-openapi:
+	$(PYTHON_BIN) -m scripts.validate_openapi
 
 format:
 	$(RUFF_BIN) check --fix .
