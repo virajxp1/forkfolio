@@ -90,6 +90,62 @@ Success response (duplicate):
 }
 ```
 
+### `POST /api/v1/recipes/preview-from-url`
+
+Scrapes recipe content from a URL and returns a cleaned preview payload without
+saving anything to the database.
+
+Request body:
+
+```json
+{
+  "start_url": "https://www.example.com/recipes/pasta",
+  "target_instruction": "Extract the full recipe text from this page.",
+  "max_steps": 10,
+  "max_actions_per_step": 2
+}
+```
+
+Field notes:
+
+- `start_url` (string, required)
+- `target_instruction` (string, required)
+- `target_prompt` (string, optional alias for `target_instruction`)
+- `max_steps` (integer, optional, default `10`, min `1`, max `50`)
+- `max_actions_per_step` (integer, optional, default `2`, min `1`, max `4`)
+
+Success response:
+
+```json
+{
+  "success": true,
+  "preview": {
+    "source_url": "https://www.example.com/recipes/pasta",
+    "target_instruction": "Extract the full recipe text from this page.",
+    "raw_scraped_text": "raw text captured from page",
+    "cleaned_text": "cleaned recipe text",
+    "recipe": {},
+    "extraction_error": null,
+    "evidence": "evidence from page",
+    "confidence": 0.82,
+    "trace_steps": 3
+  },
+  "save_payload": {
+    "raw_input": "cleaned recipe text"
+  },
+  "message": "Recipe preview generated successfully"
+}
+```
+
+Error response (HTTP 200 with `success=false`):
+
+```json
+{
+  "error": "URL scrape failed: ...",
+  "success": false
+}
+```
+
 ### `GET /api/v1/recipes/search/semantic`
 
 Performs semantic similarity search over recipe embeddings.

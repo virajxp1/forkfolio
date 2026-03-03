@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
-from app.api.schemas import RecipeIngestionRequest
+from app.api.schemas import RecipeIngestionRequest, RecipeUrlPreviewRequest
 from app.api.v1.helpers.recipe_search import (
     apply_rerank,
     build_rerank_candidates,
@@ -10,6 +10,7 @@ from app.core.config import settings
 from app.core.dependencies import (
     get_recipe_embeddings_service,
     get_recipe_manager,
+    get_recipe_preview_service,
     get_recipe_processing_service,
     get_recipe_search_reranker_service,
 )
@@ -23,6 +24,7 @@ RECIPE_BODY = Body()
 # Dependency instances to satisfy Ruff B008
 recipe_manager_dep = Depends(get_recipe_manager)
 recipe_processing_service_dep = Depends(get_recipe_processing_service)
+recipe_preview_service_dep = Depends(get_recipe_preview_service)
 recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
 recipe_search_reranker_service_dep = Depends(get_recipe_search_reranker_service)
 
@@ -91,6 +93,37 @@ def process_and_store_recipe(
         "success": True,
         "created": True,
         "message": "Recipe processed and stored successfully",
+    }
+
+
+@router.post("/preview-from-url")
+async def preview_recipe_from_url(
+    preview_request: RecipeUrlPreviewRequest = RECIPE_BODY,
+    preview_service=recipe_preview_service_dep,
+) -> dict:
+    """
+    Scrape and prepare a recipe preview from URL content without saving.
+
+    Returns cleaned preview data for FE confirmation before calling save.
+    """
+    preview, error = await preview_service.preview_from_url(
+        start_url=preview_request.start_url,
+        target_instruction=preview_request.target_instruction,
+        max_steps=preview_request.max_steps,
+        max_actions_per_step=preview_request.max_actions_per_step,
+    )
+    if error:
+        return {"error": error, "success": False}
+
+    cleaned_text = ""
+    if preview:
+        cleaned_text = preview.get("cleaned_text") or ""
+
+    return {
+        "success": True,
+        "preview": preview,
+        "save_payload": {"raw_input": cleaned_text},
+        "message": "Recipe preview generated successfully",
     }
 
 
