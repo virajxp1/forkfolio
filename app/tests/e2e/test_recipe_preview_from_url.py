@@ -1,21 +1,22 @@
 import os
 
-import pytest
-
 from app.tests.clients.api_client import APIClient
 from app.tests.utils.constants import HTTP_OK
 
+DEFAULT_RECIPE_PREVIEW_TEST_URL = "https://www.loveandlemons.com/homemade-pasta-recipe/"
+
 
 def test_preview_from_url_then_save(api_client: APIClient) -> None:
-    recipe_url = os.getenv("RECIPE_PREVIEW_TEST_URL", "").strip()
-    if not recipe_url:
-        pytest.skip("Set RECIPE_PREVIEW_TEST_URL to run URL preview e2e.")
+    recipe_url = os.getenv(
+        "RECIPE_PREVIEW_TEST_URL", DEFAULT_RECIPE_PREVIEW_TEST_URL
+    ).strip()
 
     preview_response = api_client.recipes.preview_recipe_from_url(
         start_url=recipe_url,
         target_instruction="Extract full recipe text. Do not summarize.",
     )
     assert preview_response["status_code"] == HTTP_OK
+
     preview_data = preview_response["data"]
     assert preview_data.get("success") is True, preview_data.get("error")
 
