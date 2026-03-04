@@ -17,6 +17,7 @@ class RecipesClient(BaseAPIClient):
 
     # Endpoint paths - centralized in one place
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/process-and-store"
+    PREVIEW_FROM_URL_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/preview-from-url"
     SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/search/semantic"
 
     def process_and_store_recipe(
@@ -40,6 +41,27 @@ class RecipesClient(BaseAPIClient):
         if enforce_deduplication is not None:
             payload["enforce_deduplication"] = enforce_deduplication
         return self.post(self.PROCESS_AND_STORE_ENDPOINT, json_data=payload)
+
+    def preview_recipe_from_url(
+        self,
+        start_url: str,
+        target_instruction: str,
+        max_steps: int = 10,
+        max_actions_per_step: int = 2,
+    ) -> Dict[str, Any]:
+        """
+        Preview recipe extraction from URL without persisting to DB.
+
+        Endpoint: POST /api/v1/recipes/preview-from-url
+        Router: app.api.v1.endpoints.recipes:preview_recipe_from_url
+        """
+        payload = {
+            "start_url": start_url,
+            "target_instruction": target_instruction,
+            "max_steps": max_steps,
+            "max_actions_per_step": max_actions_per_step,
+        }
+        return self.post(self.PREVIEW_FROM_URL_ENDPOINT, json_data=payload)
 
     def get_recipe(self, recipe_id: str) -> Dict[str, Any]:
         """
