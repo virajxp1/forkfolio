@@ -1,0 +1,39 @@
+import Link from "next/link";
+import { BookOpenText, Plus, Search, UtensilsCrossed } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+
+export function ForkfolioHeader() {
+  return (
+    <header className="sticky top-0 z-20 border-b border-border/70 bg-background/95 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-foreground transition-colors hover:text-primary"
+        >
+          <UtensilsCrossed className="size-6 text-primary" />
+          <span className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+            ForkFolio
+          </span>
+        </Link>
+
+        <nav className="flex items-center gap-2">
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/browse">
+              <Search className="size-4" />
+              Browse
+            </Link>
+          </Button>
+          <Button disabled variant="ghost" size="sm">
+            <BookOpenText className="size-4" />
+            Books
+          </Button>
+          <Button disabled variant="secondary" size="sm">
+            <Plus className="size-4" />
+            Add Recipe
+          </Button>
+        </nav>
+      </div>
+    </header>
+  );
+}

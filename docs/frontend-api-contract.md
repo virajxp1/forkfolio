@@ -1,7 +1,7 @@
 # Frontend API Contract Notes
 
-This document captures the frontend-facing API contract expectations while the
-`apps/web` client is being introduced.
+This document captures the frontend-facing API contract for the `apps/web`
+client.
 
 ## Base URL and Auth
 
@@ -16,79 +16,91 @@ This document captures the frontend-facing API contract expectations while the
 ## Request/Response Conventions
 
 - Most successful responses include `success: true`.
-- Non-2xx responses use FastAPI `detail` payloads for errors.
-- Exception: `POST /recipes/process-and-store` may return `200` with
-  `success: false` and an `error` field when processing fails.
+- Non-2xx responses return FastAPI `detail` payloads.
+- `POST /recipes/process-and-store` can return `200` with `success: false` and
+  an `error` field when processing fails.
 - IDs are UUID strings.
-- The ingestion request field `is_test` is exposed as `isTest` over the wire.
+- In ingestion payloads, `isTest` is mapped to backend field `is_test`.
 
-## Recipes Endpoints
+## Current Contract Used by Browse UI
+
+### 1) Semantic Search
+
+- Endpoint: `GET /api/v1/recipes/search/semantic?query=<string>&limit=<int>`
+- Response shape consumed by frontend:
+
+```json
+{
+  "query": "pasta",
+  "count": 2,
+  "results": [
+    {
+      "id": "uuid",
+      "name": "Herby Pasta",
+      "distance": 0.09,
+      "rerank_score": 0.97,
+      "embedding_score": 0.91,
+      "combined_score": 0.95,
+      "raw_rerank_score": 0.9,
+      "rerank_mode": "fallback",
+      "cuisine_boost": 0.15,
+      "family_boost": 0.1
+    }
+  ],
+  "success": true
+}
+```
+
+Notes:
+- Always expected from search formatter: `id`, `name`, `distance`.
+- Optional rerank fields: `rerank_score`, `embedding_score`,
+  `combined_score`, `raw_rerank_score`, `rerank_mode`, `cuisine_boost`,
+  `family_boost`.
+
+### 2) Recipe Detail
+
+- Endpoint: `GET /api/v1/recipes/{recipe_id}`
+- Response shape consumed by frontend:
+
+```json
+{
+  "recipe": {
+    "id": "uuid",
+    "title": "Herby Pasta",
+    "servings": "2",
+    "total_time": "20 minutes",
+    "source_url": "https://...",
+    "is_test_data": false,
+    "created_at": "2026-03-03T00:00:00+00:00",
+    "updated_at": "2026-03-03T00:00:00+00:00",
+    "ingredients": ["200g pasta", "olive oil", "herbs"],
+    "instructions": ["Boil pasta", "Toss with sauce"]
+  },
+  "success": true
+}
+```
+
+## Other Available Endpoints
+
+### Recipes
 
 - `POST /api/v1/recipes/process-and-store`
-  - Ingests raw recipe text and runs cleanup, extraction, deduplication, and storage.
-  - Request body:
-    - `raw_input` (string, required, min length 10)
-    - `enforce_deduplication` (boolean, optional, default `true`)
-    - `isTest` (boolean, optional, default `false`)
-  - Success response (`200`) includes:
-    - `recipe_id`
-    - `recipe`
-    - `created`
-    - `success: true`
-    - `message`
-  - Processing failure response (`200`) includes:
-    - `error`
-    - `success: false`
-
-- `GET /api/v1/recipes/search/semantic`
-  - Query params:
-    - `query` (string, required, min length 2 after trim)
-    - `limit` (integer, optional, `1..50`, default `10`)
-  - Response includes:
-    - `query`
-    - `count`
-    - `results`
-    - `success`
-
 - `GET /api/v1/recipes/{recipe_id}`
-  - Returns a recipe with ingredients and instructions.
-
 - `GET /api/v1/recipes/{recipe_id}/all`
-  - Returns a recipe including embeddings.
-
 - `DELETE /api/v1/recipes/delete/{recipe_id}`
-  - Deletes a recipe by ID.
 
-## Recipe Books Endpoints
+### Recipe Books
 
 - `POST /api/v1/recipe-books/`
-  - Creates a recipe book.
-  - Request body:
-    - `name` (string, required, max length 120)
-    - `description` (string, optional, max length 1000)
-
 - `GET /api/v1/recipe-books/`
-  - Query params:
-    - `name` (optional; when present, fetches one book by name)
-    - `limit` (optional, `1..200`, default `50`)
-
 - `GET /api/v1/recipe-books/stats`
-  - Returns aggregate recipe-book stats.
-
 - `GET /api/v1/recipe-books/by-recipe/{recipe_id}`
-  - Returns books containing a specific recipe.
-
 - `GET /api/v1/recipe-books/{recipe_book_id}`
-  - Returns a recipe book by ID.
-
 - `PUT /api/v1/recipe-books/{recipe_book_id}/recipes/{recipe_id}`
-  - Adds a recipe to a book (idempotent).
-
 - `DELETE /api/v1/recipe-books/{recipe_book_id}/recipes/{recipe_id}`
-  - Removes a recipe from a book.
 
 ## Frontend Integration Notes
 
 - Generate and version OpenAPI types from `/openapi.json`.
-- Keep client-side data hooks keyed by resource and route params.
-- Centralize auth header injection in one fetch/client layer to avoid drift.
+- Keep hooks and cache keys aligned to route params.
+- Centralize auth header injection in one API client layer.
