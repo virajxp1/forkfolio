@@ -69,6 +69,8 @@ def server() -> Generator[str, None, None]:
         missing_config.append("database password")
     if not settings.OPEN_ROUTER_API_KEY:
         missing_config.append("open router api key")
+    if not settings.AUTO_BROWSE_API_TOKEN:
+        missing_config.append("auto browse api token")
 
     if missing_config:
         missing_message = (

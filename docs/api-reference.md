@@ -149,11 +149,14 @@ Request body:
 
 Field notes:
 
-- `start_url` (string, required, must be a public `http/https` URL)
+- `start_url` (string, required, must be a valid `http/https` URL)
 - `target_instruction` (string, required)
 - `target_prompt` (string, optional alias for `target_instruction`)
 - `max_steps` (integer, optional, default `10`, min `1`, max `50`)
 - `max_actions_per_step` (integer, optional, default `2`, min `1`, max `4`)
+- Scraping is executed via the auto-browse HTTP API (`AUTO_BROWSE_API_BASE_URL`,
+  default `https://auto-browse.onrender.com`).
+- Requests include `X-API-Token` from `AUTO_BROWSE_API_TOKEN` loaded via `.env`.
 
 Success response:
 

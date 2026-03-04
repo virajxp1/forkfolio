@@ -1,6 +1,5 @@
 """E2E coverage for URL preview flow (preview -> save)."""
 
-import importlib.util
 import os
 
 import pytest
@@ -18,9 +17,6 @@ DEFAULT_TARGET_INSTRUCTION = (
 
 
 def test_preview_from_url_then_save(api_client: APIClient) -> None:
-    if importlib.util.find_spec("auto_browse") is None:
-        pytest.skip("auto-browse is not installed in the test environment.")
-
     recipe_url = os.getenv("RECIPE_PREVIEW_TEST_URL", "").strip()
     if not recipe_url:
         pytest.skip("Set RECIPE_PREVIEW_TEST_URL to run URL preview e2e.")

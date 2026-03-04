@@ -4,8 +4,8 @@ from typing import Optional
 
 import anyio
 
-from app.core.config import settings
 from app.core.logging import get_logger
+from app.services.auto_browse_client import AutoBrowseClient
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
 
@@ -26,9 +26,11 @@ class RecipePreviewService:
 
     def __init__(
         self,
+        auto_browse_client: AutoBrowseClient | None = None,
         cleanup_service: RecipeInputCleanupServiceImpl | None = None,
         extractor_service: RecipeExtractorImpl | None = None,
     ):
+        self.auto_browse_client = auto_browse_client or AutoBrowseClient()
         self.cleanup_service = cleanup_service or RecipeInputCleanupServiceImpl()
         self.extractor_service = extractor_service or RecipeExtractorImpl()
 
@@ -92,61 +94,55 @@ class RecipePreviewService:
         max_steps: int,
         max_actions_per_step: int,
     ) -> tuple[Optional[dict], Optional[str]]:
-        try:
-            from auto_browse import OpenRouterClient, run_agent
-        except ImportError:
-            return (
-                None,
-                "auto-browse is not installed. Install and configure it before using URL preview.",
-            )
-
-        if not settings.OPEN_ROUTER_API_KEY:
-            return None, "OPEN_ROUTER_API_KEY is not configured."
-        if not settings.LLM_MODEL_NAME:
-            return None, "LLM model name is not configured."
-
         prompt = target_instruction.strip()
         if not prompt:
             return None, "target_instruction cannot be empty."
 
-        try:
-            client = OpenRouterClient(
-                api_key=settings.OPEN_ROUTER_API_KEY,
-                model_name=settings.LLM_MODEL_NAME,
-            )
-        except Exception as exc:
-            logger.error("Failed to initialize preview scrape client: %s", exc)
-            return None, "Failed to initialize URL scraping client."
-
-        try:
-            result = await run_agent(
-                client,
+        response_payload, client_error = await anyio.to_thread.run_sync(
+            lambda: self.auto_browse_client.run(
                 start_url=start_url,
                 target_prompt=prompt,
                 max_steps=max_steps,
                 max_actions_per_step=max_actions_per_step,
                 extraction_schema=RECIPE_TEXT_SCHEMA,
-                headless=True,
             )
-        except Exception as exc:
-            logger.error("URL scrape agent failed: %s", exc)
-            return None, f"URL scrape failed: {exc!s}"
+        )
+        if client_error:
+            return None, client_error
 
-        if result.error:
-            return None, f"URL scrape failed: {result.error}"
+        if not response_payload:
+            return (
+                None,
+                "URL scrape failed: auto-browse API returned an empty response.",
+            )
+
+        structured_data = response_payload.get("structured_data")
+        if not isinstance(structured_data, dict):
+            structured_data = None
+        answer = response_payload.get("answer")
+        if not isinstance(answer, str):
+            answer = None
 
         raw_scraped_text = self._select_scraped_text(
-            result.answer, result.structured_data
+            answer=answer,
+            structured_data=structured_data,
         )
         if not raw_scraped_text:
             return None, "URL scrape succeeded but did not return recipe text."
 
+        source_url = response_payload.get("source_url")
+        if not isinstance(source_url, str) or not source_url.strip():
+            source_url = start_url
+
+        trace = response_payload.get("trace")
+        trace_steps = len(trace) if isinstance(trace, list) else 0
+
         return {
             "raw_scraped_text": raw_scraped_text,
-            "source_url": result.source_url or start_url,
-            "evidence": result.evidence,
-            "confidence": result.confidence,
-            "trace_steps": len(getattr(result, "trace", None) or []),
+            "source_url": source_url,
+            "evidence": response_payload.get("evidence"),
+            "confidence": response_payload.get("confidence"),
+            "trace_steps": trace_steps,
         }, None
 
     @staticmethod

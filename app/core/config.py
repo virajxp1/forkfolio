@@ -45,6 +45,23 @@ class Settings:
         self.REQUEST_TIMEOUT_SECONDS: float = self._cfg.getfloat(
             "api", "request_timeout_seconds", fallback=30.0
         )
+        self.AUTO_BROWSE_API_BASE_URL: str = (
+            os.getenv(
+                "AUTO_BROWSE_API_BASE_URL",
+                self._cfg.get(
+                    "api",
+                    "auto_browse_api_base_url",
+                    fallback="https://auto-browse.onrender.com",
+                ),
+            )
+            .strip()
+            .rstrip("/")
+        )
+        self.AUTO_BROWSE_API_TIMEOUT_SECONDS: float = self._cfg.getfloat(
+            "api",
+            "auto_browse_api_timeout_seconds",
+            fallback=90.0,
+        )
         self.API_AUTH_TOKEN: str = os.getenv("API_AUTH_TOKEN", "").strip()
         self.SEMANTIC_SEARCH_MAX_DISTANCE: float = self._cfg.getfloat(
             "api", "semantic_search_max_distance", fallback=0.22
@@ -125,6 +142,7 @@ class Settings:
 
         # Secrets: environment-only.
         self.OPEN_ROUTER_API_KEY: str = os.getenv("OPEN_ROUTER_API_KEY", "").strip()
+        self.AUTO_BROWSE_API_TOKEN: str = os.getenv("AUTO_BROWSE_API_TOKEN", "").strip()
         self.SUPABASE_PASSWORD: str = os.getenv("SUPABASE_PASSWORD", "").strip()
 
     @staticmethod

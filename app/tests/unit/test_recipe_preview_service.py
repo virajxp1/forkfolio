@@ -1,40 +1,48 @@
 import asyncio
-import sys
-from types import SimpleNamespace
 
-from app.core.config import settings
 from app.services.recipe_preview_service import RecipePreviewService
 
 
-def test_scrape_recipe_text_handles_missing_trace(monkeypatch) -> None:
-    class FakeOpenRouterClient:
-        def __init__(self, api_key: str, model_name: str):
-            self.api_key = api_key
-            self.model_name = model_name
+class FakeAutoBrowseClient:
+    def __init__(self, response_payload: dict | None = None, error: str | None = None):
+        self.response_payload = response_payload
+        self.error = error
+        self.calls: list[dict] = []
 
-    async def fake_run_agent(*args, **kwargs):
-        return SimpleNamespace(
-            error=None,
-            answer=None,
-            structured_data={"raw_recipe_text": "Recipe text"},
-            source_url="https://example.com/recipe",
-            evidence="recipe card",
-            confidence=0.8,
-            trace=None,
+    def run(
+        self,
+        *,
+        start_url: str,
+        target_prompt: str,
+        max_steps: int,
+        max_actions_per_step: int,
+        extraction_schema: dict[str, str] | None = None,
+    ) -> tuple[dict | None, str | None]:
+        self.calls.append(
+            {
+                "start_url": start_url,
+                "target_prompt": target_prompt,
+                "max_steps": max_steps,
+                "max_actions_per_step": max_actions_per_step,
+                "extraction_schema": extraction_schema,
+            }
         )
+        return self.response_payload, self.error
 
-    monkeypatch.setitem(
-        sys.modules,
-        "auto_browse",
-        SimpleNamespace(
-            OpenRouterClient=FakeOpenRouterClient,
-            run_agent=fake_run_agent,
-        ),
+
+def test_scrape_recipe_text_maps_client_response_with_missing_trace() -> None:
+    fake_client = FakeAutoBrowseClient(
+        response_payload={
+            "answer": None,
+            "structured_data": {"raw_recipe_text": "Recipe text"},
+            "source_url": "https://example.com/recipe",
+            "evidence": "recipe card",
+            "confidence": 0.8,
+            "trace": None,
+        }
     )
-    monkeypatch.setattr(settings, "OPEN_ROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(settings, "LLM_MODEL_NAME", "test-model")
+    service = RecipePreviewService(auto_browse_client=fake_client)
 
-    service = RecipePreviewService()
     payload, error = asyncio.run(
         service._scrape_recipe_text(
             start_url="https://example.com/recipe",
@@ -46,30 +54,19 @@ def test_scrape_recipe_text_handles_missing_trace(monkeypatch) -> None:
 
     assert error is None
     assert payload is not None
+    assert payload["raw_scraped_text"] == "Recipe text"
+    assert payload["source_url"] == "https://example.com/recipe"
     assert payload["trace_steps"] == 0
+    assert fake_client.calls[0]["target_prompt"] == "Extract recipe"
 
 
-def test_scrape_recipe_text_handles_run_agent_exception(monkeypatch) -> None:
-    class FakeOpenRouterClient:
-        def __init__(self, api_key: str, model_name: str):
-            self.api_key = api_key
-            self.model_name = model_name
-
-    async def fake_run_agent(*args, **kwargs):
-        raise RuntimeError("temporary upstream failure")
-
-    monkeypatch.setitem(
-        sys.modules,
-        "auto_browse",
-        SimpleNamespace(
-            OpenRouterClient=FakeOpenRouterClient,
-            run_agent=fake_run_agent,
-        ),
+def test_scrape_recipe_text_propagates_client_error() -> None:
+    fake_client = FakeAutoBrowseClient(
+        response_payload=None,
+        error="URL scrape failed: max_steps_exceeded",
     )
-    monkeypatch.setattr(settings, "OPEN_ROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(settings, "LLM_MODEL_NAME", "test-model")
+    service = RecipePreviewService(auto_browse_client=fake_client)
 
-    service = RecipePreviewService()
     payload, error = asyncio.run(
         service._scrape_recipe_text(
             start_url="https://example.com/recipe",
@@ -80,30 +77,15 @@ def test_scrape_recipe_text_handles_run_agent_exception(monkeypatch) -> None:
     )
 
     assert payload is None
-    assert error == "URL scrape failed: temporary upstream failure"
+    assert error == "URL scrape failed: max_steps_exceeded"
 
 
-def test_scrape_recipe_text_requires_non_empty_instruction(monkeypatch) -> None:
-    class FakeOpenRouterClient:
-        def __init__(self, api_key: str, model_name: str):
-            self.api_key = api_key
-            self.model_name = model_name
-
-    async def fake_run_agent(*args, **kwargs):
-        raise AssertionError("run_agent should not be called when prompt is empty")
-
-    monkeypatch.setitem(
-        sys.modules,
-        "auto_browse",
-        SimpleNamespace(
-            OpenRouterClient=FakeOpenRouterClient,
-            run_agent=fake_run_agent,
-        ),
+def test_scrape_recipe_text_requires_non_empty_instruction() -> None:
+    fake_client = FakeAutoBrowseClient(
+        response_payload={"answer": "should not be used"},
     )
-    monkeypatch.setattr(settings, "OPEN_ROUTER_API_KEY", "test-key")
-    monkeypatch.setattr(settings, "LLM_MODEL_NAME", "test-model")
+    service = RecipePreviewService(auto_browse_client=fake_client)
 
-    service = RecipePreviewService()
     payload, error = asyncio.run(
         service._scrape_recipe_text(
             start_url="https://example.com/recipe",
@@ -115,3 +97,4 @@ def test_scrape_recipe_text_requires_non_empty_instruction(monkeypatch) -> None:
 
     assert payload is None
     assert error == "target_instruction cannot be empty."
+    assert fake_client.calls == []
