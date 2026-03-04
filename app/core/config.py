@@ -37,13 +37,13 @@ class Settings:
         # Backward-compatible alias.
         self.API_V1_STR: str = self.API_BASE_PATH
         self.RATE_LIMIT_PER_MINUTE: int = self._cfg.getint(
-            "api", "rate_limit_per_minute", fallback=60
+            "api", "rate_limit_per_minute", fallback=120
         )
         self.MAX_REQUEST_SIZE_MB: int = self._cfg.getint(
             "api", "max_request_size_mb", fallback=1
         )
         self.REQUEST_TIMEOUT_SECONDS: float = self._cfg.getfloat(
-            "api", "request_timeout_seconds", fallback=30.0
+            "api", "request_timeout_seconds", fallback=120.0
         )
         self.API_AUTH_TOKEN: str = os.getenv("API_AUTH_TOKEN", "").strip()
         self.SEMANTIC_SEARCH_MAX_DISTANCE: float = self._cfg.getfloat(
