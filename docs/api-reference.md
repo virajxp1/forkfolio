@@ -133,8 +133,7 @@ Pipeline error payload:
 
 ### `POST /api/v1/recipes/preview-from-url`
 
-Scrapes recipe content from a URL and returns a cleaned preview payload without
-saving anything to the database.
+Scrapes recipe content from a URL and returns a non-persistent preview.
 
 Request body:
 
@@ -147,39 +146,13 @@ Request body:
 }
 ```
 
-Field notes:
-
 - `start_url` (string, required, must be a valid `http/https` URL)
 - `target_instruction` (string, required)
 - `target_prompt` (string, optional alias for `target_instruction`)
 - `max_steps` (integer, optional, default `10`, min `1`, max `50`)
 - `max_actions_per_step` (integer, optional, default `2`, min `1`, max `4`)
-- Scraping is executed via the auto-browse HTTP API (`AUTO_BROWSE_API_BASE_URL`,
-  default `https://auto-browse.onrender.com`).
-- Requests include `X-API-Token` from `AUTO_BROWSE_API_TOKEN` loaded via `.env`.
-
-Success response:
-
-```json
-{
-  "success": true,
-  "preview": {
-    "source_url": "https://www.example.com/recipes/pasta",
-    "target_instruction": "Extract the full recipe text from this page.",
-    "raw_scraped_text": "raw text captured from page",
-    "cleaned_text": "cleaned recipe text",
-    "recipe": {},
-    "extraction_error": null,
-    "evidence": "evidence from page",
-    "confidence": 0.82,
-    "trace_steps": 3
-  },
-  "save_payload": {
-    "raw_input": "cleaned recipe text"
-  },
-  "message": "Recipe preview generated successfully"
-}
-```
+- Uses `AUTO_BROWSE_API_BASE_URL` (default: `https://auto-browse.onrender.com`).
+- Sends `X-API-Token` from `AUTO_BROWSE_API_TOKEN` loaded from `.env`.
 
 Preview error response (HTTP 200 with `success=false`):
 
