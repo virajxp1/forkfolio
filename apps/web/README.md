@@ -22,10 +22,11 @@ Open `http://localhost:3000`.
 
 ## Current Pages
 
-- `/` landing page with primary actions (add recipe / browse recipes)
-- `/browse` search page with recipe result cards
-- `/add-recipe` add recipe mock (URL import + manual entry tabs)
-- `/recipes/[recipeId]` full recipe detail page
+- `/` landing page
+- `/browse` search page with recipe result cards and modal detail view
+- `/recipes/[recipeId]` full recipe detail page (direct-link route)
+- `/api/search` internal search proxy route
+- `/api/recipes/[recipeId]` internal recipe detail proxy route
 
 ## Quality Checks
 

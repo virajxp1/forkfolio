@@ -500,11 +500,13 @@ export default function BrowsePage() {
     })();
 
     inFlightRecipeRef.current[recipeId] = request;
-    request.finally(() => {
-      if (inFlightRecipeRef.current[recipeId] === request) {
-        delete inFlightRecipeRef.current[recipeId];
-      }
-    });
+    void request
+      .finally(() => {
+        if (inFlightRecipeRef.current[recipeId] === request) {
+          delete inFlightRecipeRef.current[recipeId];
+        }
+      })
+      .catch(() => undefined);
 
     return request;
   }, []);
@@ -528,6 +530,9 @@ export default function BrowsePage() {
 
   const runSearch = useCallback(
     async (query: string) => {
+      const requestId = searchRequestIdRef.current + 1;
+      searchRequestIdRef.current = requestId;
+
       if (!query) {
         setResults([]);
         setSearchError(null);
@@ -550,9 +555,6 @@ export default function BrowsePage() {
         prefetchResultDetails(cachedResults);
         return;
       }
-
-      const requestId = searchRequestIdRef.current + 1;
-      searchRequestIdRef.current = requestId;
 
       setIsSearching(true);
       setSearchError(null);
