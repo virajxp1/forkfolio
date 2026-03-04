@@ -177,3 +177,5 @@ cython_debug/
 
 .idea
 
+# JS lockfiles (repo standard is non-npm lockfiles)
+**/package-lock.json
