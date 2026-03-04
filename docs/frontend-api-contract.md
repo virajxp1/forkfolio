@@ -1,17 +1,33 @@
 # Frontend API Contract Notes
 
-This document captures the API response shape the frontend currently relies on
-for Search and Recipe Detail flows.
+This document captures the frontend-facing API contract for the `apps/web`
+client.
 
-## Current Contract (Implemented)
+## Base URL and Auth
 
-Base path: `/api/v1`
+- Base path: `/api/v1`
+- Public routes:
+  - `GET /api/v1/`
+  - `GET /api/v1/health`
+- Protected routes accept either:
+  - `X-API-Token: <API_AUTH_TOKEN>`
+  - `Authorization: Bearer <API_AUTH_TOKEN>`
+
+## Request/Response Conventions
+
+- Most successful responses include `success: true`.
+- Non-2xx responses return FastAPI `detail` payloads.
+- `POST /recipes/process-and-store` can return `200` with `success: false` and
+  an `error` field when processing fails.
+- IDs are UUID strings.
+- In ingestion payloads, `isTest` is mapped to backend field `is_test`.
+
+## Current Contract Used by Browse UI
 
 ### 1) Semantic Search
 
-Endpoint: `GET /api/v1/recipes/search/semantic?query=<string>&limit=<int>`
-
-Response shape used by frontend:
+- Endpoint: `GET /api/v1/recipes/search/semantic?query=<string>&limit=<int>`
+- Response shape consumed by frontend:
 
 ```json
 {
@@ -36,16 +52,15 @@ Response shape used by frontend:
 ```
 
 Notes:
-- Guaranteed by DB search formatter: `id`, `name`, `distance`.
-- Optional when reranker logic applies: `rerank_score`, `embedding_score`,
+- Always expected from search formatter: `id`, `name`, `distance`.
+- Optional rerank fields: `rerank_score`, `embedding_score`,
   `combined_score`, `raw_rerank_score`, `rerank_mode`, `cuisine_boost`,
   `family_boost`.
 
 ### 2) Recipe Detail
 
-Endpoint: `GET /api/v1/recipes/{recipe_id}`
-
-Response shape used by frontend:
+- Endpoint: `GET /api/v1/recipes/{recipe_id}`
+- Response shape consumed by frontend:
 
 ```json
 {
@@ -65,14 +80,27 @@ Response shape used by frontend:
 }
 ```
 
-Notes:
-- Payload is built from `recipes` table (`r.*`) plus aggregated `ingredients`
-  and `instructions`.
-- Frontend uses this endpoint for full detail and currently also for card
-  preview enrichment.
+## Other Available Endpoints
 
-## Contract Gap For Search Cards
+### Recipes
 
-Current search results do not include card preview fields (`servings`,
-`total_time`, ingredient snippets), so frontend does N+1 detail fetches to build
-result cards.
+- `POST /api/v1/recipes/process-and-store`
+- `GET /api/v1/recipes/{recipe_id}`
+- `GET /api/v1/recipes/{recipe_id}/all`
+- `DELETE /api/v1/recipes/delete/{recipe_id}`
+
+### Recipe Books
+
+- `POST /api/v1/recipe-books/`
+- `GET /api/v1/recipe-books/`
+- `GET /api/v1/recipe-books/stats`
+- `GET /api/v1/recipe-books/by-recipe/{recipe_id}`
+- `GET /api/v1/recipe-books/{recipe_book_id}`
+- `PUT /api/v1/recipe-books/{recipe_book_id}/recipes/{recipe_id}`
+- `DELETE /api/v1/recipe-books/{recipe_book_id}/recipes/{recipe_id}`
+
+## Frontend Integration Notes
+
+- Generate and version OpenAPI types from `/openapi.json`.
+- Keep hooks and cache keys aligned to route params.
+- Centralize auth header injection in one API client layer.
