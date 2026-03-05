@@ -22,7 +22,7 @@ client.
 - IDs are UUID strings.
 - In ingestion payloads, `isTest` is mapped to backend field `is_test`.
 
-## Current Contract Used by Browse UI
+## Current Contract Used by Web UI
 
 ### 1) Semantic Search
 
@@ -77,6 +77,51 @@ Notes:
     "instructions": ["Boil pasta", "Toss with sauce"]
   },
   "success": true
+}
+```
+
+### 3) Recipe Ingestion (Add Recipe UI)
+
+- Endpoint: `POST /api/v1/recipes/process-and-store`
+- Request shape sent by frontend:
+
+```json
+{
+  "raw_input": "Chocolate Chip Cookies...",
+  "enforce_deduplication": true,
+  "isTest": false
+}
+```
+
+- Success response consumed by frontend:
+
+```json
+{
+  "recipe_id": "uuid",
+  "recipe": {
+    "id": "uuid",
+    "title": "Chocolate Chip Cookies",
+    "ingredients": ["2 cups flour"],
+    "instructions": ["Mix ingredients"],
+    "servings": "24 cookies",
+    "total_time": "35 minutes",
+    "source_url": null,
+    "is_test_data": false,
+    "created_at": "2026-03-03T00:00:00+00:00",
+    "updated_at": "2026-03-03T00:00:00+00:00"
+  },
+  "success": true,
+  "created": true,
+  "message": "Recipe processed and stored successfully"
+}
+```
+
+- Processing failure response consumed by frontend (`200` status):
+
+```json
+{
+  "error": "Could not parse recipe fields.",
+  "success": false
 }
 ```
 

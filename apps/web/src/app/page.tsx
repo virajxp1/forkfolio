@@ -9,38 +9,40 @@ export default function HomePage() {
     <div className="min-h-screen">
       <ForkfolioHeader />
 
-      <main className="mx-auto flex w-full max-w-6xl items-center px-4 py-14 sm:px-6 sm:py-20">
-        <section className="w-full rounded-[2rem] border border-border/70 bg-card/35 px-6 py-12 text-center sm:px-12 sm:py-16">
+      <main className="mx-auto flex w-full max-w-6xl items-center px-4 py-10 sm:px-6 sm:py-12">
+        <section className="w-full rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 text-center sm:px-10 sm:py-12">
           <div className="mx-auto max-w-4xl">
-            <h1 className="font-display text-5xl leading-tight tracking-tight text-foreground sm:text-7xl">
+            <h1 className="font-display text-5xl leading-tight tracking-tight text-foreground sm:text-6xl">
               Every recipe,
               <span className="mt-2 block text-primary">beautifully kept.</span>
             </h1>
 
-            <p className="mx-auto mt-8 max-w-4xl text-xl leading-snug text-muted-foreground sm:text-2xl">
+            <p className="mx-auto mt-6 max-w-4xl text-lg leading-snug text-muted-foreground sm:text-xl">
               Import recipes from the web or create your own. Organize them into
               curated recipe books. Search anything, find it instantly.
             </p>
 
-            <div className="mx-auto mt-12 flex max-w-4xl flex-col gap-4 sm:flex-row sm:justify-center">
+            <div className="mx-auto mt-8 flex max-w-4xl flex-col gap-4 sm:flex-row sm:justify-center">
               <Button
-                disabled
+                asChild
                 size="lg"
                 variant="secondary"
-                className="h-16 rounded-full px-12 text-lg font-semibold sm:flex-1 sm:text-2xl"
+                className="h-14 rounded-full px-8 text-lg font-semibold sm:flex-1"
               >
-                <Plus className="size-6" />
-                Add Your First Recipe
+                <Link href="/recipes/new">
+                  <Plus className="size-5" />
+                  Add Your First Recipe
+                </Link>
               </Button>
 
               <Button
                 asChild
                 size="lg"
                 variant="outline"
-                className="h-16 rounded-full border-2 border-primary px-12 text-lg font-semibold text-primary hover:bg-primary/10 sm:flex-1 sm:text-2xl"
+                className="h-14 rounded-full border-2 border-primary px-8 text-lg font-semibold text-primary hover:bg-primary/10 sm:flex-1"
               >
                 <Link href="/browse">
-                  <Search className="size-6" />
+                  <Search className="size-5" />
                   Browse Recipes
                 </Link>
               </Button>
