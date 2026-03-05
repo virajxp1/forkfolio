@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRight, Clock3, Search, Users2, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, Clock3, Search, Users2, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -666,6 +667,13 @@ export default function BrowsePage() {
         <ForkfolioHeader />
 
         <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
+          <Button asChild variant="ghost" className="mb-4">
+            <Link href="/">
+              <ArrowLeft className="size-4" />
+              Back to Home
+            </Link>
+          </Button>
+
           <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
             <div className="mx-auto max-w-4xl space-y-6">
               <div className="space-y-2">

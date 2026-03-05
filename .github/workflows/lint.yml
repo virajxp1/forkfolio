@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
+  backend-lint:
     runs-on: ubuntu-latest
     
     steps:
@@ -34,4 +34,26 @@ jobs:
     
     - name: Run lint checks
       run: make lint
-        
+
+  frontend-quality:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+
+    - name: Install frontend dependencies
+      working-directory: apps/web
+      run: npm install
+
+    - name: Run frontend lint
+      working-directory: apps/web
+      run: npm run lint
+
+    - name: Run frontend build
+      working-directory: apps/web
+      run: npm run build

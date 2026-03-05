@@ -64,27 +64,32 @@ Architecture and implementation details are documented separately:
 - [Frontend Design](docs/frontend-design.md)
 - [Frontend API Contract Notes](docs/frontend-api-contract.md)
 
-## Frontend Plan (Next Steps)
+## Frontend Status
 
-ForkFolio will add a frontend in the same repository so backend and UI can evolve together.
+ForkFolio includes a Next.js frontend in `apps/web` so backend and UI can evolve
+in the same repository.
 
-### Stack
+### Frontend Stack
 
-- Runtime/tooling: Node.js
+- Runtime/tooling: Node.js + npm
 - Framework: Next.js (App Router) + TypeScript
-- Package/workspace management: `pnpm` workspace layout
 - UI styling: Tailwind CSS
 - UI component system: `shadcn/ui`
-- API state/data fetching: TanStack Query
-- API typing: OpenAPI-generated TypeScript types from this FastAPI service
 
-### Near-Term Implementation Steps
+### Implemented Slices
 
-1. Scaffold `apps/web` with Next.js + TypeScript and workspace wiring.
-2. Add shared API client/types generation from `/openapi.json`.
-3. Implement auth flow and protected page shell.
-4. Build first feature slices: recipe list, recipe detail, search.
-5. Add baseline frontend test coverage (unit + basic end-to-end smoke paths).
+- Landing page (`/`)
+- Semantic recipe browse/search (`/browse`)
+- Recipe detail page (`/recipes/[recipeId]`)
+- Recipe ingestion flow (`/recipes/new`)
+- Internal API proxy routes for frontend-to-backend requests
+
+### Remaining Frontend Work
+
+1. Add auth-aware protected shell and session handling.
+2. Implement recipe books management UX.
+3. Add frontend unit/e2e test coverage.
+4. Tighten generated API typing workflow from `/openapi.json`.
 
 ## Frontend UI Rules
 

@@ -4,6 +4,9 @@ RUFF_BIN := $(shell if [ -x .venv/bin/ruff ]; then echo .venv/bin/ruff; else ech
 run:
 	$(PYTHON_BIN) scripts/run.py --reload
 
+run-fe:
+	bash scripts/run_fe.sh
+
 start:
 	$(PYTHON_BIN) scripts/run.py
 

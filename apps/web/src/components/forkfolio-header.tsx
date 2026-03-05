@@ -28,9 +28,11 @@ export function ForkfolioHeader() {
             <BookOpenText className="size-4" />
             Books
           </Button>
-          <Button disabled variant="secondary" size="sm">
-            <Plus className="size-4" />
-            Add Recipe
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/recipes/new">
+              <Plus className="size-4" />
+              Add Recipe
+            </Link>
           </Button>
         </nav>
       </div>
