@@ -17,6 +17,7 @@ function normalizeApiBasePath(rawPath: string): string {
   if (!normalized) {
     return DEFAULT_API_BASE_PATH;
   }
+
   const prefixed = normalized.startsWith("/") ? normalized : `/${normalized}`;
   return prefixed.endsWith("/") ? prefixed.slice(0, -1) : prefixed;
 }
@@ -51,6 +52,7 @@ function buildPath(pathWithQuery: string): string {
   if (!trimmedPath) {
     return API_BASE_PATH;
   }
+
   const withLeadingSlash = trimmedPath.startsWith("/")
     ? trimmedPath
     : `/${trimmedPath}`;
@@ -91,7 +93,7 @@ async function forkfolioFetch<T>(
 
   if (!response.ok) {
     const payload = await readErrorPayload(response);
-    const detail = payload?.detail ?? payload?.error ?? null;
+    const detail = payload?.detail ?? payload?.error ?? payload?.message ?? null;
     throw new ForkfolioApiError(
       detail ?? `Request failed with status ${response.status}.`,
       response.status,
@@ -110,13 +112,14 @@ export async function searchRecipes(
     query: query.trim(),
     limit: String(limit),
   });
+
   return forkfolioFetch<SearchRecipesResponse>(
     `/recipes/search/semantic?${params.toString()}`,
   );
 }
 
 export async function getRecipe(recipeId: string): Promise<GetRecipeResponse> {
-  return forkfolioFetch<GetRecipeResponse>(`/recipes/${recipeId}`);
+  return forkfolioFetch<GetRecipeResponse>(`/recipes/${encodeURIComponent(recipeId)}`);
 }
 
 export async function processRecipe(
@@ -130,5 +133,7 @@ export async function processRecipe(
     body: JSON.stringify(payload),
   });
 }
+
+export const processAndStoreRecipe = processRecipe;
 
 export type { RecipeRecord };

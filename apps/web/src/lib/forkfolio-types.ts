@@ -1,6 +1,9 @@
+export const MIN_RECIPE_INPUT_LENGTH = 10;
+
 export type ApiErrorPayload = {
   detail?: string;
   error?: string;
+  message?: string;
   success?: boolean;
 };
 
@@ -21,7 +24,7 @@ export type SearchRecipesResponse = {
   query: string;
   count: number;
   results: SearchRecipeResult[];
-  success: boolean;
+  success?: boolean;
 };
 
 export type RecipeEmbeddingRecord = {
@@ -37,7 +40,7 @@ export type RecipeRecord = {
   servings: string | null;
   total_time: string | null;
   source_url: string | null;
-  is_test_data: boolean;
+  is_test_data?: boolean;
   created_at: string | null;
   updated_at: string | null;
   ingredients: string[];
@@ -47,13 +50,14 @@ export type RecipeRecord = {
 
 export type GetRecipeResponse = {
   recipe: RecipeRecord;
-  success: boolean;
+  success?: boolean;
 };
 
 export type ProcessRecipeRequest = {
   raw_input: string;
   enforce_deduplication?: boolean;
   isTest?: boolean;
+  is_test?: boolean;
 };
 
 export type ProcessRecipeSuccessResponse = {

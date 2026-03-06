@@ -16,12 +16,11 @@ import {
 } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-  ProcessRecipeResponse,
-  ProcessRecipeSuccessResponse,
+import {
+  MIN_RECIPE_INPUT_LENGTH,
+  type ProcessRecipeResponse,
+  type ProcessRecipeSuccessResponse,
 } from "@/lib/forkfolio-types";
-
-const MIN_INPUT_LENGTH = 10;
 
 type ErrorPayload = {
   detail?: string;
@@ -135,14 +134,14 @@ export default function NewRecipePage() {
   const [result, setResult] = useState<ProcessRecipeResponse | null>(null);
 
   const trimmedLength = useMemo(() => rawInput.trim().length, [rawInput]);
-  const inputTooShort = trimmedLength < MIN_INPUT_LENGTH;
+  const inputTooShort = trimmedLength < MIN_RECIPE_INPUT_LENGTH;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedInput = rawInput.trim();
-    if (normalizedInput.length < MIN_INPUT_LENGTH) {
+    if (normalizedInput.length < MIN_RECIPE_INPUT_LENGTH) {
       setErrorMessage(
-        `Recipe input must be at least ${MIN_INPUT_LENGTH} characters.`,
+        `Recipe input must be at least ${MIN_RECIPE_INPUT_LENGTH} characters.`,
       );
       return;
     }
@@ -219,7 +218,7 @@ export default function NewRecipePage() {
                     <p className="text-sm text-muted-foreground">
                       {trimmedLength} characters
                       {inputTooShort
-                        ? ` (${MIN_INPUT_LENGTH - trimmedLength} more needed)`
+                        ? ` (${MIN_RECIPE_INPUT_LENGTH - trimmedLength} more needed)`
                         : ""}
                     </p>
                   </div>
