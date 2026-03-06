@@ -38,7 +38,7 @@ jobs:
       env:
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
 
-  # Frontend unit/component tests
+  # Frontend unit/component tests + coverage
   frontend-tests:
     runs-on: ubuntu-latest
     defaults:
@@ -58,8 +58,8 @@ jobs:
     - name: Install frontend dependencies
       run: npm ci
 
-    - name: Run frontend tests
-      run: npm test
+    - name: Run frontend tests with coverage
+      run: npm run test:coverage
 
   # E2E tests - comprehensive end-to-end testing
   e2e-tests:

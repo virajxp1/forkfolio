@@ -20,5 +20,10 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     css: true,
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "lcov"],
+      reportsDirectory: "./coverage",
+    },
   },
 });
