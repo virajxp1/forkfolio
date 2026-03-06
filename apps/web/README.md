@@ -24,11 +24,11 @@ Open `http://localhost:3000`.
 
 - `/` landing page
 - `/browse` search page with recipe result cards and modal detail view
-- `/recipes/new` recipe processing page for raw recipe text
 - `/recipes/[recipeId]` full recipe detail page (direct-link route)
+- `/recipes/new` add-recipe ingestion page
 - `/api/search` internal search proxy route
 - `/api/recipes/[recipeId]` internal recipe detail proxy route
-- `/api/recipes/process` internal recipe processing proxy route
+- `/api/recipes/process` internal process-and-store proxy route
 
 ## Quality Checks
 

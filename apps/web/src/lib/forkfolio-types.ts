@@ -1,9 +1,16 @@
 export const MIN_RECIPE_INPUT_LENGTH = 10;
 
+export type ApiErrorPayload = {
+  detail?: string;
+  error?: string;
+  message?: string;
+  success?: boolean;
+};
+
 export type SearchRecipeResult = {
-  id?: string;
-  name?: string;
-  distance?: number;
+  id: string | null;
+  name: string | null;
+  distance: number | null;
   rerank_score?: number;
   embedding_score?: number;
   combined_score?: number;
@@ -20,6 +27,13 @@ export type SearchRecipesResponse = {
   success?: boolean;
 };
 
+export type RecipeEmbeddingRecord = {
+  id: string;
+  embedding_type: string;
+  embedding: number[] | null;
+  created_at: string | null;
+};
+
 export type RecipeRecord = {
   id: string;
   title: string;
@@ -31,6 +45,7 @@ export type RecipeRecord = {
   updated_at: string | null;
   ingredients: string[];
   instructions: string[];
+  embeddings?: RecipeEmbeddingRecord[];
 };
 
 export type GetRecipeResponse = {
@@ -45,11 +60,19 @@ export type ProcessRecipeRequest = {
   is_test?: boolean;
 };
 
-export type ProcessRecipeResponse = {
-  recipe_id?: string;
-  recipe?: RecipeRecord;
-  success: boolean;
-  created?: boolean;
+export type ProcessRecipeSuccessResponse = {
+  recipe_id: string;
+  recipe: RecipeRecord;
+  success: true;
+  created: boolean;
   message?: string;
-  error?: string;
 };
+
+export type ProcessRecipeFailureResponse = {
+  error: string;
+  success: false;
+};
+
+export type ProcessRecipeResponse =
+  | ProcessRecipeSuccessResponse
+  | ProcessRecipeFailureResponse;

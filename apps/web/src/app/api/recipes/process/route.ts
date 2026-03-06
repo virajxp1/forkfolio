@@ -1,30 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  isForkfolioApiError,
-  processAndStoreRecipe,
-} from "@/lib/forkfolio-api";
+import { isForkfolioApiError, processRecipe } from "@/lib/forkfolio-api";
 import {
   MIN_RECIPE_INPUT_LENGTH,
   type ProcessRecipeRequest,
 } from "@/lib/forkfolio-types";
 
-type ProcessRequestBody = {
+type ProcessRoutePayload = {
   raw_input?: unknown;
   enforce_deduplication?: unknown;
   isTest?: unknown;
   is_test?: unknown;
 };
 
-function parseBoolean(value: unknown): boolean | undefined {
-  return typeof value === "boolean" ? value : undefined;
-}
+type NormalizedPayloadResult =
+  | {
+      payload: ProcessRecipeRequest;
+      status: 200;
+    }
+  | {
+      detail: string;
+      status: 400 | 422;
+    };
 
-function getRawInput(payload: ProcessRequestBody): string {
-  if (typeof payload.raw_input !== "string") {
-    return "";
+function normalizePayload(payload: ProcessRoutePayload): NormalizedPayloadResult {
+  const rawInput =
+    typeof payload.raw_input === "string" ? payload.raw_input.trim() : "";
+
+  if (!rawInput) {
+    return {
+      detail: "Missing raw_input in request payload.",
+      status: 400,
+    };
   }
-  return payload.raw_input.trim();
+
+  if (rawInput.length < MIN_RECIPE_INPUT_LENGTH) {
+    return {
+      detail: `raw_input must be at least ${MIN_RECIPE_INPUT_LENGTH} characters.`,
+      status: 422,
+    };
+  }
+
+  const isTestValue =
+    typeof payload.isTest === "boolean"
+      ? payload.isTest
+      : typeof payload.is_test === "boolean"
+        ? payload.is_test
+        : false;
+
+  return {
+    payload: {
+      raw_input: rawInput,
+      enforce_deduplication:
+        typeof payload.enforce_deduplication === "boolean"
+          ? payload.enforce_deduplication
+          : true,
+      isTest: isTestValue,
+    },
+    status: 200,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -33,57 +67,23 @@ export async function POST(request: NextRequest) {
   try {
     payload = (await request.json()) as unknown;
   } catch {
-    return NextResponse.json(
-      { detail: "Invalid JSON body." },
-      { status: 400 },
-    );
+    return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
   }
 
   if (!payload || typeof payload !== "object") {
+    return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
+  }
+
+  const normalizedPayload = normalizePayload(payload as ProcessRoutePayload);
+  if ("detail" in normalizedPayload) {
     return NextResponse.json(
-      { detail: "Invalid JSON body." },
-      { status: 400 },
+      { detail: normalizedPayload.detail },
+      { status: normalizedPayload.status },
     );
-  }
-
-  const normalizedPayload = payload as ProcessRequestBody;
-  const rawInput = getRawInput(normalizedPayload);
-  if (!rawInput) {
-    return NextResponse.json(
-      { detail: "Missing raw_input field." },
-      { status: 400 },
-    );
-  }
-  if (rawInput.length < MIN_RECIPE_INPUT_LENGTH) {
-    return NextResponse.json(
-      {
-        detail: `raw_input must be at least ${MIN_RECIPE_INPUT_LENGTH} characters.`,
-      },
-      { status: 422 },
-    );
-  }
-
-  const processPayload: ProcessRecipeRequest = {
-    raw_input: rawInput,
-  };
-
-  const enforceDeduplication = parseBoolean(normalizedPayload.enforce_deduplication);
-  if (enforceDeduplication !== undefined) {
-    processPayload.enforce_deduplication = enforceDeduplication;
-  }
-
-  const isTest = parseBoolean(normalizedPayload.isTest);
-  if (isTest !== undefined) {
-    processPayload.isTest = isTest;
-  }
-
-  const isTestUnderscored = parseBoolean(normalizedPayload.is_test);
-  if (isTestUnderscored !== undefined) {
-    processPayload.is_test = isTestUnderscored;
   }
 
   try {
-    const response = await processAndStoreRecipe(processPayload);
+    const response = await processRecipe(normalizedPayload.payload);
     return NextResponse.json(response, {
       status: 200,
       headers: {
@@ -98,9 +98,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return NextResponse.json(
-      { detail: "Recipe processing request failed." },
-      { status: 500 },
-    );
+    return NextResponse.json({ detail: "Failed to process recipe." }, { status: 500 });
   }
 }

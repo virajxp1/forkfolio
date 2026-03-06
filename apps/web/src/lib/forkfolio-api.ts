@@ -1,4 +1,7 @@
+import "server-only";
+
 import type {
+  ApiErrorPayload,
   GetRecipeResponse,
   ProcessRecipeRequest,
   ProcessRecipeResponse,
@@ -9,11 +12,23 @@ import type {
 const DEFAULT_API_BASE_URL = "https://forkfolio-be.onrender.com";
 const DEFAULT_API_BASE_PATH = "/api/v1";
 
-type ApiErrorPayload = {
-  detail?: string;
-  error?: string;
-  message?: string;
-};
+function normalizeApiBasePath(rawPath: string): string {
+  const normalized = rawPath.trim();
+  if (!normalized) {
+    return DEFAULT_API_BASE_PATH;
+  }
+
+  const prefixed = normalized.startsWith("/") ? normalized : `/${normalized}`;
+  return prefixed.endsWith("/") ? prefixed.slice(0, -1) : prefixed;
+}
+
+const API_BASE_URL = (
+  process.env.FORKFOLIO_API_BASE_URL ?? DEFAULT_API_BASE_URL
+).replace(/\/+$/, "");
+const API_BASE_PATH = normalizeApiBasePath(
+  process.env.FORKFOLIO_API_BASE_PATH ?? DEFAULT_API_BASE_PATH,
+);
+const API_TOKEN = process.env.FORKFOLIO_API_TOKEN?.trim() ?? "";
 
 export class ForkfolioApiError extends Error {
   status: number;
@@ -32,26 +47,30 @@ export function isForkfolioApiError(error: unknown): error is ForkfolioApiError 
   return error instanceof ForkfolioApiError;
 }
 
-function getApiBaseUrl(): string {
-  return process.env.FORKFOLIO_API_BASE_URL?.trim() || DEFAULT_API_BASE_URL;
-}
-
-function getApiBasePath(): string {
-  const configured = process.env.FORKFOLIO_API_BASE_PATH?.trim() || DEFAULT_API_BASE_PATH;
-  if (configured.startsWith("/")) {
-    return configured;
+function buildPath(pathWithQuery: string): string {
+  const trimmedPath = pathWithQuery.trim();
+  if (!trimmedPath) {
+    return API_BASE_PATH;
   }
-  return `/${configured}`;
+
+  const withLeadingSlash = trimmedPath.startsWith("/")
+    ? trimmedPath
+    : `/${trimmedPath}`;
+  return `${API_BASE_PATH}${withLeadingSlash}`;
 }
 
-function buildApiUrl(pathname: string): URL {
-  const normalizedPathname = pathname.startsWith("/") ? pathname : `/${pathname}`;
-  const baseUrl = new URL(getApiBaseUrl());
-  baseUrl.pathname = `${getApiBasePath().replace(/\/$/, "")}${normalizedPathname}`;
-  return baseUrl;
+function buildHeaders(init?: HeadersInit): Headers {
+  const headers = new Headers(init);
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json");
+  }
+  if (API_TOKEN) {
+    headers.set("X-API-Token", API_TOKEN);
+  }
+  return headers;
 }
 
-async function parseErrorPayload(response: Response): Promise<ApiErrorPayload | null> {
+async function readErrorPayload(response: Response): Promise<ApiErrorPayload | null> {
   try {
     return (await response.json()) as ApiErrorPayload;
   } catch {
@@ -59,31 +78,21 @@ async function parseErrorPayload(response: Response): Promise<ApiErrorPayload | 
   }
 }
 
-async function requestForkfolio<T>(
-  pathname: string,
-  init: RequestInit = {},
+async function forkfolioFetch<T>(
+  pathWithQuery: string,
+  init?: RequestInit,
 ): Promise<T> {
-  const url = buildApiUrl(pathname);
-  const headers = new Headers(init.headers);
-  headers.set("Accept", "application/json");
-
-  if (init.body && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
-  const token = process.env.FORKFOLIO_API_TOKEN?.trim();
-  if (token) {
-    headers.set("X-API-Token", token);
-  }
+  const path = buildPath(pathWithQuery);
+  const url = `${API_BASE_URL}${path}`;
 
   const response = await fetch(url, {
-    ...init,
-    headers,
     cache: "no-store",
+    ...init,
+    headers: buildHeaders(init?.headers),
   });
 
   if (!response.ok) {
-    const payload = await parseErrorPayload(response);
+    const payload = await readErrorPayload(response);
     const detail = payload?.detail ?? payload?.error ?? payload?.message ?? null;
     throw new ForkfolioApiError(
       detail ?? `Request failed with status ${response.status}.`,
@@ -95,27 +104,36 @@ async function requestForkfolio<T>(
   return (await response.json()) as T;
 }
 
-export function searchRecipes(
+export async function searchRecipes(
   query: string,
-  limit: number,
+  limit = 12,
 ): Promise<SearchRecipesResponse> {
-  const params = new URLSearchParams({ query, limit: String(limit) });
-  return requestForkfolio<SearchRecipesResponse>(
+  const params = new URLSearchParams({
+    query: query.trim(),
+    limit: String(limit),
+  });
+
+  return forkfolioFetch<SearchRecipesResponse>(
     `/recipes/search/semantic?${params.toString()}`,
   );
 }
 
-export function getRecipe(recipeId: string): Promise<GetRecipeResponse> {
-  return requestForkfolio<GetRecipeResponse>(`/recipes/${encodeURIComponent(recipeId)}`);
+export async function getRecipe(recipeId: string): Promise<GetRecipeResponse> {
+  return forkfolioFetch<GetRecipeResponse>(`/recipes/${encodeURIComponent(recipeId)}`);
 }
 
-export function processAndStoreRecipe(
+export async function processRecipe(
   payload: ProcessRecipeRequest,
 ): Promise<ProcessRecipeResponse> {
-  return requestForkfolio<ProcessRecipeResponse>("/recipes/process-and-store", {
+  return forkfolioFetch<ProcessRecipeResponse>("/recipes/process-and-store", {
     method: "POST",
+    headers: buildHeaders({
+      "Content-Type": "application/json",
+    }),
     body: JSON.stringify(payload),
   });
 }
+
+export const processAndStoreRecipe = processRecipe;
 
 export type { RecipeRecord };
