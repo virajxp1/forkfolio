@@ -24,13 +24,15 @@ export default function HomePage() {
 
             <div className="mx-auto mt-12 flex max-w-4xl flex-col gap-4 sm:flex-row sm:justify-center">
               <Button
-                disabled
+                asChild
                 size="lg"
                 variant="secondary"
                 className="h-16 rounded-full px-12 text-lg font-semibold sm:flex-1 sm:text-2xl"
               >
-                <Plus className="size-6" />
-                Add Your First Recipe
+                <Link href="/recipes/new">
+                  <Plus className="size-6" />
+                  Add Your First Recipe
+                </Link>
               </Button>
 
               <Button

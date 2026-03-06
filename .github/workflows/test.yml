@@ -38,6 +38,29 @@ jobs:
       env:
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
 
+  # Frontend unit/component tests
+  frontend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+        cache: npm
+        cache-dependency-path: apps/web/package.json
+
+    - name: Install frontend dependencies
+      run: npm install
+
+    - name: Run frontend tests
+      run: npm test
+
   # E2E tests - comprehensive end-to-end testing
   e2e-tests:
     runs-on: ubuntu-latest

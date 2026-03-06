@@ -16,6 +16,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+!apps/web/src/lib/
+!apps/web/src/lib/**
 parts/
 sdist/
 var/
@@ -177,5 +179,5 @@ cython_debug/
 
 .idea
 
-# JS lockfiles (repo standard is non-npm lockfiles)
+# JS lockfiles
 **/package-lock.json
