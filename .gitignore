@@ -181,3 +181,4 @@ cython_debug/
 
 # JS lockfiles
 **/package-lock.json
+!apps/web/package-lock.json
