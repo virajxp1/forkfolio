@@ -1,6 +1,10 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
-from app.api.schemas import GroceryListCreateRequest, RecipeIngestionRequest
+from app.api.schemas import (
+    GroceryListCreateRequest,
+    RecipeIngestionRequest,
+    RecipeUrlPreviewRequest,
+)
 from app.api.v1.helpers.recipe_search import (
     apply_rerank,
     build_rerank_candidates,
@@ -94,6 +98,49 @@ def process_and_store_recipe(
         "success": True,
         "created": True,
         "message": "Recipe processed and stored successfully",
+    }
+
+
+@router.post("/preview-from-url")
+def preview_recipe_from_url(
+    preview_request: RecipeUrlPreviewRequest = RECIPE_BODY,
+    processing_service=recipe_processing_service_dep,
+) -> dict:
+    """
+    Fetch a URL and run the cleanup+extraction pipeline without storing data.
+
+    Returns a recipe preview payload suitable for user confirmation prior to
+    calling process-and-store.
+    """
+    source_url = str(preview_request.url)
+    recipe, error, diagnostics = processing_service.preview_recipe_from_url(source_url)
+
+    if error:
+        return {
+            "success": False,
+            "created": False,
+            "url": source_url,
+            "diagnostics": diagnostics,
+            "error": error,
+        }
+    if not recipe:
+        return {
+            "success": False,
+            "created": False,
+            "url": source_url,
+            "diagnostics": diagnostics,
+            "error": "Recipe preview did not return data",
+        }
+
+    return {
+        "success": True,
+        "created": False,
+        "url": source_url,
+        "recipe_preview": recipe.model_dump(),
+        "diagnostics": diagnostics,
+        "message": (
+            "Recipe preview generated successfully. No database insertion performed."
+        ),
     }
 
 

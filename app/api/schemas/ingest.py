@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
 
 
 # Request model for ingestion
@@ -30,4 +30,16 @@ class RecipeIngestionRequest(BaseModel):
         False,
         description="Mark the resulting recipe as test data.",
         alias="isTest",
+    )
+
+
+class RecipeUrlPreviewRequest(BaseModel):
+    """Request model for recipe preview extraction from a source URL."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    url: AnyHttpUrl = Field(
+        ...,
+        description="Recipe page URL to fetch and parse for preview extraction.",
+        json_schema_extra={"example": "https://example.com/chocolate-chip-cookies"},
     )
