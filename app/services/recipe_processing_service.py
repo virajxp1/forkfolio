@@ -16,6 +16,7 @@ logger = get_logger(__name__)
 URL_FETCH_TIMEOUT_SECONDS = 20.0
 URL_FETCH_USER_AGENT = "Mozilla/5.0 (compatible; ForkFolioRecipeBot/1.0)"
 MAX_EXTRACTED_TEXT_CHARS = 25000
+MAX_FALLBACK_EXTRACTED_TEXT_CHARS = 50000
 HTML_IGNORED_TAGS = {
     "script",
     "style",
@@ -56,17 +57,6 @@ HTML_BLOCK_TAGS = {
     "tr",
     "ul",
 }
-RECIPE_CONTENT_HINTS = (
-    "ingredients",
-    "instructions",
-    "directions",
-    "method",
-    "prep time",
-    "cook time",
-    "total time",
-    "servings",
-    "yield",
-)
 
 
 class _VisibleTextExtractor(HTMLParser):
@@ -214,18 +204,33 @@ class RecipeProcessingService:
             if not raw_html:
                 return None, "Failed to fetch raw HTML from URL", diagnostics
 
-            extracted_text = self._extract_relevant_content(raw_html)
+            extracted_text = self._extract_relevant_content(
+                raw_html, max_chars=MAX_EXTRACTED_TEXT_CHARS
+            )
             diagnostics["raw_html_length"] = len(raw_html)
             diagnostics["extracted_text_length"] = len(extracted_text)
             if not extracted_text:
                 return None, "Failed to extract readable content from HTML", diagnostics
 
-            cleaned_text = self._cleanup_input(extracted_text)
-            diagnostics["cleaned_text_length"] = len(cleaned_text or "")
-            if not cleaned_text:
-                return None, "Failed to cleanup extracted website content", diagnostics
-
-            recipe, extraction_error = self._extract_recipe(cleaned_text)
+            recipe, extraction_error = self._attempt_preview_extraction(
+                extracted_text, diagnostics
+            )
+            if extraction_error or not recipe:
+                fallback_extracted_text = self._extract_relevant_content(
+                    raw_html, max_chars=MAX_FALLBACK_EXTRACTED_TEXT_CHARS
+                )
+                diagnostics["fallback_extracted_text_length"] = len(
+                    fallback_extracted_text
+                )
+                if (
+                    fallback_extracted_text
+                    and fallback_extracted_text != extracted_text
+                ):
+                    recipe, extraction_error = self._attempt_preview_extraction(
+                        fallback_extracted_text,
+                        diagnostics,
+                        diagnostics_prefix="fallback_",
+                    )
             if extraction_error or not recipe:
                 return (
                     None,
@@ -262,12 +267,9 @@ class RecipeProcessingService:
             logger.error("URL fetch failed for %s: %s", source_url, e)
             return None
 
-    def _extract_relevant_content(self, raw_html: str) -> str:
+    def _extract_relevant_content(self, raw_html: str, max_chars: int) -> str:
         """
-        Parse HTML and extract recipe-relevant visible text.
-
-        If recipe hints are present (ingredients/instructions/etc.), this narrows
-        the extracted window around them to reduce prompt noise.
+        Parse HTML and extract visible text with light deterministic cleanup only.
         """
         if not raw_html or not raw_html.strip():
             return ""
@@ -284,22 +286,29 @@ class RecipeProcessingService:
         if not lines:
             return ""
 
-        hint_indices = [
-            idx
-            for idx, line in enumerate(lines)
-            if any(hint in line.lower() for hint in RECIPE_CONTENT_HINTS)
-        ]
-        selected_lines = lines
-        if hint_indices:
-            start = max(0, min(hint_indices) - 25)
-            end = min(len(lines), max(hint_indices) + 150)
-            selected_lines = lines[start:end]
-
-        extracted = "\n".join(selected_lines)
-        if len(extracted) > MAX_EXTRACTED_TEXT_CHARS:
-            extracted = extracted[:MAX_EXTRACTED_TEXT_CHARS]
+        extracted = "\n".join(lines)
+        if len(extracted) > max_chars:
+            extracted = extracted[:max_chars]
 
         return extracted
+
+    def _attempt_preview_extraction(
+        self,
+        extracted_text: str,
+        diagnostics: dict[str, int],
+        diagnostics_prefix: str = "",
+    ) -> tuple[Optional[Recipe], Optional[str]]:
+        cleaned_text = self._cleanup_input(extracted_text)
+        diagnostics[f"{diagnostics_prefix}cleaned_text_length"] = len(
+            cleaned_text or ""
+        )
+        if not cleaned_text:
+            return None, "Failed to cleanup extracted website content"
+
+        recipe, extraction_error = self._extract_recipe(cleaned_text)
+        if extraction_error or not recipe:
+            return None, extraction_error
+        return recipe, None
 
     def _cleanup_input(self, raw_input: str) -> Optional[str]:
         """
