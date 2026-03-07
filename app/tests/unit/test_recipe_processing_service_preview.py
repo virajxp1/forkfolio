@@ -42,7 +42,7 @@ class PreviewServiceHarness(RecipeProcessingService):
         return self._html
 
 
-def test_preview_retries_with_wider_context_when_initial_slice_misses_recipe() -> None:
+def test_preview_fails_when_recipe_is_beyond_max_context_window() -> None:
     long_noise = "noise " * 6000
     html = (
         "<html><body>"
@@ -54,15 +54,10 @@ def test_preview_retries_with_wider_context_when_initial_slice_misses_recipe() -
 
     recipe, error, diagnostics = service.preview_recipe_from_url("https://example.com")
 
-    assert error is None
-    assert recipe is not None
-    assert recipe.title == "Recovered Recipe"
+    assert recipe is None
+    assert error == "Recipe extraction failed: missing marker"
     assert diagnostics["extracted_text_length"] <= MAX_EXTRACTED_TEXT_CHARS
-    assert (
-        diagnostics["fallback_extracted_text_length"]
-        > diagnostics["extracted_text_length"]
-    )
-    assert diagnostics["fallback_cleaned_text_length"] > 0
+    assert diagnostics["cleaned_text_length"] > 0
 
 
 def test_preview_skips_fallback_when_first_pass_succeeds() -> None:
@@ -78,5 +73,4 @@ def test_preview_skips_fallback_when_first_pass_succeeds() -> None:
     assert error is None
     assert recipe is not None
     assert recipe.title == "Recovered Recipe"
-    assert "fallback_extracted_text_length" not in diagnostics
-    assert "fallback_cleaned_text_length" not in diagnostics
+    assert diagnostics["cleaned_text_length"] > 0

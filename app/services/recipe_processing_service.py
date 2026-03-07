@@ -16,7 +16,6 @@ logger = get_logger(__name__)
 URL_FETCH_TIMEOUT_SECONDS = 20.0
 URL_FETCH_USER_AGENT = "Mozilla/5.0 (compatible; ForkFolioRecipeBot/1.0)"
 MAX_EXTRACTED_TEXT_CHARS = 25000
-MAX_FALLBACK_EXTRACTED_TEXT_CHARS = 50000
 HTML_IGNORED_TAGS = {
     "script",
     "style",
@@ -216,22 +215,6 @@ class RecipeProcessingService:
                 extracted_text, diagnostics
             )
             if extraction_error or not recipe:
-                fallback_extracted_text = self._extract_relevant_content(
-                    raw_html, max_chars=MAX_FALLBACK_EXTRACTED_TEXT_CHARS
-                )
-                diagnostics["fallback_extracted_text_length"] = len(
-                    fallback_extracted_text
-                )
-                if (
-                    fallback_extracted_text
-                    and fallback_extracted_text != extracted_text
-                ):
-                    recipe, extraction_error = self._attempt_preview_extraction(
-                        fallback_extracted_text,
-                        diagnostics,
-                        diagnostics_prefix="fallback_",
-                    )
-            if extraction_error or not recipe:
                 return (
                     None,
                     f"Recipe extraction failed: {extraction_error}",
@@ -296,12 +279,9 @@ class RecipeProcessingService:
         self,
         extracted_text: str,
         diagnostics: dict[str, int],
-        diagnostics_prefix: str = "",
     ) -> tuple[Optional[Recipe], Optional[str]]:
         cleaned_text = self._cleanup_input(extracted_text)
-        diagnostics[f"{diagnostics_prefix}cleaned_text_length"] = len(
-            cleaned_text or ""
-        )
+        diagnostics["cleaned_text_length"] = len(cleaned_text or "")
         if not cleaned_text:
             return None, "Failed to cleanup extracted website content"
 
