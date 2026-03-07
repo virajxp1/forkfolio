@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
-from app.api.schemas import RecipeIngestionRequest
+from app.api.schemas import GroceryListCreateRequest, RecipeIngestionRequest
 from app.api.v1.helpers.recipe_search import (
     apply_rerank,
     build_rerank_candidates,
@@ -8,6 +8,7 @@ from app.api.v1.helpers.recipe_search import (
 )
 from app.core.config import settings
 from app.core.dependencies import (
+    get_grocery_list_aggregation_service,
     get_recipe_embeddings_service,
     get_recipe_manager,
     get_recipe_processing_service,
@@ -19,12 +20,14 @@ router = APIRouter(prefix=f"{settings.API_BASE_PATH}/recipes", tags=["Recipes"])
 logger = get_logger(__name__)
 
 RECIPE_BODY = Body()
+GROCERY_LIST_BODY = Body()
 
 # Dependency instances to satisfy Ruff B008
 recipe_manager_dep = Depends(get_recipe_manager)
 recipe_processing_service_dep = Depends(get_recipe_processing_service)
 recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
 recipe_search_reranker_service_dep = Depends(get_recipe_search_reranker_service)
+grocery_list_aggregation_service_dep = Depends(get_grocery_list_aggregation_service)
 
 
 @router.post("/process-and-store")
@@ -183,6 +186,63 @@ def semantic_search_recipes(
         raise HTTPException(
             status_code=500,
             detail=f"Error performing semantic search: {e!s}",
+        ) from e
+
+
+@router.post("/grocery-list")
+def create_grocery_list(
+    grocery_list_request: GroceryListCreateRequest = GROCERY_LIST_BODY,
+    recipe_manager=recipe_manager_dep,
+    grocery_list_aggregation_service=grocery_list_aggregation_service_dep,
+) -> dict:
+    """
+    Create one aggregated grocery list from many recipe IDs.
+    """
+    recipe_ids = list(
+        dict.fromkeys(str(recipe_id) for recipe_id in grocery_list_request.recipe_ids)
+    )
+    try:
+        ingredients_by_recipe = recipe_manager.get_ingredients_for_recipes(recipe_ids)
+        missing_recipe_ids = [
+            recipe_id
+            for recipe_id in recipe_ids
+            if recipe_id not in ingredients_by_recipe
+        ]
+        if missing_recipe_ids:
+            missing_text = ", ".join(missing_recipe_ids)
+            raise HTTPException(
+                status_code=404,
+                detail=f"Recipes not found: {missing_text}",
+            )
+
+        all_ingredients: list[str] = []
+        for recipe_id in recipe_ids:
+            all_ingredients.extend(ingredients_by_recipe.get(recipe_id, []))
+
+        grocery_ingredients, error = (
+            grocery_list_aggregation_service.aggregate_ingredients(all_ingredients)
+        )
+        if error or grocery_ingredients is None:
+            logger.error("Error generating grocery list: %s", error)
+            raise HTTPException(
+                status_code=500,
+                detail="Error generating grocery list",
+            )
+
+        return {
+            "recipe_ids": recipe_ids,
+            "ingredients": grocery_ingredients,
+            "count": len(grocery_ingredients),
+            "success": True,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error generating grocery list: %s", e)
+        raise HTTPException(
+            status_code=500,
+            detail="Error generating grocery list",
         ) from e
 
 

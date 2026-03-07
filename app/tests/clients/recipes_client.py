@@ -18,6 +18,7 @@ class RecipesClient(BaseAPIClient):
     # Endpoint paths - centralized in one place
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/process-and-store"
     SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/search/semantic"
+    GROCERY_LIST_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/grocery-list"
 
     def process_and_store_recipe(
         self,
@@ -90,3 +91,13 @@ class RecipesClient(BaseAPIClient):
         )
         endpoint = f"{self.SEMANTIC_SEARCH_ENDPOINT}?{query_string}"
         return self.get(endpoint)
+
+    def create_grocery_list(self, recipe_ids: list[str]) -> Dict[str, Any]:
+        """
+        Aggregate ingredients from a set of recipe IDs into a grocery list.
+
+        Endpoint: POST /api/v1/recipes/grocery-list
+        Router: app.api.v1.endpoints.recipes:create_grocery_list
+        """
+        payload = {"recipe_ids": recipe_ids}
+        return self.post(self.GROCERY_LIST_ENDPOINT, json_data=payload)
