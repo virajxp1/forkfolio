@@ -1,14 +1,118 @@
+from html.parser import HTMLParser
 from typing import Optional
+
+import httpx
 
 from app.core.logging import get_logger
 from app.api.schemas import Recipe
 from app.services.data.managers.recipe_manager import RecipeManager
+from app.services.recipe_dedupe_impl import RecipeDedupeServiceImpl
+from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
-from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
-from app.services.recipe_dedupe_impl import RecipeDedupeServiceImpl
 
 logger = get_logger(__name__)
+
+URL_FETCH_TIMEOUT_SECONDS = 20.0
+URL_FETCH_USER_AGENT = "Mozilla/5.0 (compatible; ForkFolioRecipeBot/1.0)"
+MAX_EXTRACTED_TEXT_CHARS = 25000
+HTML_IGNORED_TAGS = {
+    "script",
+    "style",
+    "noscript",
+    "svg",
+    "canvas",
+    "iframe",
+    "template",
+}
+HTML_BLOCK_TAGS = {
+    "article",
+    "aside",
+    "br",
+    "dd",
+    "div",
+    "dl",
+    "dt",
+    "footer",
+    "form",
+    "h1",
+    "h2",
+    "h3",
+    "h4",
+    "h5",
+    "h6",
+    "header",
+    "hr",
+    "li",
+    "main",
+    "nav",
+    "ol",
+    "p",
+    "pre",
+    "section",
+    "table",
+    "td",
+    "th",
+    "tr",
+    "ul",
+}
+RECIPE_CONTENT_HINTS = (
+    "ingredients",
+    "instructions",
+    "directions",
+    "method",
+    "prep time",
+    "cook time",
+    "total time",
+    "servings",
+    "yield",
+)
+
+
+class _VisibleTextExtractor(HTMLParser):
+    """Extract visible text while skipping common non-content HTML blocks."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._ignored_depth = 0
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        del attrs  # Unused
+        normalized = tag.lower()
+        if normalized in HTML_IGNORED_TAGS:
+            self._ignored_depth += 1
+            return
+        if normalized in HTML_BLOCK_TAGS:
+            self._parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        if normalized in HTML_IGNORED_TAGS:
+            if self._ignored_depth > 0:
+                self._ignored_depth -= 1
+            return
+        if normalized in HTML_BLOCK_TAGS:
+            self._parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._ignored_depth > 0:
+            return
+        cleaned = " ".join(data.split())
+        if cleaned:
+            self._parts.append(f"{cleaned} ")
+
+    def visible_text(self) -> str:
+        if not self._parts:
+            return ""
+
+        text = "".join(self._parts)
+        lines: list[str] = []
+        for line in text.splitlines():
+            normalized = " ".join(line.split())
+            if normalized:
+                lines.append(normalized)
+        return "\n".join(lines)
 
 
 class RecipeProcessingService:
@@ -95,6 +199,107 @@ class RecipeProcessingService:
             error_msg = f"Recipe processing failed: {e!s}"
             logger.error(error_msg)
             return None, error_msg, False
+
+    def preview_recipe_from_url(
+        self, source_url: str
+    ) -> tuple[Optional[Recipe], Optional[str], dict[str, int]]:
+        """
+        Fetch and parse a URL, then return an extracted recipe preview.
+
+        This flow intentionally does not write to the database.
+        """
+        diagnostics: dict[str, int] = {}
+        try:
+            raw_html = self._fetch_raw_html(source_url)
+            if not raw_html:
+                return None, "Failed to fetch raw HTML from URL", diagnostics
+
+            extracted_text = self._extract_relevant_content(raw_html)
+            diagnostics["raw_html_length"] = len(raw_html)
+            diagnostics["extracted_text_length"] = len(extracted_text)
+            if not extracted_text:
+                return None, "Failed to extract readable content from HTML", diagnostics
+
+            cleaned_text = self._cleanup_input(extracted_text)
+            diagnostics["cleaned_text_length"] = len(cleaned_text or "")
+            if not cleaned_text:
+                return None, "Failed to cleanup extracted website content", diagnostics
+
+            recipe, extraction_error = self._extract_recipe(cleaned_text)
+            if extraction_error or not recipe:
+                return (
+                    None,
+                    f"Recipe extraction failed: {extraction_error}",
+                    diagnostics,
+                )
+
+            logger.info("Recipe preview extracted successfully for URL: %s", source_url)
+            return recipe, None, diagnostics
+        except Exception as e:
+            error_msg = f"Recipe URL preview failed: {e!s}"
+            logger.error(error_msg)
+            return None, error_msg, diagnostics
+
+    def _fetch_raw_html(self, source_url: str) -> Optional[str]:
+        """Fetch raw HTML from a URL using HTTPX."""
+        try:
+            with httpx.Client(
+                timeout=URL_FETCH_TIMEOUT_SECONDS,
+                follow_redirects=True,
+                headers={"User-Agent": URL_FETCH_USER_AGENT},
+            ) as client:
+                response = client.get(source_url)
+                response.raise_for_status()
+                return response.text
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                "URL fetch returned non-200 response. url=%s status=%s",
+                source_url,
+                e.response.status_code,
+            )
+            return None
+        except httpx.HTTPError as e:
+            logger.error("URL fetch failed for %s: %s", source_url, e)
+            return None
+
+    def _extract_relevant_content(self, raw_html: str) -> str:
+        """
+        Parse HTML and extract recipe-relevant visible text.
+
+        If recipe hints are present (ingredients/instructions/etc.), this narrows
+        the extracted window around them to reduce prompt noise.
+        """
+        if not raw_html or not raw_html.strip():
+            return ""
+
+        parser = _VisibleTextExtractor()
+        parser.feed(raw_html)
+        parser.close()
+
+        visible_text = parser.visible_text()
+        if not visible_text:
+            return ""
+
+        lines = [line.strip() for line in visible_text.splitlines() if line.strip()]
+        if not lines:
+            return ""
+
+        hint_indices = [
+            idx
+            for idx, line in enumerate(lines)
+            if any(hint in line.lower() for hint in RECIPE_CONTENT_HINTS)
+        ]
+        selected_lines = lines
+        if hint_indices:
+            start = max(0, min(hint_indices) - 25)
+            end = min(len(lines), max(hint_indices) + 150)
+            selected_lines = lines[start:end]
+
+        extracted = "\n".join(selected_lines)
+        if len(extracted) > MAX_EXTRACTED_TEXT_CHARS:
+            extracted = extracted[:MAX_EXTRACTED_TEXT_CHARS]
+
+        return extracted
 
     def _cleanup_input(self, raw_input: str) -> Optional[str]:
         """
