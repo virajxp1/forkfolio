@@ -268,6 +268,49 @@ Success response:
 }
 ```
 
+### `POST /api/v1/recipes/grocery-list`
+
+Auth: Required
+
+Builds one aggregated grocery list from selected recipe IDs.
+
+Request body:
+
+```json
+{
+  "recipe_ids": [
+    "11111111-1111-1111-1111-111111111111",
+    "22222222-2222-2222-2222-222222222222"
+  ]
+}
+```
+
+Field notes:
+
+- `recipe_ids` (array of UUIDs, required, min length `1`, max length `100`)
+
+Success response:
+
+```json
+{
+  "recipe_ids": [
+    "11111111-1111-1111-1111-111111111111",
+    "22222222-2222-2222-2222-222222222222"
+  ],
+  "ingredients": ["2 tomatoes", "1 onion", "2 cloves garlic"],
+  "count": 3,
+  "success": true
+}
+```
+
+Not found response (one or more IDs missing):
+
+```json
+{
+  "detail": "Recipes not found: 33333333-3333-3333-3333-333333333333"
+}
+```
+
 ### `GET /api/v1/recipes/{recipe_id}`
 
 Auth: Required
