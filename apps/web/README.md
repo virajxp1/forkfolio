@@ -36,4 +36,5 @@ Open `http://localhost:3000`.
 npm run lint
 npm run build
 npm run test
+npm run test:coverage
 ```
