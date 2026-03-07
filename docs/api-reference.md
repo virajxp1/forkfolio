@@ -141,16 +141,16 @@ Request body:
 {
   "start_url": "https://www.example.com/recipes/pasta",
   "target_instruction": "Extract the full recipe text from this page.",
-  "max_steps": 10,
-  "max_actions_per_step": 2
+  "max_steps": 5,
+  "max_actions_per_step": 1
 }
 ```
 
 - `start_url` (string, required, must be a valid `http/https` URL)
 - `target_instruction` (string, required)
 - `target_prompt` (string, optional alias for `target_instruction`)
-- `max_steps` (integer, optional, default `10`, min `1`, max `50`)
-- `max_actions_per_step` (integer, optional, default `2`, min `1`, max `4`)
+- `max_steps` (integer, optional, default `5`, min `1`, max `50`)
+- `max_actions_per_step` (integer, optional, default `1`, min `1`, max `4`)
 - Uses `AUTO_BROWSE_API_BASE_URL` (default: `https://auto-browse.onrender.com`).
 - Sends `X-API-Token` from `AUTO_BROWSE_API_TOKEN` loaded from `.env`.
 

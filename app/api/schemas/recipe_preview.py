@@ -15,13 +15,13 @@ class RecipeUrlPreviewRequest(BaseModel):
         min_length=5,
     )
     max_steps: int = Field(
-        10,
+        5,
         ge=1,
         le=50,
         description="Max browsing steps.",
     )
     max_actions_per_step: int = Field(
-        2,
+        1,
         ge=1,
         le=4,
         description="Max actions per step.",

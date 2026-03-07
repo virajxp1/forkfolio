@@ -32,8 +32,8 @@ class RecipePreviewService:
         self,
         start_url: str,
         target_instruction: str,
-        max_steps: int = 10,
-        max_actions_per_step: int = 2,
+        max_steps: int = 5,
+        max_actions_per_step: int = 1,
     ) -> tuple[dict | None, str | None]:
         prompt = target_instruction.strip()
         if not prompt:

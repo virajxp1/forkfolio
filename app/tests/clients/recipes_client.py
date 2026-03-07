@@ -46,8 +46,8 @@ class RecipesClient(BaseAPIClient):
         self,
         start_url: str,
         target_instruction: str,
-        max_steps: int = 10,
-        max_actions_per_step: int = 2,
+        max_steps: int = 5,
+        max_actions_per_step: int = 1,
     ) -> Dict[str, Any]:
         """
         Preview recipe extraction from URL without persisting to DB.

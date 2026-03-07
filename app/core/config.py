@@ -43,7 +43,7 @@ class Settings:
             "api", "max_request_size_mb", fallback=1
         )
         self.REQUEST_TIMEOUT_SECONDS: float = self._cfg.getfloat(
-            "api", "request_timeout_seconds", fallback=30.0
+            "api", "request_timeout_seconds", fallback=120.0
         )
         self.AUTO_BROWSE_API_BASE_URL: str = (
             os.getenv(

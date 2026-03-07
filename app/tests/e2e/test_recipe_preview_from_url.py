@@ -14,6 +14,8 @@ def test_preview_from_url_then_save(api_client: APIClient) -> None:
     preview_response = api_client.recipes.preview_recipe_from_url(
         start_url=recipe_url,
         target_instruction="Extract full recipe text. Do not summarize.",
+        max_steps=5,
+        max_actions_per_step=1,
     )
     assert preview_response["status_code"] == HTTP_OK
 
