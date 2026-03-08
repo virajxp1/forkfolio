@@ -1,5 +1,9 @@
 from html.parser import HTMLParser
+import ipaddress
+import os
+import socket
 from typing import Optional
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 
@@ -15,6 +19,21 @@ logger = get_logger(__name__)
 
 URL_FETCH_TIMEOUT_SECONDS = 20.0
 URL_FETCH_USER_AGENT = "Mozilla/5.0 (compatible; ForkFolioRecipeBot/1.0)"
+URL_FETCH_MAX_REDIRECTS = 5
+URL_FETCH_ALLOWED_SCHEMES = frozenset({"http", "https"})
+URL_FETCH_REQUIRE_HTTPS = (
+    os.getenv("PREVIEW_URL_REQUIRE_HTTPS", "").strip().lower() == "true"
+)
+URL_FETCH_DOMAIN_ALLOWLIST = tuple(
+    sorted(
+        {
+            domain.strip().lower().rstrip(".")
+            for domain in os.getenv("PREVIEW_URL_ALLOWLIST", "").split(",")
+            if domain.strip()
+        }
+    )
+)
+URL_FETCH_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 MAX_EXTRACTED_TEXT_CHARS = 25000
 HTML_IGNORED_TAGS = {
     "script",
@@ -229,16 +248,54 @@ class RecipeProcessingService:
             return None, error_msg, diagnostics
 
     def _fetch_raw_html(self, source_url: str) -> Optional[str]:
-        """Fetch raw HTML from a URL using HTTPX."""
+        """
+        Fetch raw HTML from a URL using HTTPX with SSRF protections.
+
+        - Validates source URL host/scheme
+        - Resolves hostname and blocks private/internal ranges
+        - Re-validates every redirect target
+        """
+        current_url = source_url
         try:
             with httpx.Client(
                 timeout=URL_FETCH_TIMEOUT_SECONDS,
-                follow_redirects=True,
+                follow_redirects=False,
                 headers={"User-Agent": URL_FETCH_USER_AGENT},
             ) as client:
-                response = client.get(source_url)
-                response.raise_for_status()
-                return response.text
+                for _ in range(URL_FETCH_MAX_REDIRECTS + 1):
+                    validated_url, validation_error = self._validate_outbound_url(
+                        current_url
+                    )
+                    if validation_error or not validated_url:
+                        logger.warning(
+                            "Blocked outbound URL fetch for recipe preview. url=%s reason=%s",
+                            current_url,
+                            validation_error,
+                        )
+                        return None
+
+                    response = client.get(validated_url)
+                    if response.status_code in URL_FETCH_REDIRECT_STATUS_CODES:
+                        location = response.headers.get("location")
+                        if not location:
+                            logger.error(
+                                "Redirect response missing Location header. url=%s status=%s",
+                                validated_url,
+                                response.status_code,
+                            )
+                            return None
+                        current_url = urljoin(validated_url, location)
+                        continue
+
+                    response.raise_for_status()
+                    return response.text
+
+            logger.error(
+                "URL fetch exceeded redirect limit. url=%s max_redirects=%s",
+                source_url,
+                URL_FETCH_MAX_REDIRECTS,
+            )
+            return None
         except httpx.HTTPStatusError as e:
             logger.error(
                 "URL fetch returned non-200 response. url=%s status=%s",
@@ -249,6 +306,97 @@ class RecipeProcessingService:
         except httpx.HTTPError as e:
             logger.error("URL fetch failed for %s: %s", source_url, e)
             return None
+        except Exception as e:
+            logger.error("URL fetch validation failed for %s: %s", source_url, e)
+            return None
+
+    def _validate_outbound_url(
+        self, candidate_url: str
+    ) -> tuple[Optional[str], Optional[str]]:
+        """
+        Validate URL target for outbound fetch to reduce SSRF risk.
+
+        Returns:
+            Tuple of (validated_url, error_message)
+        """
+        parsed = urlsplit(candidate_url)
+        scheme = parsed.scheme.lower()
+        if scheme not in URL_FETCH_ALLOWED_SCHEMES:
+            return None, f"Unsupported URL scheme: {scheme}"
+
+        if URL_FETCH_REQUIRE_HTTPS and scheme != "https":
+            return None, "Only HTTPS preview URLs are allowed"
+
+        hostname = (parsed.hostname or "").strip().lower().rstrip(".")
+        if not hostname:
+            return None, "URL hostname is missing"
+
+        if URL_FETCH_DOMAIN_ALLOWLIST and not self._is_allowlisted_hostname(hostname):
+            return None, f"Host is not allowlisted: {hostname}"
+
+        if hostname == "localhost":
+            return None, "Loopback host is not allowed"
+
+        port = parsed.port or (443 if scheme == "https" else 80)
+        direct_ip = self._parse_ip_literal(hostname)
+        if direct_ip is not None:
+            if self._is_disallowed_ip(direct_ip):
+                return None, f"Blocked IP target: {direct_ip}"
+            return candidate_url, None
+
+        try:
+            addr_info = socket.getaddrinfo(hostname, port, type=socket.SOCK_STREAM)
+        except socket.gaierror as e:
+            return None, f"Failed to resolve host '{hostname}': {e}"
+
+        if not addr_info:
+            return None, f"No addresses resolved for host '{hostname}'"
+
+        resolved_ips: set[str] = set()
+        for item in addr_info:
+            sockaddr = item[4]
+            if not sockaddr:
+                continue
+            ip_text = sockaddr[0]
+            if ip_text in resolved_ips:
+                continue
+            resolved_ips.add(ip_text)
+            resolved_ip = self._parse_ip_literal(ip_text)
+            if resolved_ip is None:
+                return None, f"Resolved non-IP address for host '{hostname}'"
+            if self._is_disallowed_ip(resolved_ip):
+                return None, f"Blocked resolved IP for host '{hostname}': {resolved_ip}"
+
+        return candidate_url, None
+
+    @staticmethod
+    def _parse_ip_literal(
+        host_value: str,
+    ) -> Optional[ipaddress.IPv4Address | ipaddress.IPv6Address]:
+        try:
+            return ipaddress.ip_address(host_value)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _is_disallowed_ip(
+        ip_obj: ipaddress.IPv4Address | ipaddress.IPv6Address,
+    ) -> bool:
+        return (
+            ip_obj.is_private
+            or ip_obj.is_loopback
+            or ip_obj.is_link_local
+            or ip_obj.is_multicast
+            or ip_obj.is_unspecified
+            or ip_obj.is_reserved
+        )
+
+    @staticmethod
+    def _is_allowlisted_hostname(hostname: str) -> bool:
+        return any(
+            hostname == allowed or hostname.endswith(f".{allowed}")
+            for allowed in URL_FETCH_DOMAIN_ALLOWLIST
+        )
 
     def _extract_relevant_content(self, raw_html: str, max_chars: int) -> str:
         """

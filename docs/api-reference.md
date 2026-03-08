@@ -139,6 +139,15 @@ Fetches a recipe webpage URL, parses/extracts readable HTML content, runs the
 cleanup + extraction pipeline, and returns a preview without inserting anything
 into the database.
 
+Security behavior:
+
+- Outbound fetch blocks loopback, private, link-local, multicast, and other
+  non-public IP ranges (including DNS-resolved targets)
+- Redirects are followed manually with per-hop target re-validation
+- Optional hardening is supported via env vars:
+  - `PREVIEW_URL_REQUIRE_HTTPS=true`
+  - `PREVIEW_URL_ALLOWLIST=example.com,recipes.example.org`
+
 Request body:
 
 ```json
