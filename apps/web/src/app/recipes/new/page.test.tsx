@@ -66,6 +66,48 @@ describe("/recipes/new page", () => {
     expect(detailsLink).toHaveAttribute("href", "/recipes/recipe-123");
   });
 
+  it("fetches URL preview and applies it to raw input", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          created: false,
+          url: "https://example.com/pasta",
+          recipe_preview: {
+            title: "Lemon Garlic Pasta",
+            ingredients: ["200g spaghetti", "2 cloves garlic"],
+            instructions: ["Boil pasta.", "Saute garlic.", "Toss and serve."],
+            servings: "2",
+            total_time: "20 minutes",
+          },
+          diagnostics: {
+            raw_html_length: 1200,
+            extracted_text_length: 900,
+            cleaned_text_length: 700,
+          },
+          message: "Recipe preview generated successfully.",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    render(<NewRecipePage />);
+
+    await user.type(screen.getByLabelText("Recipe URL"), "https://example.com/pasta");
+    await user.click(screen.getByRole("button", { name: /Fetch URL Preview/i }));
+
+    expect(await screen.findByText("Lemon Garlic Pasta")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Use Preview As Input/i }));
+
+    const rawInputField = screen.getByLabelText("Raw recipe text");
+    const rawInputValue = String((rawInputField as HTMLTextAreaElement).value);
+    expect(rawInputValue).toContain("Lemon Garlic Pasta");
+    expect(rawInputValue).toContain("Ingredients:");
+  });
+
   it("shows error state when API returns failure", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.mocked(fetch);
