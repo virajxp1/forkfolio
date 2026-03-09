@@ -47,6 +47,19 @@ FROM recipe_ingredients
 WHERE recipe_id = ANY(%s::uuid[])
 ORDER BY recipe_id, order_index
 """
+ALL_INGREDIENTS_FOR_RECIPES_SQL = """
+SELECT
+    r.id AS recipe_id,
+    COALESCE(
+        array_agg(i.ingredient_text ORDER BY i.order_index)
+            FILTER (WHERE i.ingredient_text IS NOT NULL),
+        ARRAY[]::text[]
+    ) AS ingredients
+FROM recipes r
+LEFT JOIN recipe_ingredients i ON i.recipe_id = r.id
+WHERE r.id = ANY(%s::uuid[])
+GROUP BY r.id
+"""
 
 
 class RecipeManager(BaseManager):
@@ -280,6 +293,43 @@ class RecipeManager(BaseManager):
             return previews
         except Exception as e:
             raise DatabaseError(f"Failed to get ingredient previews: {e!s}") from e
+
+    def get_ingredients_for_recipes(
+        self, recipe_ids: list[str]
+    ) -> dict[str, list[str]]:
+        """
+        Fetch full ingredient lists for many recipes in one query.
+
+        Returns a mapping of recipe_id -> ordered ingredient strings.
+        """
+        if not recipe_ids:
+            return {}
+
+        normalized_ids: list[str] = []
+        for recipe_id in recipe_ids:
+            try:
+                normalized_id = str(uuid.UUID(str(recipe_id)))
+            except (TypeError, ValueError):
+                continue
+            if normalized_id not in normalized_ids:
+                normalized_ids.append(normalized_id)
+
+        if not normalized_ids:
+            return {}
+
+        try:
+            with self.get_db_context() as (_conn, cursor):
+                cursor.execute(ALL_INGREDIENTS_FOR_RECIPES_SQL, (normalized_ids,))
+                rows = cursor.fetchall()
+                ingredients_by_recipe: dict[str, list[str]] = {}
+                for row in rows:
+                    row_data = dict(row)
+                    ingredients_by_recipe[str(row_data["recipe_id"])] = list(
+                        row_data.get("ingredients") or []
+                    )
+                return ingredients_by_recipe
+        except Exception as e:
+            raise DatabaseError(f"Failed to get ingredients for recipes: {e!s}") from e
 
     def search_recipes_by_embedding(
         self,

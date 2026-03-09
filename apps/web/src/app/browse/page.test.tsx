@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import BrowsePage from "./page";
@@ -14,6 +15,30 @@ vi.mock("next/navigation", () => ({
   }),
   useSearchParams: () => searchParams,
 }));
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json" },
+  });
+}
+
+function recipeResponse(recipeId = "recipe-1", title = "Creamy Pasta"): Response {
+  return jsonResponse({
+    recipe: {
+      id: recipeId,
+      title,
+      servings: "2",
+      total_time: "20 minutes",
+      source_url: null,
+      created_at: null,
+      updated_at: null,
+      ingredients: ["Pasta", "Cream"],
+      instructions: ["Cook pasta", "Add sauce"],
+    },
+    success: true,
+  });
+}
 
 describe("/browse page", () => {
   beforeEach(() => {
@@ -44,61 +69,135 @@ describe("/browse page", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("renders results from search and prefetches recipe details", async () => {
+  it("syncs search input from URL query", async () => {
+    searchParams = new URLSearchParams("q=pasta");
+
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        query: "pasta",
+        count: 0,
+        results: [],
+        success: true,
+      }),
+    );
+
+    render(<BrowsePage />);
+
+    expect(await screen.findByRole("searchbox")).toHaveValue("pasta");
+    expect(await screen.findByText('Results for "pasta"')).toBeInTheDocument();
+  });
+
+  it("pushes normalized query to URL on submit", async () => {
+    const user = userEvent.setup();
+
+    render(<BrowsePage />);
+
+    await user.type(screen.getByRole("searchbox"), "  creamy pasta  ");
+    await user.click(screen.getByRole("button", { name: /^Search$/i }));
+
+    expect(pushMock).toHaveBeenCalledWith("/browse?q=creamy+pasta", { scroll: false });
+  });
+
+  it("replaces URL when query input is cleared", async () => {
+    searchParams = new URLSearchParams("q=pasta");
+
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        query: "pasta",
+        count: 0,
+        results: [],
+        success: true,
+      }),
+    );
+
+    const user = userEvent.setup();
+    render(<BrowsePage />);
+
+    const input = await screen.findByRole("searchbox");
+    await user.clear(input);
+
+    expect(replaceMock).toHaveBeenCalledWith("/browse", { scroll: false });
+  });
+
+  it("pushes recipe modal route when opening a search card", async () => {
     searchParams = new URLSearchParams("q=pasta");
 
     const fetchMock = vi.mocked(fetch);
     fetchMock
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            query: "pasta",
-            count: 1,
-            results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
-            success: true,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
+        jsonResponse({
+          query: "pasta",
+          count: 1,
+          results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
+          success: true,
+        }),
       )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            recipe: {
-              id: "recipe-1",
-              title: "Creamy Pasta",
-              servings: "2",
-              total_time: "20 minutes",
-              source_url: null,
-              created_at: null,
-              updated_at: null,
-              ingredients: ["Pasta", "Cream"],
-              instructions: ["Cook pasta", "Add sauce"],
-            },
-            success: true,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      );
+      .mockResolvedValueOnce(recipeResponse());
 
+    const user = userEvent.setup();
     render(<BrowsePage />);
 
-    expect(await screen.findByText('Results for "pasta"')).toBeInTheDocument();
-    expect(await screen.findByText("Creamy Pasta")).toBeInTheDocument();
+    const openCardButton = await screen.findByRole("button", {
+      name: "Open Creamy Pasta",
+    });
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      "/api/search?query=pasta&limit=12",
-      expect.objectContaining({ method: "GET" }),
+    await user.click(openCardButton);
+
+    expect(pushMock).toHaveBeenCalledWith("/browse?q=pasta&recipe=recipe-1", {
+      scroll: false,
+    });
+  });
+
+  it("replaces URL when closing an open modal", async () => {
+    searchParams = new URLSearchParams("q=pasta&recipe=recipe-1");
+
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          query: "pasta",
+          count: 1,
+          results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
+          success: true,
+        }),
+      )
+      .mockResolvedValueOnce(recipeResponse());
+
+    const user = userEvent.setup();
+    render(<BrowsePage />);
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+
+    const closeButtons = screen.getAllByRole("button", {
+      name: "Close recipe details",
+    });
+    await user.click(closeButtons[0]);
+
+    expect(replaceMock).toHaveBeenCalledWith("/browse?q=pasta", { scroll: false });
+  });
+
+  it("shows no-results state when search returns empty", async () => {
+    searchParams = new URLSearchParams("q=kimchi");
+
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        query: "kimchi",
+        count: 0,
+        results: [],
+        success: true,
+      }),
     );
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      "/api/recipes/recipe-1",
-      expect.objectContaining({ method: "GET" }),
-    );
+
+    render(<BrowsePage />);
+
+    expect(await screen.findByText("No recipes found")).toBeInTheDocument();
   });
 
   it("shows search error when API request fails", async () => {
@@ -106,10 +205,12 @@ describe("/browse page", () => {
 
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue(
-      new Response(JSON.stringify({ detail: "Backend unavailable" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }),
+      jsonResponse(
+        {
+          detail: "Backend unavailable",
+        },
+        500,
+      ),
     );
 
     render(<BrowsePage />);

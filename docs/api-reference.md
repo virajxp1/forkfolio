@@ -131,6 +131,130 @@ Pipeline error payload:
 }
 ```
 
+### `POST /api/v1/recipes/preview-from-url`
+
+Auth: Required
+
+Fetches a recipe webpage URL, parses/extracts readable HTML content, runs the
+cleanup + extraction pipeline, and returns a preview without inserting anything
+into the database.
+
+Security behavior:
+
+- Outbound fetch blocks loopback, private, link-local, multicast, and other
+  non-public IP ranges (including DNS-resolved targets)
+- Redirects are followed manually with per-hop target re-validation
+- Optional hardening is supported via env vars:
+  - `PREVIEW_URL_REQUIRE_HTTPS=true`
+  - `PREVIEW_URL_ALLOWLIST=example.com,recipes.example.org`
+
+Request body:
+
+```json
+{
+  "url": "https://example.com/chocolate-chip-cookies"
+}
+```
+
+Field notes:
+
+- `url` (string, required, valid `http` or `https` URL)
+
+API contract:
+
+- `success` (boolean): Whether preview extraction succeeded
+- `created` (boolean): Always `false` for this endpoint (no DB write)
+- `url` (string): Normalized source URL used for fetch
+- `recipe_preview` (object, success only): Extracted recipe shape:
+  - `title` (string)
+  - `ingredients` (array of strings)
+  - `instructions` (array of strings)
+  - `servings` (string)
+  - `total_time` (string)
+- `diagnostics` (object): lengths captured during pipeline:
+  - `raw_html_length` (integer)
+  - `extracted_text_length` (integer)
+  - `cleaned_text_length` (integer)
+- `message` (string, success only)
+- `error` (string, failure only)
+
+Flow chart:
+
+```mermaid
+graph TD
+    A[POST /recipes/preview-from-url] --> B[Validate URL]
+    B --> C[HTTPX fetch raw HTML]
+    C --> D[Extract visible recipe-relevant text]
+    D --> E[LLM cleanup]
+    E --> F[LLM structured extraction]
+    F --> G[Return recipe_preview + diagnostics]
+    G --> H[No DB insert]
+```
+
+Success response:
+
+```json
+{
+  "success": true,
+  "created": false,
+  "url": "https://www.example.com/chocolate-chip-cookies",
+  "recipe_preview": {
+    "title": "Chocolate Chip Cookies",
+    "ingredients": [
+      "2 cups all-purpose flour",
+      "1 cup unsalted butter, softened",
+      "3/4 cup granulated sugar",
+      "3/4 cup brown sugar",
+      "2 large eggs",
+      "2 cups chocolate chips"
+    ],
+    "instructions": [
+      "Preheat oven to 350F and line a baking sheet.",
+      "Cream butter and sugars, then beat in eggs.",
+      "Mix in flour and fold in chocolate chips.",
+      "Scoop dough and bake 10 to 12 minutes."
+    ],
+    "servings": "24 cookies",
+    "total_time": "30 minutes"
+  },
+  "diagnostics": {
+    "raw_html_length": 105482,
+    "extracted_text_length": 19340,
+    "cleaned_text_length": 4010
+  },
+  "message": "Recipe preview generated successfully. No database insertion performed."
+}
+```
+
+Pipeline error payload:
+
+```json
+{
+  "success": false,
+  "created": false,
+  "url": "https://example.com/chocolate-chip-cookies",
+  "diagnostics": {
+    "raw_html_length": 0
+  },
+  "error": "Failed to fetch raw HTML from URL"
+}
+```
+
+Validation error payload (`422` example):
+
+```json
+{
+  "detail": [
+    {
+      "type": "url_parsing",
+      "loc": ["body", "url"],
+      "msg": "Input should be a valid URL, relative URL without a base",
+      "input": "not-a-url"
+    }
+  ]
+}
+```
+
 ### `GET /api/v1/recipes/search/semantic`
 
 Auth: Required
@@ -150,6 +274,49 @@ Success response:
   "count": 2,
   "results": [],
   "success": true
+}
+```
+
+### `POST /api/v1/recipes/grocery-list`
+
+Auth: Required
+
+Builds one aggregated grocery list from selected recipe IDs.
+
+Request body:
+
+```json
+{
+  "recipe_ids": [
+    "11111111-1111-1111-1111-111111111111",
+    "22222222-2222-2222-2222-222222222222"
+  ]
+}
+```
+
+Field notes:
+
+- `recipe_ids` (array of UUIDs, required, min length `1`, max length `100`)
+
+Success response:
+
+```json
+{
+  "recipe_ids": [
+    "11111111-1111-1111-1111-111111111111",
+    "22222222-2222-2222-2222-222222222222"
+  ],
+  "ingredients": ["2 tomatoes", "1 onion", "2 cloves garlic"],
+  "count": 3,
+  "success": true
+}
+```
+
+Not found response (one or more IDs missing):
+
+```json
+{
+  "detail": "Recipes not found: 33333333-3333-3333-3333-333333333333"
 }
 ```
 
