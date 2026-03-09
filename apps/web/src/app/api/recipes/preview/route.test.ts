@@ -136,4 +136,31 @@ describe("POST /api/recipes/preview", () => {
     expect(response.status).toBe(403);
     expect(await response.json()).toEqual({ detail: "Blocked outbound URL fetch" });
   });
+
+  it("maps backend 405 preview method errors to 503 with actionable detail", async () => {
+    const apiError = {
+      status: 405,
+      detail: "Method Not Allowed",
+      message: "Method Not Allowed",
+    };
+
+    previewRecipeFromUrlMock.mockRejectedValue(apiError);
+    isForkfolioApiErrorMock.mockImplementation((error: unknown) => error === apiError);
+
+    const request = new NextRequest("http://localhost:3000/api/recipes/preview", {
+      method: "POST",
+      body: JSON.stringify({ url: "https://example.com/recipe" }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({
+      detail:
+        "URL preview is not available on the configured backend deployment yet. Deploy the latest backend with POST /api/v1/recipes/preview-from-url.",
+    });
+  });
 });
