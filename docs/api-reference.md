@@ -76,6 +76,36 @@ Example response:
 
 ## Recipes Endpoints
 
+### `GET /api/v1/recipes/`
+
+Auth: Required
+
+Lists recipes from the `recipes` table using cursor-based pagination.
+
+Query parameters:
+
+- `limit` (integer, optional, default `50`, min `1`, max `200`)
+- `cursor` (string, optional, opaque cursor token from a previous response)
+
+Success response:
+
+```json
+{
+  "recipes": [],
+  "count": 50,
+  "limit": 50,
+  "cursor": null,
+  "next_cursor": "eyJjcmVhdGVkX2F0IjoiMjAyNi0wMy0wMVQxMjozMDowMCIsImlkIjoiMTExMTExMTEtMTExMS0xMTExLTExMTEtMTExMTExMTExMTExIn0",
+  "has_more": true,
+  "success": true
+}
+```
+
+Cursor notes:
+
+- `next_cursor` is `null` when there are no additional pages.
+- Pass `next_cursor` back as the next request's `cursor` value.
+
 ### `POST /api/v1/recipes/process-and-store`
 
 Auth: Required
