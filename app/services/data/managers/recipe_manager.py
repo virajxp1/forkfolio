@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from app.api.schemas import Recipe
@@ -59,6 +60,35 @@ FROM recipes r
 LEFT JOIN recipe_ingredients i ON i.recipe_id = r.id
 WHERE r.id = ANY(%s::uuid[])
 GROUP BY r.id
+"""
+RECIPES_PAGE_SQL = """
+SELECT
+    id,
+    title,
+    servings,
+    total_time,
+    source_url,
+    is_test_data,
+    created_at,
+    updated_at
+FROM recipes
+ORDER BY created_at DESC, id DESC
+LIMIT %s
+"""
+RECIPES_PAGE_WITH_CURSOR_SQL = """
+SELECT
+    id,
+    title,
+    servings,
+    total_time,
+    source_url,
+    is_test_data,
+    created_at,
+    updated_at
+FROM recipes
+WHERE (created_at, id) < (%s::timestamp, %s::uuid)
+ORDER BY created_at DESC, id DESC
+LIMIT %s
 """
 
 
@@ -254,6 +284,27 @@ class RecipeManager(BaseManager):
 
         except Exception as e:
             raise DatabaseError(f"Failed to get recipe with embeddings: {e!s}") from e
+
+    def list_recipes_page(
+        self,
+        limit: int = 50,
+        cursor_created_at: datetime | None = None,
+        cursor_id: str | None = None,
+    ) -> list[dict]:
+        """List recipes ordered by newest first with optional cursor pagination."""
+        query_limit = max(1, int(limit))
+        try:
+            with self.get_db_context() as (_conn, cursor):
+                if cursor_created_at is not None and cursor_id is not None:
+                    cursor.execute(
+                        RECIPES_PAGE_WITH_CURSOR_SQL,
+                        (cursor_created_at, cursor_id, query_limit),
+                    )
+                else:
+                    cursor.execute(RECIPES_PAGE_SQL, (query_limit,))
+                return [dict(row) for row in cursor.fetchall()]
+        except Exception as e:
+            raise DatabaseError(f"Failed to list recipes: {e!s}") from e
 
     def get_ingredient_previews(
         self,
