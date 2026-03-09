@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isForkfolioApiError, searchRecipes } from "@/lib/forkfolio-api";
 
 const DEFAULT_LIMIT = 12;
+const SEARCH_CACHE_CONTROL = "public, max-age=60, stale-while-revalidate=300";
 
 function parseLimit(rawLimit: string | null): number {
   if (!rawLimit) {
@@ -32,7 +33,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(response, {
       status: 200,
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": SEARCH_CACHE_CONTROL,
       },
     });
   } catch (error) {
