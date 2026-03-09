@@ -278,6 +278,7 @@ export function useBrowseData() {
     isSearching,
     recipeById,
     recipeLoadingById,
+    recipeIdFromUrl,
     selectedRecipe,
     selectedRecipeLoading,
     selectedRecipeError,

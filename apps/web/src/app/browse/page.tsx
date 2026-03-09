@@ -21,6 +21,7 @@ export default function BrowsePage() {
     isSearching,
     recipeById,
     recipeLoadingById,
+    recipeIdFromUrl,
     selectedRecipe,
     selectedRecipeLoading,
     selectedRecipeError,
@@ -86,6 +87,7 @@ export default function BrowsePage() {
 
       {hasModal ? (
         <RecipeModal
+          recipeId={recipeIdFromUrl}
           recipe={selectedRecipe}
           isLoading={selectedRecipeLoading && !selectedRecipe}
           error={selectedRecipeError}

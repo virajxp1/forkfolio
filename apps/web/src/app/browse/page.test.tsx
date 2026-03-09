@@ -218,4 +218,48 @@ describe("/browse page", () => {
     expect(await screen.findByText("Search Error")).toBeInTheDocument();
     expect(await screen.findByText("Backend unavailable")).toBeInTheDocument();
   });
+
+  it("shows modal action to open full recipe page", async () => {
+    searchParams = new URLSearchParams("q=pasta&recipe=recipe-1");
+
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            query: "pasta",
+            count: 1,
+            results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
+            success: true,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            recipe: {
+              id: "recipe-1",
+              title: "Creamy Pasta",
+              servings: "2",
+              total_time: "20 minutes",
+              source_url: null,
+              created_at: null,
+              updated_at: null,
+              ingredients: ["Pasta", "Cream"],
+              instructions: ["Cook pasta", "Add sauce"],
+            },
+            success: true,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+    render(<BrowsePage />);
+
+    const openFullPageLink = await screen.findByRole("link", {
+      name: /Open Full Page/i,
+    });
+    expect(openFullPageLink).toHaveAttribute("href", "/recipes/recipe-1");
+  });
 });

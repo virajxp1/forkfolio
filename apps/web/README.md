@@ -4,9 +4,9 @@ Search-first frontend for ForkFolio, built with Next.js + `shadcn/ui`.
 
 ## Setup
 
-`apps/web` now loads env from the repo root (`../../.env`) as well.
+`apps/web` reads env from the repo root `../../.env`.
 
-1. Add API values in repo root `.env` (or `apps/web/.env.local` to override):
+1. Add API values in repo root `.env`:
    - `FORKFOLIO_API_BASE_URL` (default: `https://forkfolio-be.onrender.com`)
    - `FORKFOLIO_API_BASE_PATH` (default: `/api/v1`)
    - `FORKFOLIO_API_TOKEN` (optional, required when backend token middleware is enabled)
@@ -18,6 +18,7 @@ npm install
 npm run dev
 ```
 
+`npm run dev/build/start` automatically loads env from repo-root `.env`.
 Open `http://localhost:3000`.
 
 ## Current Pages

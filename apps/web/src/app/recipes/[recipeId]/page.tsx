@@ -3,6 +3,7 @@ import { ArrowLeft, Clock3, LinkIcon, Users2 } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
+import { RecipeBookMembership } from "@/components/recipe-book-membership";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -164,6 +165,10 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
             <Separator className="mt-5" />
           </CardContent>
         </Card>
+
+        <section className="mb-5">
+          <RecipeBookMembership recipeId={recipe.id} />
+        </section>
 
         <RecipeBody recipe={recipe} />
       </main>

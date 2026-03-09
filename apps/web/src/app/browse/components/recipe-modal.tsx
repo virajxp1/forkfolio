@@ -1,4 +1,5 @@
-import { Clock3, Users2, X } from "lucide-react";
+import { Clock3, ExternalLink, Users2, X } from "lucide-react";
+import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,13 +8,20 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { RecipeRecord } from "@/lib/forkfolio-types";
 
 type RecipeModalProps = {
+  recipeId: string;
   recipe: RecipeRecord | null;
   isLoading: boolean;
   error: string | null;
   onClose: () => void;
 };
 
-export function RecipeModal({ recipe, isLoading, error, onClose }: RecipeModalProps) {
+export function RecipeModal({
+  recipeId,
+  recipe,
+  isLoading,
+  error,
+  onClose,
+}: RecipeModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-sm">
       <button
@@ -60,16 +68,25 @@ export function RecipeModal({ recipe, isLoading, error, onClose }: RecipeModalPr
             ) : null}
           </div>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
-            onClick={onClose}
-            aria-label="Close recipe details"
-          >
-            <X className="size-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/recipes/${recipeId}`}>
+                Open Full Page
+                <ExternalLink className="size-4" />
+              </Link>
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-full"
+              onClick={onClose}
+              aria-label="Close recipe details"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="max-h-[75vh] overflow-y-auto px-6 py-5">
