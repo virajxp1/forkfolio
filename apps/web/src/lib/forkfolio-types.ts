@@ -76,3 +76,43 @@ export type ProcessRecipeFailureResponse = {
 export type ProcessRecipeResponse =
   | ProcessRecipeSuccessResponse
   | ProcessRecipeFailureResponse;
+
+export type RecipePreviewRecord = {
+  title: string;
+  ingredients: string[];
+  instructions: string[];
+  servings: string;
+  total_time: string;
+};
+
+export type PreviewRecipeFromUrlRequest = {
+  url: string;
+};
+
+export type PreviewRecipeFromUrlDiagnostics = {
+  raw_html_length?: number;
+  extracted_text_length?: number;
+  cleaned_text_length?: number;
+  [key: string]: number | undefined;
+};
+
+export type PreviewRecipeFromUrlSuccessResponse = {
+  success: true;
+  created: false;
+  url: string;
+  recipe_preview: RecipePreviewRecord;
+  diagnostics?: PreviewRecipeFromUrlDiagnostics;
+  message?: string;
+};
+
+export type PreviewRecipeFromUrlFailureResponse = {
+  success: false;
+  created: false;
+  url: string;
+  diagnostics?: PreviewRecipeFromUrlDiagnostics;
+  error: string;
+};
+
+export type PreviewRecipeFromUrlResponse =
+  | PreviewRecipeFromUrlSuccessResponse
+  | PreviewRecipeFromUrlFailureResponse;

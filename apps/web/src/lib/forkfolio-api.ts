@@ -3,6 +3,8 @@ import "server-only";
 import type {
   ApiErrorPayload,
   GetRecipeResponse,
+  PreviewRecipeFromUrlRequest,
+  PreviewRecipeFromUrlResponse,
   ProcessRecipeRequest,
   ProcessRecipeResponse,
   RecipeRecord,
@@ -135,5 +137,17 @@ export async function processRecipe(
 }
 
 export const processAndStoreRecipe = processRecipe;
+
+export async function previewRecipeFromUrl(
+  payload: PreviewRecipeFromUrlRequest,
+): Promise<PreviewRecipeFromUrlResponse> {
+  return forkfolioFetch<PreviewRecipeFromUrlResponse>("/recipes/preview-from-url", {
+    method: "POST",
+    headers: buildHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+  });
+}
 
 export type { RecipeRecord };
