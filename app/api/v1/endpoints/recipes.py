@@ -10,6 +10,7 @@ from app.api.v1.helpers.recipe_search import (
     build_rerank_candidates,
     normalize_search_query,
 )
+from app.core.cache import hash_cache_key, semantic_search_cache
 from app.core.config import settings
 from app.core.dependencies import (
     get_grocery_list_aggregation_service,
@@ -32,6 +33,22 @@ recipe_processing_service_dep = Depends(get_recipe_processing_service)
 recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
 recipe_search_reranker_service_dep = Depends(get_recipe_search_reranker_service)
 grocery_list_aggregation_service_dep = Depends(get_grocery_list_aggregation_service)
+
+
+def _semantic_search_cache_key(normalized_query: str, limit: int) -> str:
+    return hash_cache_key(
+        "semantic_search",
+        normalized_query,
+        str(limit),
+        str(settings.SEMANTIC_SEARCH_MAX_DISTANCE),
+        str(settings.SEMANTIC_SEARCH_RERANK_ENABLED),
+        str(settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT),
+        str(settings.SEMANTIC_SEARCH_RERANK_MIN_SCORE),
+        str(settings.SEMANTIC_SEARCH_RERANK_FALLBACK_MIN_SCORE),
+        str(settings.SEMANTIC_SEARCH_RERANK_WEIGHT),
+        str(settings.SEMANTIC_SEARCH_RERANK_CUISINE_BOOST),
+        str(settings.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST),
+    )
 
 
 @router.post("/process-and-store")
@@ -91,6 +108,7 @@ def process_and_store_recipe(
             status_code=500,
             detail="Recipe stored but could not be retrieved",
         )
+    semantic_search_cache.clear()
 
     return {
         "recipe_id": recipe_id,
@@ -173,6 +191,15 @@ def semantic_search_recipes(
             status_code=422,
             detail="Query must contain at least 2 non-whitespace characters.",
         )
+    cache_key = _semantic_search_cache_key(normalized_query, limit)
+    cached_response = semantic_search_cache.get(cache_key)
+    if cached_response is not None:
+        logger.info(
+            "Semantic recipe search cache hit query='%s' limit=%s",
+            normalized_query,
+            limit,
+        )
+        return cached_response
 
     logger.info(
         "Semantic recipe search query='%s' limit=%s max_distance=%.3f",
@@ -222,12 +249,14 @@ def semantic_search_recipes(
             )
         else:
             matches = matches[:limit]
-        return {
+        response_payload = {
             "query": normalized_query,
             "count": len(matches),
             "results": matches,
             "success": True,
         }
+        semantic_search_cache.set(cache_key, response_payload)
+        return response_payload
     except Exception as e:
         logger.error(f"Error performing semantic recipe search: {e!s}")
         raise HTTPException(
