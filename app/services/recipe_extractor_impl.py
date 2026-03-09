@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 
 from app.core.prompts import RECIPE_EXTRACTION_SYSTEM_PROMPT
@@ -8,6 +9,50 @@ from app.services.llm_generation_service import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+TITLE_SECTION_PREFIXES = (
+    "ingredients",
+    "instructions",
+    "directions",
+    "method",
+    "servings",
+    "total time",
+    "prep time",
+    "cook time",
+)
+
+
+def _normalize_lines(values: list[str]) -> list[str]:
+    return [value.strip() for value in values if value and value.strip()]
+
+
+def _fallback_title(raw_text: str) -> str:
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lowered = stripped.lower().removesuffix(":")
+        if any(lowered.startswith(prefix) for prefix in TITLE_SECTION_PREFIXES):
+            continue
+        return stripped
+    return ""
+
+
+def _fallback_instructions(raw_text: str) -> list[str]:
+    fallback_steps: list[str] = []
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        numbered_step = re.match(r"^\d+[.)]\s*(.+)$", stripped)
+        if numbered_step:
+            step = numbered_step.group(1).strip()
+            if step:
+                fallback_steps.append(step)
+
+    return fallback_steps
 
 
 class RecipeExtractorImpl:
@@ -40,4 +85,26 @@ class RecipeExtractorImpl:
             schema_name="recipe_extraction",
         )
 
-        return result, error
+        if error or not result:
+            return result, error
+
+        title = result.title.strip()
+        ingredients = _normalize_lines(result.ingredients)
+        instructions = _normalize_lines(result.instructions)
+        servings = result.servings.strip()
+        total_time = result.total_time.strip()
+
+        if not title:
+            title = _fallback_title(raw_text)
+        if not instructions:
+            instructions = _fallback_instructions(raw_text)
+
+        normalized_recipe = Recipe(
+            title=title,
+            ingredients=ingredients,
+            instructions=instructions,
+            servings=servings,
+            total_time=total_time,
+        )
+
+        return normalized_recipe, None
