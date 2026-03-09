@@ -32,7 +32,7 @@ describe("GET /api/search", () => {
     expect(searchRecipesMock).not.toHaveBeenCalled();
   });
 
-  it("calls searchRecipes and returns no-store response", async () => {
+  it("calls searchRecipes and returns cacheable response", async () => {
     searchRecipesMock.mockResolvedValue({
       query: "pasta",
       count: 1,
@@ -47,7 +47,9 @@ describe("GET /api/search", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=60, stale-while-revalidate=300",
+    );
     expect(searchRecipesMock).toHaveBeenCalledWith("pasta", 50);
   });
 

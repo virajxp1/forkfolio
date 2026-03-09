@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getRecipe, isForkfolioApiError } from "@/lib/forkfolio-api";
 
+const RECIPE_CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=900";
+
 type RouteContext = {
   params: Promise<{ recipeId: string }>;
 };
@@ -21,7 +23,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     return NextResponse.json(response, {
       status: 200,
       headers: {
-        "Cache-Control": "no-store",
+        "Cache-Control": RECIPE_CACHE_CONTROL,
       },
     });
   } catch (error) {
