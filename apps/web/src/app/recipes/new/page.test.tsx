@@ -66,7 +66,7 @@ describe("/recipes/new page", () => {
     expect(detailsLink).toHaveAttribute("href", "/recipes/recipe-123");
   });
 
-  it("fetches URL preview and applies it to raw input", async () => {
+  it("fetches URL preview and saves it directly", async () => {
     const user = userEvent.setup();
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(
@@ -92,6 +92,28 @@ describe("/recipes/new page", () => {
         { status: 200, headers: { "Content-Type": "application/json" } },
       ),
     );
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          recipe_id: "recipe-preview-123",
+          created: true,
+          message: "Recipe processed and stored successfully",
+          recipe: {
+            id: "recipe-preview-123",
+            title: "Lemon Garlic Pasta",
+            servings: "2",
+            total_time: "20 minutes",
+            source_url: null,
+            created_at: null,
+            updated_at: null,
+            ingredients: ["200g spaghetti", "2 cloves garlic"],
+            instructions: ["Boil pasta.", "Saute garlic.", "Toss and serve."],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
 
     render(<NewRecipePage />);
 
@@ -100,12 +122,12 @@ describe("/recipes/new page", () => {
 
     expect(await screen.findByText("Lemon Garlic Pasta")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Use Preview As Input/i }));
+    await user.click(screen.getByRole("button", { name: /^Save Recipe$/i }));
 
-    const rawInputField = screen.getByLabelText("Raw recipe text");
-    const rawInputValue = String((rawInputField as HTMLTextAreaElement).value);
-    expect(rawInputValue).toContain("Lemon Garlic Pasta");
-    expect(rawInputValue).toContain("Ingredients:");
+    expect(await screen.findByText("Created")).toBeInTheDocument();
+    expect(await screen.findByText("Recipe processed and stored successfully")).toBeInTheDocument();
+    const detailsLink = screen.getByRole("link", { name: /Open Recipe/i });
+    expect(detailsLink).toHaveAttribute("href", "/recipes/recipe-preview-123");
   });
 
   it("shows error state when API returns failure", async () => {

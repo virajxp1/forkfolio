@@ -184,6 +184,7 @@ export default function NewRecipePage() {
   const [rawInput, setRawInput] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [isPreviewing, setIsPreviewing] = useState(false);
+  const [isSavingPreview, setIsSavingPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewErrorMessage, setPreviewErrorMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -261,10 +262,25 @@ export default function NewRecipePage() {
     }
   }
 
-  function applyPreviewToRawInput(preview: RecipePreviewRecord) {
-    setRawInput(formatRecipePreviewAsRawInput(preview));
+  async function savePreviewRecipe(preview: RecipePreviewRecord) {
+    const normalizedInput = formatRecipePreviewAsRawInput(preview);
+
+    setIsSavingPreview(true);
     setErrorMessage(null);
     setResult(null);
+
+    try {
+      const response = await processRecipeClient(normalizedInput);
+      setRawInput(normalizedInput);
+      setResult(response);
+      if (!response.success) {
+        setErrorMessage(response.error || "Recipe processing failed.");
+      }
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Recipe processing failed."));
+    } finally {
+      setIsSavingPreview(false);
+    }
   }
 
   const successfulResult = result?.success ? result : null;
@@ -315,8 +331,8 @@ export default function NewRecipePage() {
                   Import From URL
                 </CardTitle>
                 <CardDescription>
-                  Fetch a webpage, preview extracted recipe fields, then use the
-                  preview as input.
+                  Fetch a webpage, preview extracted recipe fields, then save the
+                  recipe directly.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -332,7 +348,7 @@ export default function NewRecipePage() {
                       placeholder="https://example.com/chocolate-chip-cookies"
                     />
                     <p className="text-sm text-muted-foreground">
-                      URL preview does not insert into your database.
+                      Preview alone does not insert into your database until you save.
                     </p>
                   </div>
 
@@ -409,11 +425,17 @@ export default function NewRecipePage() {
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() =>
-                          applyPreviewToRawInput(successfulPreview.recipe_preview)
-                        }
+                        onClick={() => void savePreviewRecipe(successfulPreview.recipe_preview)}
+                        disabled={isSavingPreview}
                       >
-                        Use Preview As Input
+                        {isSavingPreview ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Saving...
+                          </>
+                        ) : (
+                          "Save Recipe"
+                        )}
                       </Button>
                     </CardContent>
                   </Card>
