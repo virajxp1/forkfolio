@@ -10,7 +10,6 @@ import type {
   GetRecipeBookResponse,
   GetRecipeBooksForRecipeResponse,
   GetRecipeBookStatsResponse,
-  ListRecipesResponse,
   ListRecipeBooksResponse,
   ProcessRecipeRequest,
   ProcessRecipeResponse,
@@ -130,17 +129,6 @@ export async function searchRecipes(
 
 export async function getRecipe(recipeId: string): Promise<GetRecipeResponse> {
   return forkfolioFetch<GetRecipeResponse>(`/recipes/${encodeURIComponent(recipeId)}`);
-}
-
-export async function getRecipeAll(recipeId: string): Promise<GetRecipeResponse> {
-  return forkfolioFetch<GetRecipeResponse>(
-    `/recipes/${encodeURIComponent(recipeId)}/all`,
-  );
-}
-
-export async function listRecipes(limit = 200): Promise<ListRecipesResponse> {
-  const params = new URLSearchParams({ limit: String(limit) });
-  return forkfolioFetch<ListRecipesResponse>(`/recipes/?${params.toString()}`);
 }
 
 export async function deleteRecipe(recipeId: string): Promise<DeleteRecipeResponse> {

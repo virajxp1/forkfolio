@@ -60,20 +60,6 @@ LEFT JOIN recipe_ingredients i ON i.recipe_id = r.id
 WHERE r.id = ANY(%s::uuid[])
 GROUP BY r.id
 """
-LIST_RECIPES_SQL = """
-SELECT
-    r.id,
-    r.title,
-    r.servings,
-    r.total_time,
-    r.source_url,
-    r.is_test_data,
-    r.created_at,
-    r.updated_at
-FROM recipes r
-ORDER BY LOWER(r.title), r.id
-LIMIT %s
-"""
 
 
 class RecipeManager(BaseManager):
@@ -268,17 +254,6 @@ class RecipeManager(BaseManager):
 
         except Exception as e:
             raise DatabaseError(f"Failed to get recipe with embeddings: {e!s}") from e
-
-    def list_recipes(self, limit: int = 200) -> list[dict]:
-        """List recipes in alphabetical order by title."""
-        normalized_limit = max(1, min(int(limit), 1000))
-
-        try:
-            with self.get_db_context() as (_conn, cursor):
-                cursor.execute(LIST_RECIPES_SQL, (normalized_limit,))
-                return [dict(row) for row in cursor.fetchall()]
-        except Exception as e:
-            raise DatabaseError(f"Failed to list recipes: {e!s}") from e
 
     def get_ingredient_previews(
         self,

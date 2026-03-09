@@ -31,7 +31,7 @@ describe("DeleteRecipeButton", () => {
     vi.stubGlobal("confirm", vi.fn(() => true));
   });
 
-  it("deletes recipe and redirects to browse-all", async () => {
+  it("deletes recipe and redirects to browse", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValueOnce(jsonResponse({ deleted: true, success: true }));
 
@@ -41,7 +41,7 @@ describe("DeleteRecipeButton", () => {
     await user.click(screen.getByRole("button", { name: /Delete Recipe/i }));
 
     expect(fetchMock).toHaveBeenCalledWith("/api/recipes/recipe-1", expect.any(Object));
-    expect(pushMock).toHaveBeenCalledWith("/browse-all");
+    expect(pushMock).toHaveBeenCalledWith("/browse");
     expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 

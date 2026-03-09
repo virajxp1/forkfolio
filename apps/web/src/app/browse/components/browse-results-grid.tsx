@@ -138,7 +138,6 @@ function SearchCard({
 }
 
 type BrowseResultsGridProps = {
-  heading?: string;
   queryFromUrl: string;
   results: SearchRecipeResult[];
   searchError: string | null;
@@ -151,7 +150,6 @@ type BrowseResultsGridProps = {
 };
 
 export function BrowseResultsGrid({
-  heading,
   queryFromUrl,
   results,
   searchError,
@@ -165,7 +163,7 @@ export function BrowseResultsGrid({
   return (
     <section className="mt-10 space-y-5">
       <h2 className="font-display text-3xl tracking-tight">
-        {heading ?? (queryFromUrl ? `Results for "${queryFromUrl}"` : "Search Results")}
+        {queryFromUrl ? `Results for "${queryFromUrl}"` : "Search Results"}
       </h2>
 
       {searchError ? (
@@ -210,7 +208,7 @@ export function BrowseResultsGrid({
         </Card>
       ) : null}
 
-      {(queryFromUrl || heading) && results.length ? (
+      {queryFromUrl && results.length ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {results.map((result) => {
             const recipeId = result.id ?? "";

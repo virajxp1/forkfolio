@@ -144,30 +144,6 @@ def preview_recipe_from_url(
     }
 
 
-@router.get("/")
-def list_recipes(
-    limit: int = Query(
-        200,
-        ge=1,
-        le=1000,
-        description="Maximum number of recipes to return.",
-    ),
-    recipe_manager=recipe_manager_dep,
-) -> dict:
-    """
-    List recipes in alphabetical order by title.
-    """
-    try:
-        recipes = recipe_manager.list_recipes(limit=limit)
-        return {"recipes": recipes, "count": len(recipes), "success": True}
-    except Exception as e:
-        logger.error("Error listing recipes: %s", e)
-        raise HTTPException(
-            status_code=500,
-            detail="Error listing recipes",
-        ) from e
-
-
 @router.get("/search/semantic")
 def semantic_search_recipes(
     query: str = Query(

@@ -58,7 +58,7 @@ export function DeleteRecipeButton({
         );
       }
 
-      router.push("/browse-all");
+      router.push("/browse");
       router.refresh();
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Failed to delete recipe.");

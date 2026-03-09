@@ -48,25 +48,8 @@ export type RecipeRecord = {
   embeddings?: RecipeEmbeddingRecord[];
 };
 
-export type RecipeSummaryRecord = {
-  id: string;
-  title: string;
-  servings: string | null;
-  total_time: string | null;
-  source_url: string | null;
-  is_test_data?: boolean;
-  created_at: string | null;
-  updated_at: string | null;
-};
-
 export type GetRecipeResponse = {
   recipe: RecipeRecord;
-  success?: boolean;
-};
-
-export type ListRecipesResponse = {
-  recipes: RecipeSummaryRecord[];
-  count: number;
   success?: boolean;
 };
 
