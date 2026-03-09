@@ -1,9 +1,3 @@
-import base64
-import binascii
-import json
-from datetime import datetime
-from uuid import UUID
-
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
 from app.api.schemas import (
@@ -16,6 +10,7 @@ from app.api.v1.helpers.recipe_search import (
     build_rerank_candidates,
     normalize_search_query,
 )
+from app.api.v1.helpers.recipe_pagination import RecipePaginationCursor
 from app.core.cache import hash_cache_key, semantic_search_cache
 from app.core.config import settings
 from app.core.dependencies import (
@@ -55,42 +50,6 @@ def _semantic_search_cache_key(normalized_query: str, limit: int) -> str:
         str(settings.SEMANTIC_SEARCH_RERANK_CUISINE_BOOST),
         str(settings.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST),
     )
-
-
-def _encode_recipe_page_cursor(created_at: datetime, recipe_id: str) -> str:
-    if not isinstance(created_at, datetime):
-        raise ValueError("Cursor created_at must be a datetime")
-
-    payload = {
-        "created_at": created_at.isoformat(),
-        "id": recipe_id,
-    }
-    raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-    return base64.urlsafe_b64encode(raw).decode("utf-8").rstrip("=")
-
-
-def _decode_recipe_page_cursor(cursor: str) -> tuple[datetime, str]:
-    try:
-        normalized_cursor = cursor.strip()
-        if not normalized_cursor:
-            raise ValueError("Cursor cannot be empty")
-        padded_cursor = normalized_cursor + "=" * (-len(normalized_cursor) % 4)
-        decoded = base64.urlsafe_b64decode(padded_cursor.encode("utf-8")).decode(
-            "utf-8"
-        )
-        payload = json.loads(decoded)
-        created_at_value = datetime.fromisoformat(payload["created_at"])
-        recipe_id = str(UUID(str(payload["id"])))
-        return created_at_value, recipe_id
-    except (
-        KeyError,
-        TypeError,
-        ValueError,
-        json.JSONDecodeError,
-        UnicodeDecodeError,
-        binascii.Error,
-    ) as exc:
-        raise ValueError("Invalid cursor") from exc
 
 
 @router.post("/process-and-store")
@@ -228,7 +187,7 @@ def list_recipes(
 
     if cursor:
         try:
-            cursor_created_at, cursor_id = _decode_recipe_page_cursor(cursor)
+            cursor_created_at, cursor_id = RecipePaginationCursor.decode(cursor)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="Invalid cursor value") from exc
 
@@ -244,7 +203,7 @@ def list_recipes(
         next_cursor = None
         if has_more and recipes_page:
             last_recipe = recipes_page[-1]
-            next_cursor = _encode_recipe_page_cursor(
+            next_cursor = RecipePaginationCursor.encode(
                 last_recipe["created_at"],
                 str(last_recipe["id"]),
             )

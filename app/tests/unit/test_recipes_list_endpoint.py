@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.v1.endpoints import recipes
+from app.api.v1.helpers.recipe_pagination import RecipePaginationCursor
 from app.core.config import settings
 from app.core.dependencies import get_recipe_manager
 
@@ -106,9 +107,7 @@ def test_list_recipes_returns_next_cursor_when_more_results_exist() -> None:
     assert body["recipes"][0]["id"] == RECIPE_ONE
     assert isinstance(body["next_cursor"], str)
 
-    decoded_created_at, decoded_id = recipes._decode_recipe_page_cursor(
-        body["next_cursor"]
-    )
+    decoded_created_at, decoded_id = RecipePaginationCursor.decode(body["next_cursor"])
     assert decoded_created_at == created_at
     assert decoded_id == RECIPE_ONE
     assert manager.calls == [
@@ -122,7 +121,7 @@ def test_list_recipes_returns_next_cursor_when_more_results_exist() -> None:
 
 def test_list_recipes_passes_decoded_cursor_to_manager() -> None:
     cursor_created_at = datetime(2026, 3, 1, 9, 0, 0)
-    cursor = recipes._encode_recipe_page_cursor(cursor_created_at, RECIPE_ONE)
+    cursor = RecipePaginationCursor.encode(cursor_created_at, RECIPE_ONE)
     manager = FakeRecipeManager(recipes_page=[])
     client = build_client(manager)
 
