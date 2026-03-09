@@ -1,13 +1,21 @@
 import "server-only";
 
 import type {
+  AddRecipeToBookResponse,
   ApiErrorPayload,
+  CreateRecipeBookRequest,
+  CreateRecipeBookResponse,
   GetRecipeResponse,
   PreviewRecipeFromUrlRequest,
   PreviewRecipeFromUrlResponse,
+  GetRecipeBookResponse,
+  GetRecipeBooksForRecipeResponse,
+  GetRecipeBookStatsResponse,
+  ListRecipeBooksResponse,
   ProcessRecipeRequest,
   ProcessRecipeResponse,
   RecipeRecord,
+  RemoveRecipeFromBookResponse,
   SearchRecipesResponse,
 } from "@/lib/forkfolio-types";
 
@@ -122,6 +130,70 @@ export async function searchRecipes(
 
 export async function getRecipe(recipeId: string): Promise<GetRecipeResponse> {
   return forkfolioFetch<GetRecipeResponse>(`/recipes/${encodeURIComponent(recipeId)}`);
+}
+
+export async function listRecipeBooks(
+  limit = 50,
+): Promise<ListRecipeBooksResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return forkfolioFetch<ListRecipeBooksResponse>(`/recipe-books/?${params.toString()}`);
+}
+
+export async function getRecipeBookByName(name: string): Promise<GetRecipeBookResponse> {
+  const params = new URLSearchParams({ name: name.trim() });
+  return forkfolioFetch<GetRecipeBookResponse>(`/recipe-books/?${params.toString()}`);
+}
+
+export async function getRecipeBook(
+  recipeBookId: string,
+): Promise<GetRecipeBookResponse> {
+  return forkfolioFetch<GetRecipeBookResponse>(
+    `/recipe-books/${encodeURIComponent(recipeBookId)}`,
+  );
+}
+
+export async function createRecipeBook(
+  payload: CreateRecipeBookRequest,
+): Promise<CreateRecipeBookResponse> {
+  return forkfolioFetch<CreateRecipeBookResponse>("/recipe-books/", {
+    method: "POST",
+    headers: buildHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getRecipeBookStats(): Promise<GetRecipeBookStatsResponse> {
+  return forkfolioFetch<GetRecipeBookStatsResponse>("/recipe-books/stats");
+}
+
+export async function getRecipeBooksForRecipe(
+  recipeId: string,
+): Promise<GetRecipeBooksForRecipeResponse> {
+  return forkfolioFetch<GetRecipeBooksForRecipeResponse>(
+    `/recipe-books/by-recipe/${encodeURIComponent(recipeId)}`,
+  );
+}
+
+export async function addRecipeToBook(
+  recipeBookId: string,
+  recipeId: string,
+): Promise<AddRecipeToBookResponse> {
+  return forkfolioFetch<AddRecipeToBookResponse>(
+    `/recipe-books/${encodeURIComponent(recipeBookId)}/recipes/${encodeURIComponent(recipeId)}`,
+    { method: "PUT" },
+  );
+}
+
+export async function removeRecipeFromBook(
+  recipeBookId: string,
+  recipeId: string,
+): Promise<RemoveRecipeFromBookResponse> {
+  return forkfolioFetch<RemoveRecipeFromBookResponse>(
+    `/recipe-books/${encodeURIComponent(recipeBookId)}/recipes/${encodeURIComponent(recipeId)}`,
+    { method: "DELETE" },
+  );
 }
 
 export async function processRecipe(

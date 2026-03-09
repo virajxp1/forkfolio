@@ -116,3 +116,67 @@ export type PreviewRecipeFromUrlFailureResponse = {
 export type PreviewRecipeFromUrlResponse =
   | PreviewRecipeFromUrlSuccessResponse
   | PreviewRecipeFromUrlFailureResponse;
+
+export type RecipeBookRecord = {
+  id: string;
+  name: string;
+  normalized_name: string;
+  description: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  recipe_count: number;
+  recipe_ids?: string[];
+};
+
+export type RecipeBookStats = {
+  total_recipe_books: number;
+  total_recipe_book_links: number;
+  unique_recipes_in_books: number;
+  avg_recipes_per_book: number;
+};
+
+export type CreateRecipeBookRequest = {
+  name: string;
+  description?: string | null;
+};
+
+export type CreateRecipeBookResponse = {
+  recipe_book: RecipeBookRecord;
+  created: boolean;
+  success?: boolean;
+};
+
+export type ListRecipeBooksResponse = {
+  recipe_books: RecipeBookRecord[];
+  success?: boolean;
+};
+
+export type GetRecipeBookResponse = {
+  recipe_book: RecipeBookRecord;
+  success?: boolean;
+};
+
+export type GetRecipeBooksForRecipeResponse = {
+  recipe_id: string;
+  recipe_books: RecipeBookRecord[];
+  success?: boolean;
+};
+
+export type GetRecipeBookStatsResponse = {
+  stats: RecipeBookStats;
+  success?: boolean;
+};
+
+export type AddRecipeToBookResponse = {
+  recipe_book_id: string;
+  recipe_id: string;
+  added: boolean;
+  success?: boolean;
+};
+
+export type RemoveRecipeFromBookResponse = {
+  recipe_book_id: string;
+  recipe_id: string;
+  removed: boolean;
+  success?: boolean;
+};

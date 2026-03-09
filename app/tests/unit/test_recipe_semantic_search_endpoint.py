@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.api.v1.endpoints import recipes
+from app.core.cache import TTLCache
 from app.core.config import settings
 from app.core.dependencies import (
     get_recipe_embeddings_service,
@@ -111,6 +112,7 @@ def build_client(
     embeddings_service: FakeEmbeddingsService,
     reranker_service: FakeRerankerService | None = None,
 ) -> TestClient:
+    recipes.semantic_search_cache.clear()
     app = FastAPI()
     app.include_router(recipes.router)
     app.dependency_overrides[get_recipe_manager] = lambda: recipe_manager
@@ -123,6 +125,39 @@ def build_client(
 
 
 SEMANTIC_SEARCH_PATH = f"{settings.API_BASE_PATH}/recipes/search/semantic"
+
+
+def test_semantic_search_reuses_cached_response(monkeypatch) -> None:
+    expected_results = [
+        {
+            "id": "recipe-1",
+            "name": "Classic Lasagne",
+            "distance": 0.08,
+        }
+    ]
+    fake_manager = FakeRecipeManager(results=expected_results)
+    fake_embeddings = FakeEmbeddingsService(embedding=[0.4, 0.5, 0.6])
+    monkeypatch.setattr(
+        recipes,
+        "semantic_search_cache",
+        TTLCache[dict](ttl_seconds=300, max_items=32),
+    )
+    client = build_client(fake_manager, fake_embeddings)
+
+    first_response = client.get(
+        SEMANTIC_SEARCH_PATH,
+        params={"query": "lasagna", "limit": 5},
+    )
+    second_response = client.get(
+        SEMANTIC_SEARCH_PATH,
+        params={"query": "lasagna", "limit": 5},
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert second_response.json() == first_response.json()
+    assert fake_embeddings.calls == ["lasagna"]
+    assert len(fake_manager.calls) == 1
 
 
 def test_semantic_search_returns_results() -> None:

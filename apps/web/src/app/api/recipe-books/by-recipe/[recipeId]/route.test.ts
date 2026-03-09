@@ -3,76 +3,67 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { getRecipeMock, isForkfolioApiErrorMock } = vi.hoisted(() => ({
-  getRecipeMock: vi.fn(),
+const { getRecipeBooksForRecipeMock, isForkfolioApiErrorMock } = vi.hoisted(() => ({
+  getRecipeBooksForRecipeMock: vi.fn(),
   isForkfolioApiErrorMock: vi.fn(),
 }));
 
 vi.mock("@/lib/forkfolio-api", () => ({
-  getRecipe: getRecipeMock,
+  getRecipeBooksForRecipe: getRecipeBooksForRecipeMock,
   isForkfolioApiError: isForkfolioApiErrorMock,
 }));
 
 import { GET } from "./route";
 
-describe("GET /api/recipes/[recipeId]", () => {
+describe("GET /api/recipe-books/by-recipe/[recipeId]", () => {
   beforeEach(() => {
-    getRecipeMock.mockReset();
+    getRecipeBooksForRecipeMock.mockReset();
     isForkfolioApiErrorMock.mockReset();
     isForkfolioApiErrorMock.mockReturnValue(false);
   });
 
   it("returns 400 when recipe id is blank", async () => {
-    const request = new NextRequest("http://localhost:3000/api/recipes/");
-
+    const request = new NextRequest("http://localhost:3000/api/recipe-books/by-recipe/");
     const response = await GET(request, {
-      params: Promise.resolve({ recipeId: "   " }),
+      params: Promise.resolve({ recipeId: "  " }),
     });
 
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ detail: "Missing recipe id." });
-    expect(getRecipeMock).not.toHaveBeenCalled();
+    expect(getRecipeBooksForRecipeMock).not.toHaveBeenCalled();
   });
 
-  it("returns recipe payload and cacheable header", async () => {
-    getRecipeMock.mockResolvedValue({
+  it("returns recipe books for recipe with no-store cache header", async () => {
+    getRecipeBooksForRecipeMock.mockResolvedValue({
+      recipe_id: "recipe-1",
+      recipe_books: [{ id: "book-1", name: "Dinner", recipe_count: 1 }],
       success: true,
-      recipe: {
-        id: "recipe-1",
-        title: "Tomato Soup",
-        servings: "2",
-        total_time: "20 minutes",
-        source_url: null,
-        created_at: null,
-        updated_at: null,
-        ingredients: ["Tomatoes"],
-        instructions: ["Cook"],
-      },
     });
 
-    const request = new NextRequest("http://localhost:3000/api/recipes/recipe-1");
+    const request = new NextRequest(
+      "http://localhost:3000/api/recipe-books/by-recipe/recipe-1",
+    );
     const response = await GET(request, {
       params: Promise.resolve({ recipeId: "recipe-1" }),
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe(
-      "public, max-age=300, stale-while-revalidate=900",
-    );
-    expect(getRecipeMock).toHaveBeenCalledWith("recipe-1");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(getRecipeBooksForRecipeMock).toHaveBeenCalledWith("recipe-1");
   });
 
-  it("maps Forkfolio API errors", async () => {
+  it("maps forkfolio api errors", async () => {
     const apiError = {
       status: 404,
       detail: "Recipe not found",
       message: "Recipe not found",
     };
-
-    getRecipeMock.mockRejectedValue(apiError);
+    getRecipeBooksForRecipeMock.mockRejectedValue(apiError);
     isForkfolioApiErrorMock.mockImplementation((error: unknown) => error === apiError);
 
-    const request = new NextRequest("http://localhost:3000/api/recipes/missing");
+    const request = new NextRequest(
+      "http://localhost:3000/api/recipe-books/by-recipe/missing",
+    );
     const response = await GET(request, {
       params: Promise.resolve({ recipeId: "missing" }),
     });
