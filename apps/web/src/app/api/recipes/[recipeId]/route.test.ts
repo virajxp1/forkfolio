@@ -37,7 +37,7 @@ describe("/api/recipes/[recipeId]", () => {
     expect(getRecipeApiMock).not.toHaveBeenCalled();
   });
 
-  it("returns recipe payload and no-store cache header", async () => {
+  it("returns recipe payload and cacheable header", async () => {
     getRecipeApiMock.mockResolvedValue({
       success: true,
       recipe: {
@@ -59,7 +59,9 @@ describe("/api/recipes/[recipeId]", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(response.headers.get("Cache-Control")).toBe(
+      "public, max-age=300, stale-while-revalidate=900",
+    );
     expect(getRecipeApiMock).toHaveBeenCalledWith("recipe-1");
   });
 

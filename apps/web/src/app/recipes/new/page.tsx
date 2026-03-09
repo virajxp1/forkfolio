@@ -14,10 +14,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   MIN_RECIPE_INPUT_LENGTH,
+  type PreviewRecipeFromUrlResponse,
+  type RecipePreviewRecord,
   type ProcessRecipeResponse,
   type ProcessRecipeSuccessResponse,
 } from "@/lib/forkfolio-types";
@@ -86,6 +89,56 @@ async function processRecipeClient(rawInput: string): Promise<ProcessRecipeRespo
   return (await response.json()) as ProcessRecipeResponse;
 }
 
+async function previewRecipeFromUrlClient(
+  sourceUrl: string,
+): Promise<PreviewRecipeFromUrlResponse> {
+  const response = await fetch("/api/recipes/preview", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify({
+      url: sourceUrl,
+    }),
+  });
+
+  if (!response.ok) {
+    const payload = await readErrorPayload(response);
+    const detail = payload?.detail ?? payload?.error ?? null;
+    throw new BrowserApiError(
+      detail ?? `Request failed with status ${response.status}.`,
+      response.status,
+      detail,
+    );
+  }
+
+  return (await response.json()) as PreviewRecipeFromUrlResponse;
+}
+
+function formatRecipePreviewAsRawInput(preview: RecipePreviewRecord): string {
+  const ingredients = preview.ingredients
+    .map((ingredient) => `- ${ingredient}`)
+    .join("\n");
+  const instructions = preview.instructions
+    .map((instruction, index) => `${index + 1}. ${instruction}`)
+    .join("\n");
+
+  return [
+    preview.title,
+    "",
+    `Servings: ${preview.servings}`,
+    `Total time: ${preview.total_time}`,
+    "",
+    "Ingredients:",
+    ingredients,
+    "",
+    "Instructions:",
+    instructions,
+  ].join("\n");
+}
+
 function SuccessState({ result }: { result: ProcessRecipeSuccessResponse }) {
   const title = result.recipe.title?.trim() || "Recipe";
   const message = result.message?.trim()
@@ -129,12 +182,31 @@ function SuccessState({ result }: { result: ProcessRecipeSuccessResponse }) {
 
 export default function NewRecipePage() {
   const [rawInput, setRawInput] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [previewErrorMessage, setPreviewErrorMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [previewResult, setPreviewResult] = useState<PreviewRecipeFromUrlResponse | null>(
+    null,
+  );
   const [result, setResult] = useState<ProcessRecipeResponse | null>(null);
 
   const trimmedLength = useMemo(() => rawInput.trim().length, [rawInput]);
+  const normalizedSourceUrl = useMemo(() => sourceUrl.trim(), [sourceUrl]);
   const inputTooShort = trimmedLength < MIN_RECIPE_INPUT_LENGTH;
+  const sourceUrlInvalid = useMemo(() => {
+    if (!normalizedSourceUrl) {
+      return false;
+    }
+    try {
+      const parsed = new URL(normalizedSourceUrl);
+      return !["http:", "https:"].includes(parsed.protocol);
+    } catch {
+      return true;
+    }
+  }, [normalizedSourceUrl]);
+  const canPreviewFromUrl = normalizedSourceUrl.length > 0 && !sourceUrlInvalid;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -163,7 +235,52 @@ export default function NewRecipePage() {
     }
   }
 
+  async function onPreviewSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!canPreviewFromUrl) {
+      setPreviewErrorMessage("Enter a valid http or https URL.");
+      return;
+    }
+
+    setIsPreviewing(true);
+    setPreviewErrorMessage(null);
+    setPreviewResult(null);
+
+    try {
+      const response = await previewRecipeFromUrlClient(normalizedSourceUrl);
+      setPreviewResult(response);
+      if (!response.success) {
+        setPreviewErrorMessage(response.error || "Recipe preview failed.");
+      }
+    } catch (error) {
+      setPreviewErrorMessage(
+        getErrorMessage(error, "Failed to fetch recipe preview from URL."),
+      );
+    } finally {
+      setIsPreviewing(false);
+    }
+  }
+
+  function applyPreviewToRawInput(preview: RecipePreviewRecord) {
+    setRawInput(formatRecipePreviewAsRawInput(preview));
+    setErrorMessage(null);
+    setResult(null);
+  }
+
   const successfulResult = result?.success ? result : null;
+  const successfulPreview = previewResult?.success ? previewResult : null;
+  const previewIngredients = successfulPreview
+    ? successfulPreview.recipe_preview.ingredients.slice(0, 8)
+    : [];
+  const previewInstructions = successfulPreview
+    ? successfulPreview.recipe_preview.instructions.slice(0, 8)
+    : [];
+  const additionalIngredientCount = successfulPreview
+    ? Math.max(0, successfulPreview.recipe_preview.ingredients.length - previewIngredients.length)
+    : 0;
+  const additionalInstructionCount = successfulPreview
+    ? Math.max(0, successfulPreview.recipe_preview.instructions.length - previewInstructions.length)
+    : 0;
 
   return (
     <div className="min-h-screen">
@@ -191,6 +308,118 @@ export default function NewRecipePage() {
                 store it in your collection.
               </p>
             </div>
+
+            <Card className="border-border/80 bg-background/80">
+              <CardHeader className="space-y-2">
+                <CardTitle className="font-display text-3xl">
+                  Import From URL
+                </CardTitle>
+                <CardDescription>
+                  Fetch a webpage, preview extracted recipe fields, then use the
+                  preview as input.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <form onSubmit={onPreviewSubmit} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="source_url">Recipe URL</Label>
+                    <Input
+                      id="source_url"
+                      name="source_url"
+                      type="url"
+                      value={sourceUrl}
+                      onChange={(event) => setSourceUrl(event.target.value)}
+                      placeholder="https://example.com/chocolate-chip-cookies"
+                    />
+                    <p className="text-sm text-muted-foreground">
+                      URL preview does not insert into your database.
+                    </p>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    variant="secondary"
+                    disabled={isPreviewing || !canPreviewFromUrl}
+                  >
+                    {isPreviewing ? (
+                      <>
+                        <Loader2 className="size-4 animate-spin" />
+                        Fetching Preview...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="size-4" />
+                        Fetch URL Preview
+                      </>
+                    )}
+                  </Button>
+                </form>
+
+                {previewErrorMessage ? (
+                  <p className="text-sm text-destructive">{previewErrorMessage}</p>
+                ) : null}
+
+                {successfulPreview ? (
+                  <Card className="border-primary/30 bg-primary/5">
+                    <CardHeader className="space-y-2">
+                      <Badge className="w-fit rounded-full px-3 py-0.5">Preview</Badge>
+                      <CardTitle className="font-display text-2xl leading-tight">
+                        {successfulPreview.recipe_preview.title}
+                      </CardTitle>
+                      <CardDescription className="text-sm">
+                        Servings: {successfulPreview.recipe_preview.servings} | Total
+                        time: {successfulPreview.recipe_preview.total_time}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-5">
+                      <div className="grid gap-5 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-foreground/90">
+                            Ingredients
+                          </p>
+                          <ul className="list-disc space-y-1 pl-5 text-sm text-foreground/90">
+                            {previewIngredients.map((ingredient, index) => (
+                              <li key={`${ingredient}-${index}`}>{ingredient}</li>
+                            ))}
+                            {additionalIngredientCount > 0 ? (
+                              <li className="text-muted-foreground">
+                                +{additionalIngredientCount} more
+                              </li>
+                            ) : null}
+                          </ul>
+                        </div>
+
+                        <div className="space-y-2">
+                          <p className="text-sm font-medium text-foreground/90">
+                            Instructions
+                          </p>
+                          <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground/90">
+                            {previewInstructions.map((instruction, index) => (
+                              <li key={`${instruction}-${index}`}>{instruction}</li>
+                            ))}
+                            {additionalInstructionCount > 0 ? (
+                              <li className="text-muted-foreground">
+                                +{additionalInstructionCount} more
+                              </li>
+                            ) : null}
+                          </ol>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() =>
+                          applyPreviewToRawInput(successfulPreview.recipe_preview)
+                        }
+                      >
+                        Use Preview As Input
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : null}
+              </CardContent>
+            </Card>
 
             <Card className="border-border/80 bg-background/80">
               <CardHeader className="space-y-2">

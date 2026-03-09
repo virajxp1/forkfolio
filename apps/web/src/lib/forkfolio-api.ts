@@ -7,6 +7,8 @@ import type {
   CreateRecipeBookResponse,
   DeleteRecipeResponse,
   GetRecipeResponse,
+  PreviewRecipeFromUrlRequest,
+  PreviewRecipeFromUrlResponse,
   GetRecipeBookResponse,
   GetRecipeBooksForRecipeResponse,
   GetRecipeBookStatsResponse,
@@ -215,5 +217,17 @@ export async function processRecipe(
 }
 
 export const processAndStoreRecipe = processRecipe;
+
+export async function previewRecipeFromUrl(
+  payload: PreviewRecipeFromUrlRequest,
+): Promise<PreviewRecipeFromUrlResponse> {
+  return forkfolioFetch<PreviewRecipeFromUrlResponse>("/recipes/preview-from-url", {
+    method: "POST",
+    headers: buildHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+  });
+}
 
 export type { RecipeRecord };
