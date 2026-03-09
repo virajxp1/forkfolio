@@ -56,6 +56,12 @@ class TTLCache(Generic[T]):
         with self._lock:
             self._data.pop(key, None)
 
+    def clear(self) -> None:
+        if not self._enabled:
+            return
+        with self._lock:
+            self._data.clear()
+
     def _prune(self, now: float) -> None:
         expired_keys = [k for k, v in self._data.items() if v.expires_at <= now]
         for key in expired_keys:
@@ -71,10 +77,20 @@ def hash_cache_key(*parts: str) -> str:
 
 LLM_CACHE_TTL_SECONDS = float(os.getenv("LLM_CACHE_TTL_SECONDS", "3600"))
 LLM_CACHE_MAX_ITEMS = int(os.getenv("LLM_CACHE_MAX_ITEMS", "1024"))
+SEMANTIC_SEARCH_CACHE_TTL_SECONDS = float(
+    os.getenv("SEMANTIC_SEARCH_CACHE_TTL_SECONDS", "30")
+)
+SEMANTIC_SEARCH_CACHE_MAX_ITEMS = int(
+    os.getenv("SEMANTIC_SEARCH_CACHE_MAX_ITEMS", "512")
+)
 
 llm_text_cache: TTLCache[str] = TTLCache(
     ttl_seconds=LLM_CACHE_TTL_SECONDS, max_items=LLM_CACHE_MAX_ITEMS
 )
 llm_structured_cache: TTLCache[dict] = TTLCache(
     ttl_seconds=LLM_CACHE_TTL_SECONDS, max_items=LLM_CACHE_MAX_ITEMS
+)
+semantic_search_cache: TTLCache[dict] = TTLCache(
+    ttl_seconds=SEMANTIC_SEARCH_CACHE_TTL_SECONDS,
+    max_items=SEMANTIC_SEARCH_CACHE_MAX_ITEMS,
 )
