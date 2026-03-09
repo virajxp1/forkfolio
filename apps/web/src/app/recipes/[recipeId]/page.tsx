@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowLeft, Clock3, LinkIcon, Users2 } from "lucide-react";
 import { notFound } from "next/navigation";
 
+import { DeleteRecipeButton } from "@/components/delete-recipe-button";
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { RecipeBookMembership } from "@/components/recipe-book-membership";
 import { Badge } from "@/components/ui/badge";
@@ -163,6 +164,12 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
               {recipe.updated_at ? <span>Updated: {recipe.updated_at}</span> : null}
             </div>
             <Separator className="mt-5" />
+            <div className="mt-5">
+              <DeleteRecipeButton
+                recipeId={recipe.id}
+                recipeTitle={recipe.title || "Untitled recipe"}
+              />
+            </div>
           </CardContent>
         </Card>
 

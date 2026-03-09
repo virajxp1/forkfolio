@@ -255,6 +255,26 @@ Validation error payload (`422` example):
 }
 ```
 
+### `GET /api/v1/recipes/`
+
+Auth: Required
+
+Lists recipes in alphabetical order by title.
+
+Query parameters:
+
+- `limit` (integer, optional, default `200`, min `1`, max `1000`)
+
+Success response:
+
+```json
+{
+  "recipes": [],
+  "count": 0,
+  "success": true
+}
+```
+
 ### `GET /api/v1/recipes/search/semantic`
 
 Auth: Required
