@@ -166,4 +166,49 @@ describe("/books page", () => {
       });
     });
   });
+
+  it("shows truncation notice when total books exceed 200", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            recipe_books: Array.from({ length: 200 }, (_, index) => ({
+              id: `book-${index}`,
+              name: `Book ${index}`,
+              normalized_name: `book ${index}`,
+              description: null,
+              recipe_count: 0,
+              created_at: null,
+              updated_at: null,
+            })),
+            success: true,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            stats: {
+              total_recipe_books: 245,
+              total_recipe_book_links: 0,
+              unique_recipes_in_books: 0,
+              avg_recipes_per_book: 0,
+            },
+            success: true,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+    render(<RecipeBooksPage />);
+
+    expect(
+      await screen.findByText("Showing first 200 recipe books"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText(/You currently have 245 recipe books/i),
+    ).toBeInTheDocument();
+  });
 });

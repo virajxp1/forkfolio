@@ -28,6 +28,8 @@ type ErrorPayload = {
   message?: string;
 };
 
+const RECIPE_BOOKS_LIMIT = 200;
+
 class BrowserApiError extends Error {
   status: number;
 
@@ -83,7 +85,9 @@ async function browserFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 async function listRecipeBooksClient(): Promise<ListRecipeBooksResponse> {
-  return browserFetch<ListRecipeBooksResponse>("/api/recipe-books?limit=200");
+  return browserFetch<ListRecipeBooksResponse>(
+    `/api/recipe-books?limit=${RECIPE_BOOKS_LIMIT}`,
+  );
 }
 
 async function getRecipeBooksForRecipeClient(
@@ -272,6 +276,19 @@ export function RecipeBookMembership({ recipeId }: { recipeId: string }) {
                 </Link>
               </Button>
             </CardContent>
+          </Card>
+        ) : null}
+
+        {!isLoading && recipeBooks.length >= RECIPE_BOOKS_LIMIT ? (
+          <Card className="border-border/80 bg-background/80">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Showing first {RECIPE_BOOKS_LIMIT} recipe books
+              </CardTitle>
+              <CardDescription>
+                Additional recipe books are not listed in this panel yet.
+              </CardDescription>
+            </CardHeader>
           </Card>
         ) : null}
 

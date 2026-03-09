@@ -122,4 +122,42 @@ describe("RecipeBookMembership", () => {
 
     expect(await screen.findByRole("button", { name: /Remove/i })).toBeInTheDocument();
   });
+
+  it("shows truncation notice when recipe books list reaches 200", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            recipe_books: Array.from({ length: 200 }, (_, index) => ({
+              id: `book-${index}`,
+              name: `Book ${index}`,
+              normalized_name: `book ${index}`,
+              description: null,
+              recipe_count: 0,
+              created_at: null,
+              updated_at: null,
+            })),
+            success: true,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            recipe_id: "recipe-1",
+            recipe_books: [],
+            success: true,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+
+    render(<RecipeBookMembership recipeId="recipe-1" />);
+
+    expect(
+      await screen.findByText("Showing first 200 recipe books"),
+    ).toBeInTheDocument();
+  });
 });

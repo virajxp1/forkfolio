@@ -32,6 +32,8 @@ type ErrorPayload = {
   message?: string;
 };
 
+const RECIPE_BOOKS_LIMIT = 200;
+
 class BrowserApiError extends Error {
   status: number;
 
@@ -86,7 +88,9 @@ async function browserFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
-async function listRecipeBooksClient(limit = 200): Promise<ListRecipeBooksResponse> {
+async function listRecipeBooksClient(
+  limit = RECIPE_BOOKS_LIMIT,
+): Promise<ListRecipeBooksResponse> {
   return browserFetch<ListRecipeBooksResponse>(`/api/recipe-books?limit=${limit}`);
 }
 
@@ -170,7 +174,7 @@ export default function RecipeBooksPage() {
 
     try {
       const [listResponse, statsResponse] = await Promise.all([
-        listRecipeBooksClient(200),
+        listRecipeBooksClient(RECIPE_BOOKS_LIMIT),
         getRecipeBookStatsClient(),
       ]);
       setRecipeBooks(listResponse.recipe_books ?? []);
@@ -188,6 +192,8 @@ export default function RecipeBooksPage() {
 
   const trimmedName = useMemo(() => name.trim(), [name]);
   const canCreate = trimmedName.length > 0;
+  const totalRecipeBooks = stats?.total_recipe_books ?? recipeBooks.length;
+  const isBookListTruncated = totalRecipeBooks > RECIPE_BOOKS_LIMIT;
 
   async function onCreateRecipeBook(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -359,6 +365,20 @@ export default function RecipeBooksPage() {
 
         <section className="mt-10 space-y-5">
           <h2 className="font-display text-3xl tracking-tight">Your Recipe Books</h2>
+
+          {!isLoading && !loadError && isBookListTruncated ? (
+            <Card className="border-border/80 bg-background/80">
+              <CardHeader>
+                <CardTitle className="text-base">
+                  Showing first {RECIPE_BOOKS_LIMIT} recipe books
+                </CardTitle>
+                <CardDescription>
+                  You currently have {totalRecipeBooks} recipe books. Additional books are
+                  not shown in this view yet.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          ) : null}
 
           {loadError ? (
             <Card className="border-destructive/35 bg-destructive/5">

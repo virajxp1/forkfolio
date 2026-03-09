@@ -29,22 +29,36 @@ type LoadedRecipe = {
   recipe: RecipeRecord | null;
 };
 
-async function loadRecipes(recipeIds: string[]): Promise<LoadedRecipe[]> {
-  const settled = await Promise.allSettled(recipeIds.map((recipeId) => getRecipe(recipeId)));
-  return settled.map((result, index) => {
-    const recipeId = recipeIds[index];
-    if (result.status === "fulfilled") {
-      return {
-        id: recipeId,
-        recipe: result.value.recipe,
-      };
-    }
+const RECIPE_FETCH_BATCH_SIZE = 8;
 
-    return {
-      id: recipeId,
-      recipe: null,
-    };
-  });
+async function loadRecipes(recipeIds: string[]): Promise<LoadedRecipe[]> {
+  const loadedRecipes: LoadedRecipe[] = [];
+
+  for (let index = 0; index < recipeIds.length; index += RECIPE_FETCH_BATCH_SIZE) {
+    const batchIds = recipeIds.slice(index, index + RECIPE_FETCH_BATCH_SIZE);
+    const settled = await Promise.allSettled(
+      batchIds.map((recipeId) => getRecipe(recipeId)),
+    );
+
+    for (let settledIndex = 0; settledIndex < settled.length; settledIndex += 1) {
+      const result = settled[settledIndex];
+      const recipeId = batchIds[settledIndex];
+
+      if (result.status === "fulfilled") {
+        loadedRecipes.push({
+          id: recipeId,
+          recipe: result.value.recipe,
+        });
+      } else {
+        loadedRecipes.push({
+          id: recipeId,
+          recipe: null,
+        });
+      }
+    }
+  }
+
+  return loadedRecipes;
 }
 
 export default async function RecipeBookDetailPage({ params }: RecipeBookDetailPageProps) {
@@ -83,6 +97,8 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
       loadedRecipe.recipe !== null,
   );
   const missingRecipesCount = loadedRecipes.length - availableRecipes.length;
+  const allRecipesUnavailable =
+    recipeIds.length > 0 && availableRecipes.length === 0 && missingRecipesCount > 0;
 
   return (
     <div className="min-h-screen">
@@ -134,7 +150,7 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
               </CardContent>
             </Card>
 
-            {missingRecipesCount > 0 ? (
+            {missingRecipesCount > 0 && !allRecipesUnavailable ? (
               <Card className="mb-5 border-border/80 bg-background/80">
                 <CardHeader>
                   <CardTitle className="text-base">Some recipes could not be loaded</CardTitle>
@@ -146,12 +162,27 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
               </Card>
             ) : null}
 
-            {!availableRecipes.length ? (
+            {!recipeIds.length ? (
               <Card>
                 <CardHeader>
                   <CardTitle>No recipes in this book yet</CardTitle>
                   <CardDescription>
                     Open any recipe and add it to this book from the Recipe Books panel.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button asChild variant="secondary">
+                    <Link href="/browse">Browse Recipes</Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : allRecipesUnavailable ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recipes are currently unavailable</CardTitle>
+                  <CardDescription>
+                    This book has {recipeIds.length} recipe
+                    {recipeIds.length === 1 ? "" : "s"}, but none could be loaded right now.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
