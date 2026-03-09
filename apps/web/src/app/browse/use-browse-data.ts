@@ -3,12 +3,17 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { RecipeRecord, SearchRecipeResult } from "@/lib/forkfolio-types";
+import type {
+  RecipeListItem,
+  RecipeRecord,
+  SearchRecipeResult,
+} from "@/lib/forkfolio-types";
 
 import {
   MIN_QUERY_LENGTH,
   getErrorMessage,
   getRecipeClient,
+  listRecipesClient,
   searchRecipesClient,
 } from "./browse-api";
 import { buildBrowseHref, normalizeParam } from "./browse-utils";
@@ -16,6 +21,37 @@ import { buildBrowseHref, normalizeParam } from "./browse-utils";
 const SEARCH_LIMIT = 12;
 
 type NavigationMode = "push" | "replace";
+
+type DefaultListCache = {
+  results: SearchRecipeResult[];
+  nextCursor: string | null;
+  hasMore: boolean;
+};
+
+function toSearchResults(recipes: RecipeListItem[]): SearchRecipeResult[] {
+  return recipes.map((recipe) => ({
+    id: recipe.id,
+    name: recipe.title,
+    distance: null,
+  }));
+}
+
+function mergeSearchResults(
+  currentResults: SearchRecipeResult[],
+  incomingResults: SearchRecipeResult[],
+): SearchRecipeResult[] {
+  const seen = new Set<string>();
+  const merged: SearchRecipeResult[] = [];
+  for (const result of [...currentResults, ...incomingResults]) {
+    const key = result.id ?? `${result.name ?? ""}-${result.distance ?? ""}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    merged.push(result);
+  }
+  return merged;
+}
 
 export function useBrowseData() {
   const router = useRouter();
@@ -28,6 +64,11 @@ export function useBrowseData() {
   const [results, setResults] = useState<SearchRecipeResult[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [defaultListNextCursor, setDefaultListNextCursor] = useState<string | null>(
+    null,
+  );
+  const [defaultListHasMore, setDefaultListHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   const [recipeById, setRecipeById] = useState<Record<string, RecipeRecord>>({});
   const [recipeLoadingById, setRecipeLoadingById] = useState<Record<string, boolean>>(
@@ -38,6 +79,7 @@ export function useBrowseData() {
   const [selectedRecipeError, setSelectedRecipeError] = useState<string | null>(null);
 
   const searchCacheRef = useRef<Record<string, SearchRecipeResult[]>>({});
+  const defaultListCacheRef = useRef<DefaultListCache | null>(null);
   const recipeCacheRef = useRef<Record<string, RecipeRecord>>({});
   const inFlightRecipeRef = useRef<Record<string, Promise<RecipeRecord>>>({});
   const searchRequestIdRef = useRef(0);
@@ -139,14 +181,61 @@ export function useBrowseData() {
       searchRequestIdRef.current = requestId;
 
       if (!query) {
-        setResults([]);
+        const cachedDefault = defaultListCacheRef.current;
+        if (cachedDefault) {
+          setResults(cachedDefault.results);
+          setDefaultListNextCursor(cachedDefault.nextCursor);
+          setDefaultListHasMore(cachedDefault.hasMore);
+          setSearchError(null);
+          setIsSearching(false);
+          prefetchResultDetails(cachedDefault.results);
+          return;
+        }
+
+        setIsSearching(true);
         setSearchError(null);
-        setIsSearching(false);
+        setResults([]);
+        setDefaultListNextCursor(null);
+        setDefaultListHasMore(false);
+
+        try {
+          const listResponse = await listRecipesClient(SEARCH_LIMIT);
+          if (searchRequestIdRef.current !== requestId) {
+            return;
+          }
+
+          const nextResults = toSearchResults(listResponse.recipes ?? []);
+          const nextCursor = listResponse.next_cursor ?? null;
+          const hasMore = Boolean(listResponse.has_more && nextCursor);
+
+          defaultListCacheRef.current = {
+            results: nextResults,
+            nextCursor,
+            hasMore,
+          };
+
+          setResults(nextResults);
+          setDefaultListNextCursor(nextCursor);
+          setDefaultListHasMore(hasMore);
+          setIsSearching(false);
+          prefetchResultDetails(nextResults);
+        } catch (error) {
+          if (searchRequestIdRef.current !== requestId) {
+            return;
+          }
+          setResults([]);
+          setDefaultListNextCursor(null);
+          setDefaultListHasMore(false);
+          setIsSearching(false);
+          setSearchError(getErrorMessage(error, "Failed to load recipes."));
+        }
         return;
       }
 
       if (query.length < MIN_QUERY_LENGTH) {
         setResults([]);
+        setDefaultListNextCursor(null);
+        setDefaultListHasMore(false);
         setSearchError("Search query must be at least 2 characters.");
         setIsSearching(false);
         return;
@@ -155,6 +244,8 @@ export function useBrowseData() {
       const cachedResults = searchCacheRef.current[query];
       if (cachedResults) {
         setResults(cachedResults);
+        setDefaultListNextCursor(null);
+        setDefaultListHasMore(false);
         setSearchError(null);
         setIsSearching(false);
         prefetchResultDetails(cachedResults);
@@ -164,6 +255,8 @@ export function useBrowseData() {
       setIsSearching(true);
       setSearchError(null);
       setResults([]);
+      setDefaultListNextCursor(null);
+      setDefaultListHasMore(false);
 
       try {
         const searchResponse = await searchRecipesClient(query, SEARCH_LIMIT);
@@ -239,9 +332,10 @@ export function useBrowseData() {
 
   const hasQuery = Boolean(queryFromUrl);
   const hasModal = Boolean(recipeIdFromUrl);
-  const showInitialPrompt = !queryFromUrl && !searchError;
-  const showLoadingGrid = hasQuery && isSearching && !results.length;
-  const showNoResults = hasQuery && !searchError && !isSearching && !results.length;
+  const showInitialPrompt = false;
+  const showLoadingGrid = isSearching && !results.length;
+  const showNoResults = !searchError && !isSearching && !results.length;
+  const showLoadMore = !hasQuery && !searchError && results.length > 0 && defaultListHasMore;
 
   function handleSearchSubmit() {
     const normalizedQuery = queryInput.trim();
@@ -270,6 +364,39 @@ export function useBrowseData() {
     setBrowseUrl(queryFromUrl, undefined, "replace");
   }
 
+  async function handleLoadMore() {
+    if (hasQuery || isLoadingMore || !defaultListHasMore || !defaultListNextCursor) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    setSearchError(null);
+
+    try {
+      const listResponse = await listRecipesClient(SEARCH_LIMIT, defaultListNextCursor);
+      const incomingResults = toSearchResults(listResponse.recipes ?? []);
+      const nextCursor = listResponse.next_cursor ?? null;
+      const hasMore = Boolean(listResponse.has_more && nextCursor);
+
+      setDefaultListNextCursor(nextCursor);
+      setDefaultListHasMore(hasMore);
+      setResults((prev) => {
+        const merged = mergeSearchResults(prev, incomingResults);
+        defaultListCacheRef.current = {
+          results: merged,
+          nextCursor,
+          hasMore,
+        };
+        return merged;
+      });
+      prefetchResultDetails(incomingResults);
+    } catch (error) {
+      setSearchError(getErrorMessage(error, "Failed to load more recipes."));
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }
+
   return {
     queryFromUrl,
     queryInput,
@@ -286,8 +413,11 @@ export function useBrowseData() {
     showInitialPrompt,
     showLoadingGrid,
     showNoResults,
+    showLoadMore,
+    isLoadingMore,
     handleSearchSubmit,
     handleQueryInputChange,
+    handleLoadMore,
     openRecipeModal,
     closeRecipeModal,
   };

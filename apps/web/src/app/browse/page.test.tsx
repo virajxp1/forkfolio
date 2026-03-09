@@ -40,21 +40,93 @@ function recipeResponse(recipeId = "recipe-1", title = "Creamy Pasta"): Response
   });
 }
 
+function listRecipesResponse({
+  recipes = [],
+  nextCursor = null,
+  hasMore = false,
+}: {
+  recipes?: Array<{ id: string; title: string }>;
+  nextCursor?: string | null;
+  hasMore?: boolean;
+} = {}): Response {
+  return jsonResponse({
+    recipes: recipes.map((recipe) => ({
+      id: recipe.id,
+      title: recipe.title,
+      servings: null,
+      total_time: null,
+      source_url: null,
+      created_at: null,
+      updated_at: null,
+    })),
+    count: recipes.length,
+    limit: 12,
+    cursor: null,
+    next_cursor: nextCursor,
+    has_more: hasMore,
+    success: true,
+  });
+}
+
 describe("/browse page", () => {
   beforeEach(() => {
     pushMock.mockReset();
     replaceMock.mockReset();
     searchParams = new URLSearchParams();
-    vi.stubGlobal("fetch", vi.fn());
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(listRecipesResponse()));
   });
 
-  it("shows initial prompt when no query is provided", async () => {
+  it("loads recipe list when no query is provided", async () => {
     const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        listRecipesResponse({
+          recipes: [{ id: "recipe-1", title: "Creamy Pasta" }],
+        }),
+      )
+      .mockResolvedValueOnce(recipeResponse());
 
     render(<BrowsePage />);
 
-    expect(await screen.findByText("Start with a query")).toBeInTheDocument();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(await screen.findByRole("button", { name: "Open Creamy Pasta" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/recipes?limit=12",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("loads more recipes when browsing without query", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock
+      .mockResolvedValueOnce(
+        listRecipesResponse({
+          recipes: [{ id: "recipe-1", title: "Creamy Pasta" }],
+          nextCursor: "cursor-1",
+          hasMore: true,
+        }),
+      )
+      .mockResolvedValueOnce(recipeResponse("recipe-1", "Creamy Pasta"))
+      .mockResolvedValueOnce(
+        listRecipesResponse({
+          recipes: [{ id: "recipe-2", title: "Tomato Soup" }],
+          hasMore: false,
+        }),
+      )
+      .mockResolvedValueOnce(recipeResponse("recipe-2", "Tomato Soup"));
+
+    const user = userEvent.setup();
+    render(<BrowsePage />);
+
+    const loadMoreButton = await screen.findByRole("button", {
+      name: "Load more recipes",
+    });
+    await user.click(loadMoreButton);
+
+    expect(await screen.findByRole("button", { name: "Open Tomato Soup" })).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/recipes?limit=12&cursor=cursor-1",
+      expect.objectContaining({ method: "GET" }),
+    );
   });
 
   it("shows short-query validation error without calling search API", async () => {
