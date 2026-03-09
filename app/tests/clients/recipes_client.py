@@ -17,6 +17,7 @@ class RecipesClient(BaseAPIClient):
 
     # Endpoint paths - centralized in one place
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/process-and-store"
+    PREVIEW_FROM_URL_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/preview-from-url"
     SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/search/semantic"
     GROCERY_LIST_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/grocery-list"
 
@@ -51,6 +52,15 @@ class RecipesClient(BaseAPIClient):
         """
         endpoint = f"{settings.API_BASE_PATH}/recipes/{recipe_id}"
         return self.get(endpoint)
+
+    def preview_recipe_from_url(self, url: str) -> Dict[str, Any]:
+        """
+        Preview recipe extraction from URL without storing.
+
+        Endpoint: POST /api/v1/recipes/preview-from-url
+        Router: app.api.v1.endpoints.recipes:preview_recipe_from_url
+        """
+        return self.post(self.PREVIEW_FROM_URL_ENDPOINT, json_data={"url": url})
 
     def get_recipe_all(self, recipe_id: str) -> Dict[str, Any]:
         """
