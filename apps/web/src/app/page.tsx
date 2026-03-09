@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { BookOpenText, Plus, Search } from "lucide-react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { Button } from "@/components/ui/button";
@@ -22,12 +22,12 @@ export default function HomePage() {
               curated recipe books. Search anything, find it instantly.
             </p>
 
-            <div className="mx-auto mt-8 flex max-w-4xl flex-col gap-4 sm:flex-row sm:justify-center">
+            <div className="mx-auto mt-8 grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-3">
               <Button
                 asChild
                 size="lg"
                 variant="secondary"
-                className="h-14 rounded-full px-8 text-lg font-semibold sm:flex-1"
+                className="h-14 rounded-full px-8 text-lg font-semibold"
               >
                 <Link href="/recipes/new">
                   <Plus className="size-5" />
@@ -38,8 +38,20 @@ export default function HomePage() {
               <Button
                 asChild
                 size="lg"
+                variant="secondary"
+                className="h-14 rounded-full px-8 text-lg font-semibold"
+              >
+                <Link href="/books">
+                  <BookOpenText className="size-5" />
+                  Recipe Books
+                </Link>
+              </Button>
+
+              <Button
+                asChild
+                size="lg"
                 variant="outline"
-                className="h-14 rounded-full border-2 border-primary px-8 text-lg font-semibold text-primary hover:bg-primary/10 sm:flex-1"
+                className="h-14 rounded-full border-2 border-primary px-8 text-lg font-semibold text-primary hover:bg-primary/10"
               >
                 <Link href="/browse">
                   <Search className="size-5" />

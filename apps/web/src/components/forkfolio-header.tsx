@@ -24,9 +24,11 @@ export function ForkfolioHeader() {
               Browse
             </Link>
           </Button>
-          <Button disabled variant="ghost" size="sm">
-            <BookOpenText className="size-4" />
-            Books
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/books">
+              <BookOpenText className="size-4" />
+              Books
+            </Link>
           </Button>
           <Button asChild variant="secondary" size="sm">
             <Link href="/recipes/new">

@@ -1,6 +1,14 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Clock3, Search, Users2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Clock3,
+  ExternalLink,
+  Search,
+  Users2,
+  X,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -248,11 +256,13 @@ function SearchCard({
 }
 
 function RecipeModal({
+  recipeId,
   recipe,
   isLoading,
   error,
   onClose,
 }: {
+  recipeId: string;
   recipe: RecipeRecord | null;
   isLoading: boolean;
   error: string | null;
@@ -304,16 +314,25 @@ function RecipeModal({
             ) : null}
           </div>
 
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="rounded-full"
-            onClick={onClose}
-            aria-label="Close recipe details"
-          >
-            <X className="size-4" />
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/recipes/${recipeId}`}>
+                Open Full Page
+                <ExternalLink className="size-4" />
+              </Link>
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="rounded-full"
+              onClick={onClose}
+              aria-label="Close recipe details"
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="max-h-[75vh] overflow-y-auto px-6 py-5">
@@ -791,6 +810,7 @@ export default function BrowsePage() {
 
       {hasModal ? (
         <RecipeModal
+          recipeId={recipeIdFromUrl}
           recipe={selectedRecipe}
           isLoading={selectedRecipeLoading && !selectedRecipe}
           error={selectedRecipeError}

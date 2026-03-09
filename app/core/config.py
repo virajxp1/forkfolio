@@ -10,9 +10,8 @@ class Settings:
 
     def __init__(self):
         repo_root = Path(__file__).resolve().parents[2]
-        # Keep .env support for secrets without making it mandatory.
+        # Single source of truth for env vars: repo-root .env only.
         load_dotenv(dotenv_path=repo_root / ".env")
-        load_dotenv(dotenv_path=repo_root / ".context" / ".env", override=True)
 
         default_config_path = repo_root / "config" / "app.config.ini"
         config_path = Path(os.getenv("APP_CONFIG_FILE", str(default_config_path)))
