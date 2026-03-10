@@ -8,7 +8,7 @@ import {
   Sparkles,
   Users2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
@@ -16,7 +16,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { readRecentRecipes, type RecentRecipeItem } from "@/lib/recent-recipes";
+import {
+  RECENT_RECIPES_STORAGE_KEY,
+  readRecentRecipes,
+  type RecentRecipeItem,
+} from "@/lib/recent-recipes";
 import type {
   ListRecipeBooksResponse,
   RecipeBookRecord,
@@ -28,6 +32,9 @@ const QUICK_SEARCH_CHIPS = ["curry", "pasta", "high protein"];
 const BOOK_SNAPSHOT_LIMIT = 3;
 const SEARCH_SUGGEST_LIMIT = 5;
 const MIN_SEARCH_LENGTH = 2;
+const EMPTY_RECENT_RECIPES: RecentRecipeItem[] = [];
+let cachedRecentRecipesRaw: string | null = null;
+let cachedRecentRecipesSnapshot: RecentRecipeItem[] = EMPTY_RECENT_RECIPES;
 
 const FEATURE_CARDS = [
   {
@@ -125,6 +132,37 @@ function normalizeSearchResults(results: SearchRecipeResult[]): SearchSuggestion
     .filter((result): result is SearchSuggestion => result !== null);
 }
 
+function subscribeRecentRecipes(onStoreChange: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (
+      event.storageArea === window.localStorage &&
+      (event.key === RECENT_RECIPES_STORAGE_KEY || event.key === null)
+    ) {
+      onStoreChange();
+    }
+  };
+
+  window.addEventListener("storage", onStorage);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+  };
+}
+
+function getRecentRecipesSnapshot(): RecentRecipeItem[] {
+  const rawValue = window.localStorage.getItem(RECENT_RECIPES_STORAGE_KEY);
+  if (rawValue === cachedRecentRecipesRaw) {
+    return cachedRecentRecipesSnapshot;
+  }
+
+  cachedRecentRecipesRaw = rawValue;
+  cachedRecentRecipesSnapshot = readRecentRecipes(window.localStorage);
+  return cachedRecentRecipesSnapshot;
+}
+
+function getRecentRecipesServerSnapshot(): RecentRecipeItem[] {
+  return EMPTY_RECENT_RECIPES;
+}
+
 export default function HomePage() {
   const router = useRouter();
   const [searchInput, setSearchInput] = useState("");
@@ -132,12 +170,11 @@ export default function HomePage() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<SearchSuggestion[]>([]);
 
-  const [recentRecipes] = useState<RecentRecipeItem[]>(() => {
-    if (typeof window === "undefined") {
-      return [];
-    }
-    return readRecentRecipes(window.localStorage);
-  });
+  const recentRecipes = useSyncExternalStore(
+    subscribeRecentRecipes,
+    getRecentRecipesSnapshot,
+    getRecentRecipesServerSnapshot,
+  );
   const [recipeBooks, setRecipeBooks] = useState<RecipeBookRecord[]>([]);
   const [bookSnapshotError, setBookSnapshotError] = useState<string | null>(null);
 

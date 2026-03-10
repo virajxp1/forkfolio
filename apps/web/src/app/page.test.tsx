@@ -1,5 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act } from "react";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 
 import HomePage from "./page";
 
@@ -104,5 +107,56 @@ describe("HomePage", () => {
       "href",
       "/recipes/recipe-1",
     );
+  });
+
+  it("keeps server render stable and hydrates recent history from localStorage", async () => {
+    window.localStorage.setItem(
+      "forkfolio_recent_recipes",
+      JSON.stringify([
+        {
+          id: "recipe-1",
+          title: "Tomato Soup",
+          viewed_at: "2026-01-01T12:00:00.000Z",
+        },
+      ]),
+    );
+
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async () =>
+      jsonResponse({
+        recipe_books: [],
+        success: true,
+      }),
+    );
+
+    const serverMarkup = renderToString(<HomePage />);
+    expect(serverMarkup).toContain("No recent recipes yet");
+    expect(serverMarkup).not.toContain("Continue where you left off");
+
+    const container = document.createElement("div");
+    container.innerHTML = serverMarkup;
+    document.body.appendChild(container);
+
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    let root: ReturnType<typeof hydrateRoot> | null = null;
+
+    try {
+      await act(async () => {
+        root = hydrateRoot(container, <HomePage />);
+      });
+
+      expect(await screen.findByText("Continue where you left off")).toBeInTheDocument();
+      const hydrationWarnings = consoleErrorSpy.mock.calls.filter((call) =>
+        call.some(
+          (arg) =>
+            typeof arg === "string" && arg.toLowerCase().includes("hydration"),
+        ),
+      );
+      expect(hydrationWarnings).toHaveLength(0);
+    } finally {
+      root?.unmount();
+      consoleErrorSpy.mockRestore();
+      container.remove();
+    }
   });
 });
