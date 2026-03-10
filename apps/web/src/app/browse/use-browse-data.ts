@@ -83,6 +83,9 @@ export function useBrowseData() {
   const recipeCacheRef = useRef<Record<string, RecipeRecord>>({});
   const inFlightRecipeRef = useRef<Record<string, Promise<RecipeRecord>>>({});
   const searchRequestIdRef = useRef(0);
+  const isBrowseModeRef = useRef(!queryFromUrl);
+
+  isBrowseModeRef.current = !queryFromUrl;
 
   const setBrowseUrl = useCallback(
     (nextQuery: string, nextRecipeId?: string, navigation: NavigationMode = "push") => {
@@ -374,6 +377,9 @@ export function useBrowseData() {
 
     try {
       const listResponse = await listRecipesClient(SEARCH_LIMIT, defaultListNextCursor);
+      if (!isBrowseModeRef.current) {
+        return;
+      }
       const incomingResults = toSearchResults(listResponse.recipes ?? []);
       const nextCursor = listResponse.next_cursor ?? null;
       const hasMore = Boolean(listResponse.has_more && nextCursor);
@@ -391,6 +397,9 @@ export function useBrowseData() {
       });
       prefetchResultDetails(incomingResults);
     } catch (error) {
+      if (!isBrowseModeRef.current) {
+        return;
+      }
       setSearchError(getErrorMessage(error, "Failed to load more recipes."));
     } finally {
       setIsLoadingMore(false);

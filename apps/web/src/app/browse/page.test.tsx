@@ -40,6 +40,14 @@ function recipeResponse(recipeId = "recipe-1", title = "Creamy Pasta"): Response
   });
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
+}
+
 function listRecipesResponse({
   recipes = [],
   nextCursor = null,
@@ -127,6 +135,54 @@ describe("/browse page", () => {
       "/api/recipes?limit=12&cursor=cursor-1",
       expect.objectContaining({ method: "GET" }),
     );
+  });
+
+  it("ignores stale load-more responses after switching to query mode", async () => {
+    const fetchMock = vi.mocked(fetch);
+    const pendingLoadMore = createDeferred<Response>();
+    fetchMock
+      .mockResolvedValueOnce(
+        listRecipesResponse({
+          recipes: [{ id: "recipe-1", title: "Creamy Pasta" }],
+          nextCursor: "cursor-1",
+          hasMore: true,
+        }),
+      )
+      .mockResolvedValueOnce(recipeResponse("recipe-1", "Creamy Pasta"))
+      .mockReturnValueOnce(pendingLoadMore.promise)
+      .mockResolvedValueOnce(
+        jsonResponse({
+          query: "pasta",
+          count: 1,
+          results: [{ id: "recipe-3", name: "Spicy Noodles", distance: 0.08 }],
+          success: true,
+        }),
+      )
+      .mockResolvedValueOnce(recipeResponse("recipe-3", "Spicy Noodles"));
+
+    const user = userEvent.setup();
+    const { rerender } = render(<BrowsePage />);
+
+    const loadMoreButton = await screen.findByRole("button", {
+      name: "Load more recipes",
+    });
+    await user.click(loadMoreButton);
+
+    searchParams = new URLSearchParams("q=pasta");
+    rerender(<BrowsePage />);
+
+    expect(await screen.findByRole("button", { name: "Open Spicy Noodles" })).toBeInTheDocument();
+
+    pendingLoadMore.resolve(
+      listRecipesResponse({
+        recipes: [{ id: "recipe-2", title: "Tomato Soup" }],
+        hasMore: false,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "Open Tomato Soup" })).not.toBeInTheDocument();
+    });
   });
 
   it("shows short-query validation error without calling search API", async () => {
