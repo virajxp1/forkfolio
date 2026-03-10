@@ -34,43 +34,16 @@ class GroceryListAggregationServiceImpl(GroceryListAggregationService):
             schema_name="grocery_list_aggregation",
         )
         if error or not response:
-            return self._dedupe_preserve_order(cleaned_ingredients), None
+            return None, error or "Failed to aggregate grocery ingredients"
 
         aggregated = [
             ingredient.strip()
             for ingredient in response.ingredients
             if ingredient and ingredient.strip()
         ]
-        if not aggregated:
-            return self._dedupe_preserve_order(cleaned_ingredients), None
-
-        merged = self._dedupe_preserve_order(aggregated)
-        existing = {self._normalize_ingredient(value) for value in merged}
-        for ingredient in cleaned_ingredients:
-            normalized = self._normalize_ingredient(ingredient)
-            if normalized not in existing:
-                merged.append(ingredient)
-                existing.add(normalized)
-
-        return merged, None
+        return aggregated, None
 
     @staticmethod
     def _build_user_prompt(ingredients: list[str]) -> str:
         payload = {"ingredients": ingredients}
         return json.dumps(payload, ensure_ascii=True)
-
-    @staticmethod
-    def _normalize_ingredient(value: str) -> str:
-        return " ".join(value.lower().split())
-
-    @classmethod
-    def _dedupe_preserve_order(cls, values: list[str]) -> list[str]:
-        deduped: list[str] = []
-        seen: set[str] = set()
-        for value in values:
-            normalized = cls._normalize_ingredient(value)
-            if normalized in seen:
-                continue
-            seen.add(normalized)
-            deduped.append(value)
-        return deduped
