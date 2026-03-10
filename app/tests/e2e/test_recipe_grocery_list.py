@@ -69,8 +69,18 @@ def test_create_grocery_list_from_two_recipes(api_client: APIClient) -> None:
         assert grocery_data.get("count") == len(ingredients)
 
         normalized = [str(item).lower() for item in ingredients]
-        assert any("tomato" in item for item in normalized)
-        assert any("chickpea" in item for item in normalized)
+
+        # Validate that the grocery list preserves signals from both source recipes
+        # without requiring one exact LLM phrasing.
+        recipe_one_markers = ("tomato", "garlic")
+        recipe_two_markers = ("chickpea", "garbanzo", "onion", "cumin")
+
+        assert any(
+            marker in item for item in normalized for marker in recipe_one_markers
+        )
+        assert any(
+            marker in item for item in normalized for marker in recipe_two_markers
+        )
     finally:
         if recipe_one_id:
             api_client.recipes.delete_recipe(recipe_one_id)

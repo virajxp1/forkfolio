@@ -29,8 +29,11 @@ export default function BrowsePage() {
     showInitialPrompt,
     showLoadingGrid,
     showNoResults,
+    showLoadMore,
+    isLoadingMore,
     handleSearchSubmit,
     handleQueryInputChange,
+    handleLoadMore,
     openRecipeModal,
     closeRecipeModal,
   } = useBrowseData();
@@ -58,7 +61,7 @@ export default function BrowsePage() {
                   Find anything instantly
                 </h1>
                 <p className="text-lg text-muted-foreground">
-                  Search your collection and open any result to view full recipe details.
+                  Browse your latest recipes or search by dish, ingredient, or cuisine.
                 </p>
               </div>
 
@@ -78,8 +81,11 @@ export default function BrowsePage() {
             showInitialPrompt={showInitialPrompt}
             showLoadingGrid={showLoadingGrid}
             showNoResults={showNoResults}
+            showLoadMore={showLoadMore}
+            isLoadingMore={isLoadingMore}
             recipeById={recipeById}
             recipeLoadingById={recipeLoadingById}
+            onLoadMore={handleLoadMore}
             onCardOpen={openRecipeModal}
           />
         </main>

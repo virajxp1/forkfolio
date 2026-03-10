@@ -13,6 +13,7 @@ import type {
   GetRecipeBooksForRecipeResponse,
   GetRecipeBookStatsResponse,
   ListRecipeBooksResponse,
+  ListRecipesResponse,
   ProcessRecipeRequest,
   ProcessRecipeResponse,
   RecipeRecord,
@@ -131,6 +132,17 @@ export async function searchRecipes(
 
 export async function getRecipe(recipeId: string): Promise<GetRecipeResponse> {
   return forkfolioFetch<GetRecipeResponse>(`/recipes/${encodeURIComponent(recipeId)}`);
+}
+
+export async function listRecipes(
+  limit = 50,
+  cursor?: string,
+): Promise<ListRecipesResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor?.trim()) {
+    params.set("cursor", cursor.trim());
+  }
+  return forkfolioFetch<ListRecipesResponse>(`/recipes/?${params.toString()}`);
 }
 
 export async function deleteRecipe(recipeId: string): Promise<DeleteRecipeResponse> {

@@ -27,6 +27,27 @@ export type SearchRecipesResponse = {
   success?: boolean;
 };
 
+export type RecipeListItem = {
+  id: string;
+  title: string;
+  servings: string | null;
+  total_time: string | null;
+  source_url: string | null;
+  is_test_data?: boolean;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type ListRecipesResponse = {
+  recipes: RecipeListItem[];
+  count: number;
+  limit: number;
+  cursor: string | null;
+  next_cursor: string | null;
+  has_more: boolean;
+  success?: boolean;
+};
+
 export type RecipeEmbeddingRecord = {
   id: string;
   embedding_type: string;

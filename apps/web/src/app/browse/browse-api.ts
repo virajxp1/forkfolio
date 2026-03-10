@@ -1,5 +1,6 @@
 import type {
   GetRecipeResponse,
+  ListRecipesResponse,
   SearchRecipesResponse,
 } from "@/lib/forkfolio-types";
 
@@ -70,6 +71,17 @@ export async function searchRecipesClient(
 ): Promise<SearchRecipesResponse> {
   const params = new URLSearchParams({ query, limit: String(limit) });
   return browserFetch<SearchRecipesResponse>(`/api/search?${params.toString()}`);
+}
+
+export async function listRecipesClient(
+  limit = SEARCH_LIMIT,
+  cursor?: string,
+): Promise<ListRecipesResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor?.trim()) {
+    params.set("cursor", cursor.trim());
+  }
+  return browserFetch<ListRecipesResponse>(`/api/recipes?${params.toString()}`);
 }
 
 export async function getRecipeClient(recipeId: string): Promise<GetRecipeResponse> {
