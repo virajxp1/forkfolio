@@ -81,6 +81,15 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (isForkfolioApiError(error)) {
+      if (error.status === 405) {
+        return NextResponse.json(
+          {
+            detail:
+              "URL preview is not available on the configured backend deployment yet. Deploy the latest backend with POST /api/v1/recipes/preview-from-url.",
+          },
+          { status: 503 },
+        );
+      }
       return NextResponse.json(
         { detail: error.detail ?? error.message },
         { status: error.status },

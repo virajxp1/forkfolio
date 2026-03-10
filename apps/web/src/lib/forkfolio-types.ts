@@ -201,3 +201,5 @@ export type RemoveRecipeFromBookResponse = {
   removed: boolean;
   success?: boolean;
 };
+
+export type DeleteRecipeResponse = boolean;

@@ -5,6 +5,7 @@ import type {
   ApiErrorPayload,
   CreateRecipeBookRequest,
   CreateRecipeBookResponse,
+  DeleteRecipeResponse,
   GetRecipeResponse,
   PreviewRecipeFromUrlRequest,
   PreviewRecipeFromUrlResponse,
@@ -142,6 +143,13 @@ export async function listRecipes(
     params.set("cursor", cursor.trim());
   }
   return forkfolioFetch<ListRecipesResponse>(`/recipes/?${params.toString()}`);
+}
+
+export async function deleteRecipe(recipeId: string): Promise<DeleteRecipeResponse> {
+  return forkfolioFetch<DeleteRecipeResponse>(
+    `/recipes/delete/${encodeURIComponent(recipeId)}`,
+    { method: "DELETE" },
+  );
 }
 
 export async function listRecipeBooks(
