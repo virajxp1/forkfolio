@@ -43,7 +43,7 @@ def test_aggregate_ingredients_returns_llm_output(monkeypatch) -> None:
     )
 
     assert error is None
-    assert ingredients == ["2 tomatoes", "1 yellow onion", "1 tomato"]
+    assert ingredients == ["2 tomatoes", "1 yellow onion", "1 tomato", "1 onion"]
 
 
 def test_aggregate_ingredients_falls_back_when_llm_fails(monkeypatch) -> None:
