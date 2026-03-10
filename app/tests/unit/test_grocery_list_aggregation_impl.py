@@ -43,10 +43,10 @@ def test_aggregate_ingredients_returns_llm_output(monkeypatch) -> None:
     )
 
     assert error is None
-    assert ingredients == ["2 tomatoes", "1 yellow onion"]
+    assert ingredients == ["2 tomatoes", "1 yellow onion", "1 tomato"]
 
 
-def test_aggregate_ingredients_returns_error_when_llm_fails(monkeypatch) -> None:
+def test_aggregate_ingredients_falls_back_when_llm_fails(monkeypatch) -> None:
     service = GroceryListAggregationServiceImpl()
 
     monkeypatch.setattr(
@@ -57,5 +57,23 @@ def test_aggregate_ingredients_returns_error_when_llm_fails(monkeypatch) -> None
 
     ingredients, error = service.aggregate_ingredients(["1 tomato"])
 
-    assert ingredients is None
-    assert error == "llm unavailable"
+    assert error is None
+    assert ingredients == ["1 tomato"]
+
+
+def test_aggregate_ingredients_readds_omitted_source_ingredients(monkeypatch) -> None:
+    service = GroceryListAggregationServiceImpl()
+
+    monkeypatch.setattr(
+        grocery_list_aggregation_impl,
+        "make_llm_call_structured_output_generic",
+        lambda **_kwargs: (
+            GroceryListAggregationResult(ingredients=["2 tomatoes"]),
+            None,
+        ),
+    )
+
+    ingredients, error = service.aggregate_ingredients(["2 tomatoes", "1 onion"])
+
+    assert error is None
+    assert ingredients == ["2 tomatoes", "1 onion"]

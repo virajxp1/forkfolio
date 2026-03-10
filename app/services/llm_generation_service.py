@@ -175,7 +175,10 @@ def make_llm_call_structured_output_generic(
         )
 
         content = completion.choices[0].message.content
-        logger.info(f"Structured output response: {content!r}")
+        logger.debug(
+            "Structured output response received (chars=%s)",
+            len(content or ""),
+        )
 
         # Parse the JSON response
 

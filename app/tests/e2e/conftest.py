@@ -6,9 +6,10 @@ import atexit
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Generator
-from typing import Optional
+from typing import IO, Optional
 
 import pytest
 import requests
@@ -27,14 +28,28 @@ class ServerManager:
 
     def __init__(self):
         self.process: Optional[subprocess.Popen] = None
+        self.stdout_log_file: Optional[IO[bytes]] = None
+        self.stderr_log_file: Optional[IO[bytes]] = None
 
     def start_server(self, port: int, project_root: str) -> None:
         """Start the test server."""
+        self.stdout_log_file = tempfile.NamedTemporaryFile(
+            mode="w+b",
+            prefix="forkfolio-e2e-stdout-",
+            suffix=".log",
+            delete=False,
+        )
+        self.stderr_log_file = tempfile.NamedTemporaryFile(
+            mode="w+b",
+            prefix="forkfolio-e2e-stderr-",
+            suffix=".log",
+            delete=False,
+        )
         self.process = subprocess.Popen(
             [sys.executable, "scripts/start_test_server.py", str(port)],
             cwd=project_root,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stdout=self.stdout_log_file,
+            stderr=self.stderr_log_file,
         )
 
     def stop_server(self) -> None:
@@ -49,16 +64,42 @@ class ServerManager:
                 pass
             finally:
                 self.process = None
+        self._close_logs()
 
     def get_debug_info(self) -> tuple[Optional[str], Optional[str]]:
         """Get server output for debugging."""
-        if self.process:
-            stdout, stderr = self.process.communicate(timeout=5)
-            return (
-                stdout.decode() if stdout else None,
-                stderr.decode() if stderr else None,
-            )
-        return None, None
+        return self._read_log(self.stdout_log_file), self._read_log(
+            self.stderr_log_file
+        )
+
+    @staticmethod
+    def _read_log(log_file: Optional[IO[bytes]]) -> Optional[str]:
+        if not log_file:
+            return None
+        try:
+            log_file.flush()
+            with open(log_file.name, "rb") as file_handle:
+                content = file_handle.read()
+            if not content:
+                return None
+            return content.decode(errors="replace")
+        except Exception:
+            return None
+
+    def _close_logs(self) -> None:
+        for log_file in (self.stdout_log_file, self.stderr_log_file):
+            if not log_file:
+                continue
+            try:
+                log_file.close()
+            except Exception:
+                pass
+            try:
+                os.unlink(log_file.name)
+            except OSError:
+                pass
+        self.stdout_log_file = None
+        self.stderr_log_file = None
 
 
 @pytest.fixture(scope="session", autouse=True)
