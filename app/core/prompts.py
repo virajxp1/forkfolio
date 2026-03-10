@@ -140,14 +140,21 @@ Return ONLY valid JSON in this schema:
 {"ingredients": ["string", "..."]}
 
 Rules:
-- Combine duplicate ingredients into a single consolidated grocery item.
-- Keep quantities when clear (for example "2 cups flour"), and merge quantities
-  when possible.
-- Use concise, shopper-friendly ingredient lines.
-- Keep important qualifiers (for example "fresh", "unsalted", "optional") when they
-  materially change the ingredient.
+- Do NOT omit ingredients. Every input ingredient must be represented in output.
+- Combine only true duplicates into one consolidated line.
+- If uncertain whether two lines are duplicates, keep both lines.
+- Keep quantities when clear (for example "2 cups flour"). If quantities conflict,
+  keep separate lines instead of guessing.
+- Keep important qualifiers (for example "fresh", "unsalted", "optional", prep state)
+  when they materially change the ingredient.
+- Preserve uncommon ingredient names or tokens; do not drop them as noise.
 - Exclude cookware, prep instructions, and non-ingredient text.
+- Use concise, shopper-friendly ingredient lines.
 - Output ingredients in a practical shopping order (produce, proteins, dairy, pantry,
   spices, frozen, other).
-- Return an empty ingredients list if input ingredients are empty.
+- Return an empty ingredients list only when input ingredients are empty.
+
+Before returning, run a coverage check:
+- For each input ingredient line, confirm there is a matching output line.
+- If any input is missing, add it explicitly.
 """
