@@ -141,6 +141,8 @@ Return ONLY valid JSON in this schema:
 
 Rules:
 - Combine duplicate ingredients into a single consolidated grocery item.
+- Preserve coverage: every distinct ingredient concept from input should appear at
+  least once in output (merge true duplicates/synonyms, do not omit).
 - Keep quantities when clear (for example "2 cups flour"), and merge quantities
   when possible.
 - Use concise, shopper-friendly ingredient lines.
