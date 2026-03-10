@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Playfair_Display, Source_Sans_3 } from "next/font/google";
+
+import { GroceryBagProvider } from "@/components/grocery-bag-provider";
+
 import "./globals.css";
 
 const sourceSans = Source_Sans_3({
@@ -25,7 +28,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sourceSans.variable} ${playfair.variable} antialiased`}>
-        {children}
+        <GroceryBagProvider>{children}</GroceryBagProvider>
       </body>
     </html>
   );

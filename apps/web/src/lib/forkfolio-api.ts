@@ -3,6 +3,8 @@ import "server-only";
 import type {
   AddRecipeToBookResponse,
   ApiErrorPayload,
+  CreateGroceryListRequest,
+  CreateGroceryListResponse,
   CreateRecipeBookRequest,
   CreateRecipeBookResponse,
   GetRecipeResponse,
@@ -214,6 +216,18 @@ export async function previewRecipeFromUrl(
   payload: PreviewRecipeFromUrlRequest,
 ): Promise<PreviewRecipeFromUrlResponse> {
   return forkfolioFetch<PreviewRecipeFromUrlResponse>("/recipes/preview-from-url", {
+    method: "POST",
+    headers: buildHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function createGroceryList(
+  payload: CreateGroceryListRequest,
+): Promise<CreateGroceryListResponse> {
+  return forkfolioFetch<CreateGroceryListResponse>("/recipes/grocery-list", {
     method: "POST",
     headers: buildHeaders({
       "Content-Type": "application/json",

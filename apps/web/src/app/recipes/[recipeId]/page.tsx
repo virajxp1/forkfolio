@@ -3,6 +3,7 @@ import { ArrowLeft, Clock3, LinkIcon, Users2 } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
+import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { RecipeBookMembership } from "@/components/recipe-book-membership";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -161,6 +162,16 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               {recipe.created_at ? <span>Created: {recipe.created_at}</span> : null}
               {recipe.updated_at ? <span>Updated: {recipe.updated_at}</span> : null}
+            </div>
+            <div className="mt-5">
+              <RecipeBagToggleButton
+                recipe={{
+                  id: recipe.id,
+                  title: recipe.title,
+                  servings: recipe.servings,
+                  total_time: recipe.total_time,
+                }}
+              />
             </div>
             <Separator className="mt-5" />
           </CardContent>

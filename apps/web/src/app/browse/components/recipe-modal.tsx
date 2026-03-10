@@ -1,6 +1,7 @@
 import { Clock3, ExternalLink, Users2, X } from "lucide-react";
 import Link from "next/link";
 
+import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +70,17 @@ export function RecipeModal({
           </div>
 
           <div className="flex items-center gap-2">
+            {recipe ? (
+              <RecipeBagToggleButton
+                recipe={{
+                  id: recipe.id,
+                  title: recipe.title,
+                  servings: recipe.servings,
+                  total_time: recipe.total_time,
+                }}
+                size="sm"
+              />
+            ) : null}
             <Button asChild variant="outline" size="sm">
               <Link href={`/recipes/${recipeId}`}>
                 Open Full Page
