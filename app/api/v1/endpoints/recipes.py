@@ -10,6 +10,7 @@ from app.api.v1.helpers.recipe_search import (
     build_rerank_candidates,
     normalize_search_query,
 )
+from app.api.v1.helpers.recipe_pagination import RecipePaginationCursor
 from app.core.cache import hash_cache_key, semantic_search_cache
 from app.core.config import settings
 from app.core.dependencies import (
@@ -160,6 +161,67 @@ def preview_recipe_from_url(
             "Recipe preview generated successfully. No database insertion performed."
         ),
     }
+
+
+@router.get("/")
+def list_recipes(
+    limit: int = Query(
+        default=50,
+        ge=1,
+        le=200,
+        description="Maximum number of recipes to return in one page.",
+    ),
+    cursor: str | None = Query(
+        default=None,
+        description=(
+            "Opaque cursor token from the previous response for paginated listing."
+        ),
+    ),
+    recipe_manager=recipe_manager_dep,
+) -> dict:
+    """
+    List recipes with cursor-based pagination.
+    """
+    cursor_created_at = None
+    cursor_id = None
+
+    if cursor:
+        try:
+            cursor_created_at, cursor_id = RecipePaginationCursor.decode(cursor)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="Invalid cursor value") from exc
+
+    try:
+        page_with_sentinel = recipe_manager.list_recipes_page(
+            limit=limit + 1,
+            cursor_created_at=cursor_created_at,
+            cursor_id=cursor_id,
+        )
+        has_more = len(page_with_sentinel) > limit
+        recipes_page = page_with_sentinel[:limit]
+
+        next_cursor = None
+        if has_more and recipes_page:
+            last_recipe = recipes_page[-1]
+            next_cursor = RecipePaginationCursor.encode(
+                last_recipe["created_at"],
+                str(last_recipe["id"]),
+            )
+
+        return {
+            "recipes": recipes_page,
+            "count": len(recipes_page),
+            "limit": limit,
+            "cursor": cursor,
+            "next_cursor": next_cursor,
+            "has_more": has_more,
+            "success": True,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error listing recipes: %s", e)
+        raise HTTPException(status_code=500, detail="Error listing recipes") from e
 
 
 @router.get("/search/semantic")

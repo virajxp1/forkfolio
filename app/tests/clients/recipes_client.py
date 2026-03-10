@@ -5,10 +5,11 @@ Maps to: app/api/v1/endpoints/recipes.py
 This contains the main recipe functionality endpoints.
 """
 
-from urllib.parse import urlencode
 from typing import Any, Dict, Optional
+from urllib.parse import urlencode
 
 from app.core.config import settings
+
 from .base_client import BaseAPIClient
 
 
@@ -17,6 +18,7 @@ class RecipesClient(BaseAPIClient):
 
     # Endpoint paths - centralized in one place
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/process-and-store"
+    LIST_RECIPES_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/"
     PREVIEW_FROM_URL_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/preview-from-url"
     SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/search/semantic"
     GROCERY_LIST_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/grocery-list"
@@ -51,6 +53,24 @@ class RecipesClient(BaseAPIClient):
         Router: app.api.v1.endpoints.recipes:get_recipe
         """
         endpoint = f"{settings.API_BASE_PATH}/recipes/{recipe_id}"
+        return self.get(endpoint)
+
+    def list_recipes(
+        self,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        List recipes with cursor-based pagination.
+
+        Endpoint: GET /api/v1/recipes/
+        Router: app.api.v1.endpoints.recipes:list_recipes
+        """
+        query_params = {"limit": limit}
+        if cursor is not None:
+            query_params["cursor"] = cursor
+        query_string = urlencode(query_params)
+        endpoint = f"{self.LIST_RECIPES_ENDPOINT}?{query_string}"
         return self.get(endpoint)
 
     def preview_recipe_from_url(self, url: str) -> Dict[str, Any]:
