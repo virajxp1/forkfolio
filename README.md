@@ -85,6 +85,10 @@ Architecture and implementation details are documented separately:
 ForkFolio includes a Next.js frontend in `apps/web` so backend and UI can evolve
 in the same repository.
 
+Frontend deploy instructions (including Render setup) live in:
+
+- [ForkFolio Web README](apps/web/README.md)
+
 ### Frontend Stack
 
 - Runtime/tooling: Node.js + npm
