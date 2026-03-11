@@ -1,5 +1,6 @@
 import { ArrowRight, Clock3, Users2 } from "lucide-react";
 
+import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,93 +49,105 @@ function SearchCard({
   const canOpen = Boolean(recipeId);
 
   return (
-    <button
-      type="button"
-      onClick={() => {
-        if (recipeId) {
-          onOpen(recipeId);
-        }
-      }}
-      disabled={!canOpen}
-      className={`block h-full w-full text-left ${canOpen ? "" : "pointer-events-none opacity-60"}`}
-      aria-label={`Open ${title}`}
-    >
-      <Card className="h-full border-border/80 transition hover:-translate-y-0.5 hover:shadow-md">
-        <CardHeader className="gap-3">
-          <CardTitle className="font-display text-2xl tracking-tight">{title}</CardTitle>
+    <Card className={`h-full border-border/80 transition hover:-translate-y-0.5 hover:shadow-md ${canOpen ? "" : "opacity-60"}`}>
+      <CardHeader className="gap-3">
+        <CardTitle className="font-display text-2xl tracking-tight">{title}</CardTitle>
 
-          <CardDescription className="flex min-h-6 flex-wrap items-center gap-2 text-sm">
-            {recipe ? (
-              <>
-                {recipe.total_time ? (
-                  <Badge variant="outline" className="gap-1.5">
-                    <Clock3 className="size-3" />
-                    {recipe.total_time}
-                  </Badge>
-                ) : null}
-                {recipe.servings ? (
-                  <Badge variant="outline" className="gap-1.5">
-                    <Users2 className="size-3" />
-                    {recipe.servings}
-                  </Badge>
-                ) : null}
-                {!recipe.total_time && !recipe.servings ? (
-                  <span className="text-muted-foreground">Metadata available</span>
-                ) : null}
-              </>
-            ) : isDetailsLoading ? (
-              <>
-                <Skeleton className="h-6 w-20 rounded-full bg-muted/85" />
-                <Skeleton className="h-6 w-16 rounded-full bg-muted/85" />
-              </>
-            ) : (
-              <span className="text-muted-foreground">Metadata unavailable</span>
-            )}
-          </CardDescription>
-        </CardHeader>
-
-        <CardContent className="space-y-3">
-          <div className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            Preview
-          </div>
-
+        <CardDescription className="flex min-h-6 flex-wrap items-center gap-2 text-sm">
           {recipe ? (
-            ingredients.length ? (
-              <ul className="space-y-1">
-                {ingredients.map((ingredient) => (
-                  <li
-                    key={`${result.id}-${ingredient}`}
-                    className="truncate text-sm text-foreground/85"
-                    title={ingredient}
-                  >
-                    • {ingredient}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                No ingredient preview available. Open the recipe for full details.
-              </p>
-            )
+            <>
+              {recipe.total_time ? (
+                <Badge variant="outline" className="gap-1.5">
+                  <Clock3 className="size-3" />
+                  {recipe.total_time}
+                </Badge>
+              ) : null}
+              {recipe.servings ? (
+                <Badge variant="outline" className="gap-1.5">
+                  <Users2 className="size-3" />
+                  {recipe.servings}
+                </Badge>
+              ) : null}
+              {!recipe.total_time && !recipe.servings ? (
+                <span className="text-muted-foreground">Metadata available</span>
+              ) : null}
+            </>
           ) : isDetailsLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-11/12 bg-muted/85" />
-              <Skeleton className="h-4 w-10/12 bg-muted/85" />
-              <Skeleton className="h-4 w-9/12 bg-muted/85" />
-            </div>
+            <>
+              <Skeleton className="h-6 w-20 rounded-full bg-muted/85" />
+              <Skeleton className="h-6 w-16 rounded-full bg-muted/85" />
+            </>
+          ) : (
+            <span className="text-muted-foreground">Metadata unavailable</span>
+          )}
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-3">
+        <div className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+          Preview
+        </div>
+
+        {recipe ? (
+          ingredients.length ? (
+            <ul className="space-y-1">
+              {ingredients.map((ingredient) => (
+                <li
+                  key={`${result.id}-${ingredient}`}
+                  className="truncate text-sm text-foreground/85"
+                  title={ingredient}
+                >
+                  • {ingredient}
+                </li>
+              ))}
+            </ul>
           ) : (
             <p className="text-sm text-muted-foreground">
-              Preview unavailable right now. Open the recipe for full details.
+              No ingredient preview available. Open the recipe for full details.
             </p>
-          )}
-
-          <div className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
-            Open recipe
-            <ArrowRight className="size-4" />
+          )
+        ) : isDetailsLoading ? (
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-11/12 bg-muted/85" />
+            <Skeleton className="h-4 w-10/12 bg-muted/85" />
+            <Skeleton className="h-4 w-9/12 bg-muted/85" />
           </div>
-        </CardContent>
-      </Card>
-    </button>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Preview unavailable right now. Open the recipe for full details.
+          </p>
+        )}
+
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={!canOpen}
+            onClick={() => {
+              if (recipeId) {
+                onOpen(recipeId);
+              }
+            }}
+            aria-label={`Open ${title}`}
+          >
+            Open Recipe
+            <ArrowRight className="size-4" />
+          </Button>
+          {recipe ? (
+            <RecipeBagToggleButton
+              recipe={{
+                id: recipe.id,
+                title: recipe.title,
+                servings: recipe.servings,
+                total_time: recipe.total_time,
+              }}
+              size="sm"
+            />
+          ) : null}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
