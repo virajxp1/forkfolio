@@ -5,6 +5,7 @@ import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { RecipeRecord } from "@/lib/forkfolio-types";
 
@@ -23,25 +24,29 @@ export function RecipeModal({
   error,
   onClose,
 }: RecipeModalProps) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 p-4 backdrop-blur-sm">
-      <button
-        type="button"
-        className="absolute inset-0"
-        onClick={onClose}
-        aria-label="Close recipe details"
-      />
+  const title = recipe?.title || "Recipe";
 
-      <Card
-        role="dialog"
-        aria-modal="true"
-        className="relative z-10 w-full max-w-5xl overflow-hidden border-border/80 bg-background shadow-xl"
+  return (
+    <Dialog
+      open
+      onOpenChange={(isOpen) => {
+        if (!isOpen) {
+          onClose();
+        }
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        aria-describedby={undefined}
+        className="w-full max-w-5xl overflow-hidden border-border/80 bg-background p-0 shadow-xl sm:max-w-5xl"
       >
+        <DialogTitle className="sr-only">{title}</DialogTitle>
+
         <div className="flex items-start justify-between gap-4 border-b border-border/70 px-6 py-5">
           <div className="space-y-2">
             {recipe ? (
               <h3 className="font-display text-4xl leading-tight tracking-tight text-primary sm:text-5xl">
-                {recipe.title || "Recipe"}
+                {title}
               </h3>
             ) : isLoading ? (
               <Skeleton className="h-12 w-72 bg-muted/85" />
@@ -69,7 +74,7 @@ export function RecipeModal({
             ) : null}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {recipe ? (
               <RecipeBagToggleButton
                 recipe={{
@@ -186,7 +191,7 @@ export function RecipeModal({
             </div>
           ) : null}
         </div>
-      </Card>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
