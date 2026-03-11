@@ -1,6 +1,12 @@
 PYTHON_BIN := $(shell if [ -x .venv/bin/python ]; then echo .venv/bin/python; else echo python3; fi)
 RUFF_BIN := $(shell if [ -x .venv/bin/ruff ]; then echo .venv/bin/ruff; else echo ruff; fi)
 
+setup-python:
+	uv python install 3.11
+	@if [ -d .venv ]; then mv .venv .venv_backup_$$(date +%Y%m%d_%H%M%S); fi
+	uv venv --python 3.11 .venv
+	uv pip install --python .venv/bin/python -r requirements.txt
+
 run:
 	$(PYTHON_BIN) scripts/run.py --reload
 

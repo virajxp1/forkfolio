@@ -56,6 +56,22 @@ OpenAPI compliance and required auth/error contracts are validated via:
 
 `make lint` runs this validation automatically in CI.
 
+## Python Version Policy
+
+ForkFolio is pinned to Python `3.11` across CI and deploy.
+
+- CI uses Python `3.11` in `.github/workflows`.
+- Docker uses `python:3.11-slim`.
+- Render is pinned via `PYTHON_VERSION=3.11.11` in `render.yaml`.
+
+For local setup, run:
+
+```bash
+make setup-python
+```
+
+This installs Python 3.11 via `uv`, recreates `.venv`, and installs dependencies.
+
 ## Engineering Documentation
 
 Architecture and implementation details are documented separately:

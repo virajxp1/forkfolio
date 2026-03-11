@@ -11,6 +11,8 @@ projects:
             repo: https://github.com/virajxp1/forkfolio
             plan: free
             envVars:
+              - key: PYTHON_VERSION
+                value: 3.11.11
               - key: API_AUTH_TOKEN
                 sync: false
               - key: OPEN_ROUTER_API_KEY
