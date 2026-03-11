@@ -1,99 +1,158 @@
 # ForkFolio
 
-A production-ready recipe management API that transforms raw recipe text into structured, searchable data using AI-powered processing pipelines.
+ForkFolio is a production-oriented recipe platform with:
 
-## What It Does
+- A Python/FastAPI backend (`app/`) for ingestion, extraction, storage, search, books, and grocery-list aggregation.
+- A Next.js frontend (`apps/web`) for browse, recipe detail, books, bag/checkout, and URL/manual recipe import flows.
 
-ForkFolio helps teams ingest messy recipe content and turn it into clean API-accessible records.
+This README is the release runbook for local setup, quality gates, and deploy.
 
-- Accepts raw recipe text and returns structured recipe data.
-- Stores recipes, ingredients, instructions, and embeddings.
-- Supports semantic search across recipes.
-- Supports recipe book creation and recipe-to-book organization.
+## System Overview
 
-## API Documentation
+Core capabilities:
 
-ForkFolio includes generated OpenAPI 3.1 documentation:
+- Process and store recipes from raw text.
+- Preview recipe extraction from URL before saving.
+- Semantic search over recipes.
+- Recipe books (create/list/detail/add/remove).
+- Grocery list aggregation from selected recipes.
+- Recipe deletion and custom not-found UX on the frontend.
 
-- Swagger UI: `/docs`
-- ReDoc: `/redoc`
-- OpenAPI JSON: `/openapi.json`
+Primary docs:
 
-For endpoint-by-endpoint documentation, request/response examples, and auth details, see:
+- API reference: [docs/api-reference.md](docs/api-reference.md)
+- Engineering architecture: [docs/engineering-architecture.md](docs/engineering-architecture.md)
+- Frontend design notes: [docs/frontend-design.md](docs/frontend-design.md)
+- Frontend API contract notes: [docs/frontend-api-contract.md](docs/frontend-api-contract.md)
+- Frontend-specific setup/deploy: [apps/web/README.md](apps/web/README.md)
 
-- [Detailed API Reference](docs/api-reference.md)
+## Runtime Pinning
 
-Protected operations in the OpenAPI contract include both supported auth styles:
+Python is pinned to `3.11` for consistency across local, CI, and deploy:
 
-- `X-API-Token` header
-- `Authorization: Bearer <API_AUTH_TOKEN>`
+- `.python-version` => `3.11`
+- CI workflows use Python `3.11`
+- Docker uses `python:3.11-slim`
+- Render backend runtime is pinned with `PYTHON_VERSION=3.11.11` in `render.yaml`
 
-The OpenAPI contract also documents common middleware/runtime responses:
+## Local Setup
 
-- `401` Unauthorized (protected endpoints)
-- `413` Request too large
-- `429` Rate limit exceeded (protected endpoints)
-- `500` Internal server error
-- `504` Request timeout
+### 1) Backend
 
-## Authentication
+Bootstrap Python environment:
 
-Protected routes accept either:
+```bash
+make setup-python
+```
+
+Run API:
+
+```bash
+make run
+```
+
+API base path defaults to:
+
+- `http://localhost:8000/api/v1`
+
+### 2) Frontend
+
+Install and run:
+
+```bash
+cd apps/web
+npm ci
+npm run dev
+```
+
+Frontend reads env from repo-root `.env` via `apps/web/scripts/run-with-root-env.mjs`.
+
+## Environment Variables
+
+Backend (required in deployed environments):
+
+- `API_AUTH_TOKEN`
+- `OPEN_ROUTER_API_KEY`
+- `SUPABASE_PASSWORD`
+
+Frontend runtime vars:
+
+- `FORKFOLIO_API_BASE_URL` (example: `https://forkfolio-be.onrender.com`)
+- `FORKFOLIO_API_BASE_PATH` (usually `/api/v1`)
+- `FORKFOLIO_API_TOKEN` (required when backend token middleware is enabled)
+
+## Quality Gates (Release Criteria)
+
+Backend:
+
+```bash
+make lint
+make test
+make test-e2e
+```
+
+Frontend:
+
+```bash
+npm --prefix apps/web run lint
+npm --prefix apps/web run test
+npm --prefix apps/web run test:coverage
+npm --prefix apps/web run build
+```
+
+CI workflows:
+
+- `.github/workflows/lint.yml`
+- `.github/workflows/test.yml`
+
+## Deployment
+
+### Backend (Render)
+
+`render.yaml` contains backend service config:
+
+- Runtime: Python
+- Build: `pip install -r requirements.txt`
+- Start: `python3 scripts/run.py`
+- Health check: `/api/v1/health`
+
+### Frontend (Render)
+
+Use a separate Render Web Service for `apps/web`.
+
+Canonical FE deploy steps (commands, env vars, health check) are documented in:
+
+- [apps/web/README.md](apps/web/README.md)
+
+## Release Checklist
+
+1. Branch is synced with `main`.
+2. All backend and frontend quality gates pass.
+3. OpenAPI contract validation passes (`make validate-openapi` or `make lint`).
+4. Render env vars are present and correct for backend and frontend services.
+5. Smoke-test key user flows on deployed FE:
+   - Browse + open recipe
+   - Add recipe (manual and URL preview)
+   - Books add/remove
+   - Bag -> grocery list generation
+   - Delete recipe -> custom not-found page
+
+## Auth + Public Endpoints
+
+Protected endpoints support both:
 
 - `X-API-Token: <API_AUTH_TOKEN>`
 - `Authorization: Bearer <API_AUTH_TOKEN>`
 
-Public routes:
+Public endpoints:
 
 - `GET /api/v1/`
 - `GET /api/v1/health`
 
-## API Contract Validation
+## API Docs (Runtime)
 
-OpenAPI compliance and required auth/error contracts are validated via:
+Available from backend service:
 
-- `make validate-openapi`
-
-`make lint` runs this validation automatically in CI.
-
-## Engineering Documentation
-
-Architecture and implementation details are documented separately:
-
-- [Engineering Architecture](docs/engineering-architecture.md)
-- [Frontend Design](docs/frontend-design.md)
-- [Frontend API Contract Notes](docs/frontend-api-contract.md)
-
-## Frontend Status
-
-ForkFolio includes a Next.js frontend in `apps/web` so backend and UI can evolve
-in the same repository.
-
-### Frontend Stack
-
-- Runtime/tooling: Node.js + npm
-- Framework: Next.js (App Router) + TypeScript
-- UI styling: Tailwind CSS
-- UI component system: `shadcn/ui`
-
-### Implemented Slices
-
-- Landing page (`/`)
-- Semantic recipe browse/search (`/browse`)
-- Recipe detail page (`/recipes/[recipeId]`)
-- Recipe ingestion flow (`/recipes/new`)
-- Internal API proxy routes for frontend-to-backend requests
-
-### Remaining Frontend Work
-
-1. Add auth-aware protected shell and session handling.
-2. Implement recipe books management UX.
-3. Add frontend unit/e2e test coverage.
-4. Tighten generated API typing workflow from `/openapi.json`.
-
-## Frontend UI Rules
-
-- Use `shadcn/ui` components as the default for all UI primitives and patterns.
-- Use library components/compositions first, always.
-- Do not build custom components when an equivalent library component exists.
-- If custom UI is required, compose from `shadcn/ui` primitives instead of raw-from-scratch implementations.
+- Swagger: `/docs`
+- ReDoc: `/redoc`
+- OpenAPI JSON: `/openapi.json`
