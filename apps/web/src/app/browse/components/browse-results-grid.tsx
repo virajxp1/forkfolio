@@ -158,8 +158,11 @@ type BrowseResultsGridProps = {
   showInitialPrompt: boolean;
   showLoadingGrid: boolean;
   showNoResults: boolean;
+  showLoadMore: boolean;
+  isLoadingMore: boolean;
   recipeById: Record<string, RecipeRecord>;
   recipeLoadingById: Record<string, boolean>;
+  onLoadMore: () => void;
   onCardOpen: (recipeId: string) => void;
 };
 
@@ -170,14 +173,17 @@ export function BrowseResultsGrid({
   showInitialPrompt,
   showLoadingGrid,
   showNoResults,
+  showLoadMore,
+  isLoadingMore,
   recipeById,
   recipeLoadingById,
+  onLoadMore,
   onCardOpen,
 }: BrowseResultsGridProps) {
   return (
     <section className="mt-10 space-y-5">
       <h2 className="font-display text-3xl tracking-tight">
-        {queryFromUrl ? `Results for "${queryFromUrl}"` : "Search Results"}
+        {queryFromUrl ? `Results for "${queryFromUrl}"` : "Browse Recipes"}
       </h2>
 
       {searchError ? (
@@ -222,24 +228,42 @@ export function BrowseResultsGrid({
         </Card>
       ) : null}
 
-      {queryFromUrl && results.length ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {results.map((result) => {
-            const recipeId = result.id ?? "";
-            const recipe = recipeId ? recipeById[recipeId] : undefined;
-            const isDetailsLoading = recipeId ? Boolean(recipeLoadingById[recipeId]) : false;
+      {results.length ? (
+        <>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {results.map((result) => {
+              const recipeId = result.id ?? "";
+              const recipe = recipeId ? recipeById[recipeId] : undefined;
+              const isDetailsLoading = recipeId
+                ? Boolean(recipeLoadingById[recipeId])
+                : false;
 
-            return (
-              <SearchCard
-                key={result.id ?? `${result.name}-${result.distance}`}
-                result={result}
-                recipe={recipe}
-                isDetailsLoading={isDetailsLoading}
-                onOpen={onCardOpen}
-              />
-            );
-          })}
-        </div>
+              return (
+                <SearchCard
+                  key={result.id ?? `${result.name}-${result.distance}`}
+                  result={result}
+                  recipe={recipe}
+                  isDetailsLoading={isDetailsLoading}
+                  onOpen={onCardOpen}
+                />
+              );
+            })}
+          </div>
+
+          {showLoadMore ? (
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="lg"
+                onClick={onLoadMore}
+                disabled={isLoadingMore}
+              >
+                {isLoadingMore ? "Loading..." : "Load more recipes"}
+              </Button>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   );

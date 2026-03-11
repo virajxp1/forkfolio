@@ -2,15 +2,14 @@
 
 from app.tests.clients.api_client import APIClient
 from app.tests.utils.constants import HTTP_OK
-from app.tests.utils.helpers import maybe_throttle
 
 
 def test_list_recipes_paginates_with_unique_ids(api_client: APIClient) -> None:
     paged_recipe_ids: list[str] = []
+    seen_cursors: set[str] = set()
     cursor: str | None = None
 
     for page_index in range(5):
-        maybe_throttle()
         list_response = api_client.recipes.list_recipes(limit=1, cursor=cursor)
         assert list_response["status_code"] == HTTP_OK
         list_data = list_response["data"]
@@ -24,10 +23,13 @@ def test_list_recipes_paginates_with_unique_ids(api_client: APIClient) -> None:
         assert isinstance(recipe_id, str)
         paged_recipe_ids.append(recipe_id)
 
-        cursor = list_data.get("next_cursor")
+        next_cursor = list_data.get("next_cursor")
         if page_index < 4:
-            assert isinstance(cursor, str)
-            assert cursor
+            assert isinstance(next_cursor, str)
+            assert next_cursor
+            assert next_cursor not in seen_cursors
+            seen_cursors.add(next_cursor)
+        cursor = next_cursor
 
     assert len(paged_recipe_ids) == 5
     assert len(set(paged_recipe_ids)) == 5
