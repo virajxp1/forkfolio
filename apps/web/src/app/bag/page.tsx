@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, Loader2, ShoppingBag, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { useGroceryBag } from "@/components/grocery-bag-provider";
@@ -89,6 +89,7 @@ export default function GroceryBagPage() {
   const [generatedList, setGeneratedList] = useState<CreateGroceryListResponse | null>(
     null,
   );
+  const generationRequestIdRef = useRef(0);
 
   const recipeIds = useMemo(() => items.map((item) => item.id), [items]);
   const hasItems = itemCount > 0;
@@ -99,17 +100,29 @@ export default function GroceryBagPage() {
       return;
     }
 
+    const requestId = generationRequestIdRef.current + 1;
+    generationRequestIdRef.current = requestId;
+    const requestRecipeIds = [...recipeIds];
+
     setIsGenerating(true);
     setErrorMessage(null);
 
     try {
-      const response = await createGroceryListClient(recipeIds);
+      const response = await createGroceryListClient(requestRecipeIds);
+      if (generationRequestIdRef.current !== requestId) {
+        return;
+      }
       setGeneratedList(response);
     } catch (error) {
+      if (generationRequestIdRef.current !== requestId) {
+        return;
+      }
       setGeneratedList(null);
       setErrorMessage(getErrorMessage(error, "Failed to generate grocery list."));
     } finally {
-      setIsGenerating(false);
+      if (generationRequestIdRef.current === requestId) {
+        setIsGenerating(false);
+      }
     }
   }
 
@@ -152,6 +165,8 @@ export default function GroceryBagPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    generationRequestIdRef.current += 1;
+                    setIsGenerating(false);
                     clearBag();
                     setGeneratedList(null);
                     setErrorMessage(null);
@@ -204,7 +219,11 @@ export default function GroceryBagPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
+                          generationRequestIdRef.current += 1;
+                          setIsGenerating(false);
                           removeRecipe(item.id);
+                          setGeneratedList(null);
+                          setErrorMessage(null);
                         }}
                       >
                         Remove
