@@ -1,5 +1,6 @@
 import { ArrowRight, Clock3, Users2 } from "lucide-react";
 
+import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -135,9 +136,22 @@ function SearchCard({
           </p>
         )}
 
-        <div className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
+        <div className="relative z-20 flex flex-wrap items-center gap-2 pt-1">
+          {recipe ? (
+            <RecipeBagToggleButton
+              recipe={{
+                id: recipe.id,
+                title: recipe.title,
+                servings: recipe.servings,
+                total_time: recipe.total_time,
+              }}
+              size="sm"
+            />
+          ) : null}
+          <div className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
           Open recipe
           <ArrowRight className="size-4" />
+          </div>
         </div>
       </CardContent>
     </Card>

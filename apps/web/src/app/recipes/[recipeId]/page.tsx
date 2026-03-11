@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { DeleteRecipeButton } from "@/components/delete-recipe-button";
 import { ForkfolioHeader } from "@/components/forkfolio-header";
+import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { RecipeBookMembership } from "@/components/recipe-book-membership";
 import { TrackRecipeHistory } from "@/components/track-recipe-history";
 import { Badge } from "@/components/ui/badge";
@@ -167,6 +168,16 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
             <div className="flex flex-wrap gap-x-5 gap-y-1">
               {recipe.created_at ? <span>Created: {recipe.created_at}</span> : null}
               {recipe.updated_at ? <span>Updated: {recipe.updated_at}</span> : null}
+            </div>
+            <div className="mt-5">
+              <RecipeBagToggleButton
+                recipe={{
+                  id: recipe.id,
+                  title: recipe.title,
+                  servings: recipe.servings,
+                  total_time: recipe.total_time,
+                }}
+              />
             </div>
             <Separator className="mt-5" />
             <div className="mt-5">

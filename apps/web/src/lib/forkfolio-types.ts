@@ -69,6 +69,15 @@ export type RecipeRecord = {
   embeddings?: RecipeEmbeddingRecord[];
 };
 
+export type GroceryBagRecipe = Pick<
+  RecipeRecord,
+  "id" | "title" | "servings" | "total_time"
+>;
+
+export type GroceryBagItem = GroceryBagRecipe & {
+  added_at: string;
+};
+
 export type GetRecipeResponse = {
   recipe: RecipeRecord;
   success?: boolean;
@@ -137,6 +146,17 @@ export type PreviewRecipeFromUrlFailureResponse = {
 export type PreviewRecipeFromUrlResponse =
   | PreviewRecipeFromUrlSuccessResponse
   | PreviewRecipeFromUrlFailureResponse;
+
+export type CreateGroceryListRequest = {
+  recipe_ids: string[];
+};
+
+export type CreateGroceryListResponse = {
+  recipe_ids: string[];
+  ingredients: string[];
+  count: number;
+  success?: boolean;
+};
 
 export type RecipeBookRecord = {
   id: string;
