@@ -95,7 +95,7 @@ export default function GroceryBagPage() {
 
   async function onGenerateGroceryList() {
     if (!hasItems) {
-      setErrorMessage("Add at least one recipe before checkout.");
+      setErrorMessage("Add at least one recipe to build a grocery list.");
       return;
     }
 
@@ -132,7 +132,7 @@ export default function GroceryBagPage() {
                 Grocery Bag
               </Badge>
               <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
-                Bag then checkout
+                Bag then build list
               </h1>
               <p className="text-lg text-muted-foreground">
                 Add recipes as you browse, then generate one combined grocery list.
@@ -169,7 +169,7 @@ export default function GroceryBagPage() {
                     <CardHeader>
                       <CardTitle className="text-base">Your bag is empty</CardTitle>
                       <CardDescription>
-                        Open a recipe and use Add to Bag to start checkout.
+                        Open a recipe and use Add to Bag to start building your list.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -217,7 +217,7 @@ export default function GroceryBagPage() {
 
             <Card className="border-border/80 bg-background/85">
               <CardHeader>
-                <CardTitle className="font-display text-3xl">Checkout</CardTitle>
+                <CardTitle className="font-display text-3xl">Build Grocery List</CardTitle>
                 <CardDescription>
                   Generate one grocery list from all recipes in your bag.
                 </CardDescription>
@@ -237,7 +237,7 @@ export default function GroceryBagPage() {
                 {errorMessage ? (
                   <Card className="border-destructive/35 bg-destructive/5">
                     <CardHeader>
-                      <CardTitle className="text-base">Checkout failed</CardTitle>
+                      <CardTitle className="text-base">List generation failed</CardTitle>
                       <CardDescription>{errorMessage}</CardDescription>
                     </CardHeader>
                   </Card>
