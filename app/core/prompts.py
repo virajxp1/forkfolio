@@ -139,6 +139,13 @@ must merge them into one simple grocery list.
 Return ONLY valid JSON in this schema:
 {"ingredients": ["string", "..."]}
 
+Hard output contract:
+- Output must be a single JSON object that starts with "{" and ends with "}".
+- Do not wrap the JSON in markdown or code fences.
+- Do not output explanations, comments, or extra keys.
+- Never output null for "ingredients"; always output a JSON array.
+- If uncertain, still return valid JSON and use {"ingredients": []}.
+
 Rules:
 - Combine duplicate ingredients into a single consolidated grocery item.
 - Preserve coverage: every distinct ingredient concept from input should appear at

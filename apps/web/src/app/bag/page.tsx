@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeft, Loader2, ShoppingBag, Trash2 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { useGroceryBag } from "@/components/grocery-bag-provider";
@@ -89,27 +89,40 @@ export default function GroceryBagPage() {
   const [generatedList, setGeneratedList] = useState<CreateGroceryListResponse | null>(
     null,
   );
+  const generationRequestIdRef = useRef(0);
 
   const recipeIds = useMemo(() => items.map((item) => item.id), [items]);
   const hasItems = itemCount > 0;
 
   async function onGenerateGroceryList() {
     if (!hasItems) {
-      setErrorMessage("Add at least one recipe before checkout.");
+      setErrorMessage("Add at least one recipe to build a grocery list.");
       return;
     }
+
+    const requestId = generationRequestIdRef.current + 1;
+    generationRequestIdRef.current = requestId;
+    const requestRecipeIds = [...recipeIds];
 
     setIsGenerating(true);
     setErrorMessage(null);
 
     try {
-      const response = await createGroceryListClient(recipeIds);
+      const response = await createGroceryListClient(requestRecipeIds);
+      if (generationRequestIdRef.current !== requestId) {
+        return;
+      }
       setGeneratedList(response);
     } catch (error) {
+      if (generationRequestIdRef.current !== requestId) {
+        return;
+      }
       setGeneratedList(null);
       setErrorMessage(getErrorMessage(error, "Failed to generate grocery list."));
     } finally {
-      setIsGenerating(false);
+      if (generationRequestIdRef.current === requestId) {
+        setIsGenerating(false);
+      }
     }
   }
 
@@ -132,7 +145,7 @@ export default function GroceryBagPage() {
                 Grocery Bag
               </Badge>
               <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
-                Bag then checkout
+                Bag then build list
               </h1>
               <p className="text-lg text-muted-foreground">
                 Add recipes as you browse, then generate one combined grocery list.
@@ -152,6 +165,8 @@ export default function GroceryBagPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => {
+                    generationRequestIdRef.current += 1;
+                    setIsGenerating(false);
                     clearBag();
                     setGeneratedList(null);
                     setErrorMessage(null);
@@ -169,7 +184,7 @@ export default function GroceryBagPage() {
                     <CardHeader>
                       <CardTitle className="text-base">Your bag is empty</CardTitle>
                       <CardDescription>
-                        Open a recipe and use Add to Bag to start checkout.
+                        Open a recipe and use Add to Bag to start building your list.
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -204,7 +219,11 @@ export default function GroceryBagPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
+                          generationRequestIdRef.current += 1;
+                          setIsGenerating(false);
                           removeRecipe(item.id);
+                          setGeneratedList(null);
+                          setErrorMessage(null);
                         }}
                       >
                         Remove
@@ -217,7 +236,7 @@ export default function GroceryBagPage() {
 
             <Card className="border-border/80 bg-background/85">
               <CardHeader>
-                <CardTitle className="font-display text-3xl">Checkout</CardTitle>
+                <CardTitle className="font-display text-3xl">Build Grocery List</CardTitle>
                 <CardDescription>
                   Generate one grocery list from all recipes in your bag.
                 </CardDescription>
@@ -237,7 +256,7 @@ export default function GroceryBagPage() {
                 {errorMessage ? (
                   <Card className="border-destructive/35 bg-destructive/5">
                     <CardHeader>
-                      <CardTitle className="text-base">Checkout failed</CardTitle>
+                      <CardTitle className="text-base">List generation failed</CardTitle>
                       <CardDescription>{errorMessage}</CardDescription>
                     </CardHeader>
                   </Card>

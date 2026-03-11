@@ -116,4 +116,51 @@ describe("/bag page", () => {
     expect(await screen.findByText("Your Grocery List")).toBeInTheDocument();
     expect(await screen.findByText("1 lb pasta")).toBeInTheDocument();
   });
+
+  it("ignores stale generation response after bag is cleared mid-request", async () => {
+    localStorageMock.setItem(
+      "forkfolio.grocery-bag.v1",
+      JSON.stringify([
+        {
+          id: "recipe-1",
+          title: "Creamy Pasta",
+          servings: "2",
+          total_time: "20 minutes",
+          added_at: "2026-03-10T01:00:00.000Z",
+        },
+      ]),
+    );
+
+    let resolveRequest: ((response: Response) => void) | null = null;
+    const pendingRequest = new Promise<Response>((resolve) => {
+      resolveRequest = resolve;
+    });
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockReturnValue(pendingRequest);
+
+    const user = userEvent.setup();
+    renderWithProvider();
+
+    expect(await screen.findByText("Creamy Pasta")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Generate Grocery List/i }));
+    await user.click(screen.getByRole("button", { name: /Clear Bag/i }));
+
+    expect(await screen.findByText("Your bag is empty")).toBeInTheDocument();
+
+    resolveRequest?.(
+      new Response(
+        JSON.stringify({
+          recipe_ids: ["recipe-1"],
+          ingredients: ["1 lb pasta"],
+          count: 1,
+          success: true,
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await waitFor(() => {
+      expect(screen.queryByText("Your Grocery List")).not.toBeInTheDocument();
+    });
+  });
 });

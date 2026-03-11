@@ -174,18 +174,56 @@ def make_llm_call_structured_output_generic(
             )
         )
 
-        content = completion.choices[0].message.content
+        if not completion.choices:
+            error_msg = "LLM API returned no choices for structured output."
+            logger.error(error_msg)
+            return None, error_msg
+
+        choice = completion.choices[0]
+        message = choice.message
+        content = message.content
         logger.info(f"Structured output response: {content!r}")
+
+        if content is None:
+            refusal = getattr(message, "refusal", None)
+            finish_reason = getattr(choice, "finish_reason", None)
+            has_tool_calls = bool(getattr(message, "tool_calls", None))
+            error_parts = ["Model returned no JSON content."]
+            if refusal:
+                error_parts.append(f"Refusal: {refusal}")
+            if finish_reason:
+                error_parts.append(f"finish_reason={finish_reason}")
+            if has_tool_calls:
+                error_parts.append("Response contained tool calls instead of content.")
+            error_msg = " ".join(error_parts)
+            logger.error(error_msg)
+            return None, error_msg
+
+        if not isinstance(content, (str, bytes, bytearray)):
+            error_msg = (
+                "Model returned unsupported content type for JSON parsing: "
+                f"{type(content).__name__}"
+            )
+            logger.error(error_msg)
+            return None, error_msg
+
+        content_text = (
+            content
+            if isinstance(content, str)
+            else content.decode("utf-8", errors="replace")
+        )
 
         # Parse the JSON response
 
         try:
-            response_data = json.loads(content)
+            response_data = json.loads(content_text)
             result = model_class.model_validate(response_data)
             llm_structured_cache.set(cache_key, result.model_dump())
             return result, None
         except json.JSONDecodeError as e:
-            error_msg = f"Failed to parse JSON response: {e}. Raw content: {content!r}"
+            error_msg = (
+                f"Failed to parse JSON response: {e}. Raw content: {content_text!r}"
+            )
             logger.error(error_msg)
             return None, error_msg
         except Exception as e:

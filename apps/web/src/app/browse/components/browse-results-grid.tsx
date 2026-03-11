@@ -49,7 +49,25 @@ function SearchCard({
   const canOpen = Boolean(recipeId);
 
   return (
-    <Card className={`h-full border-border/80 transition hover:-translate-y-0.5 hover:shadow-md ${canOpen ? "" : "opacity-60"}`}>
+    <Card
+      className={`relative h-full border-border/80 transition ${
+        canOpen ? "hover:-translate-y-0.5 hover:shadow-md" : "opacity-60"
+      }`}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={() => {
+          if (recipeId) {
+            onOpen(recipeId);
+          }
+        }}
+        disabled={!canOpen}
+        aria-label={`Open ${title}`}
+        className="absolute inset-0 z-10 h-full w-full rounded-xl border-0 p-0 hover:bg-transparent"
+      >
+        <span className="sr-only">Open {title}</span>
+      </Button>
       <CardHeader className="gap-3">
         <CardTitle className="font-display text-2xl tracking-tight">{title}</CardTitle>
 
@@ -118,22 +136,7 @@ function SearchCard({
           </p>
         )}
 
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            disabled={!canOpen}
-            onClick={() => {
-              if (recipeId) {
-                onOpen(recipeId);
-              }
-            }}
-            aria-label={`Open ${title}`}
-          >
-            Open Recipe
-            <ArrowRight className="size-4" />
-          </Button>
+        <div className="relative z-20 flex flex-wrap items-center gap-2 pt-1">
           {recipe ? (
             <RecipeBagToggleButton
               recipe={{
@@ -145,6 +148,10 @@ function SearchCard({
               size="sm"
             />
           ) : null}
+          <div className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
+          Open recipe
+          <ArrowRight className="size-4" />
+          </div>
         </div>
       </CardContent>
     </Card>
