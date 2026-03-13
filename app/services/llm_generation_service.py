@@ -158,78 +158,140 @@ def make_llm_call_structured_output_generic(
             type="json_schema",
             json_schema={"name": schema_name, "schema": schema},
         )
+        max_attempts = settings.LLM_STRUCTURED_OUTPUT_MAX_ATTEMPTS
+        base_max_tokens = max(1, settings.LLM_STRUCTURED_MAX_TOKENS)
+        last_error_msg: Optional[str] = None
 
-        # Call with proper JSON schema format
-        completion = _with_retries(
-            lambda: client.chat.completions.create(
-                model=model_name,
-                messages=[
-                    ChatCompletionSystemMessageParam(
-                        role="system", content=system_prompt
-                    ),
-                    ChatCompletionUserMessageParam(role="user", content=user_prompt),
-                ],
-                response_format=response_format,
-                max_tokens=1000,
+        for attempt in range(1, max_attempts + 1):
+            attempt_max_tokens = base_max_tokens * attempt
+
+            completion = _with_retries(
+                lambda: client.chat.completions.create(
+                    model=model_name,
+                    messages=[
+                        ChatCompletionSystemMessageParam(
+                            role="system", content=system_prompt
+                        ),
+                        ChatCompletionUserMessageParam(
+                            role="user", content=user_prompt
+                        ),
+                    ],
+                    response_format=response_format,
+                    max_tokens=attempt_max_tokens,
+                )
             )
-        )
 
-        if not completion.choices:
-            error_msg = "LLM API returned no choices for structured output."
-            logger.error(error_msg)
-            return None, error_msg
+            if not completion.choices:
+                error_msg = "LLM API returned no choices for structured output."
+                logger.error(error_msg)
+                last_error_msg = error_msg
+                if attempt < max_attempts:
+                    logger.warning(
+                        "Retrying structured output after empty choices "
+                        "(attempt %s/%s).",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    continue
+                return None, error_msg
 
-        choice = completion.choices[0]
-        message = choice.message
-        content = message.content
-        logger.info(f"Structured output response: {content!r}")
-
-        if content is None:
-            refusal = getattr(message, "refusal", None)
-            finish_reason = getattr(choice, "finish_reason", None)
-            has_tool_calls = bool(getattr(message, "tool_calls", None))
-            error_parts = ["Model returned no JSON content."]
-            if refusal:
-                error_parts.append(f"Refusal: {refusal}")
-            if finish_reason:
-                error_parts.append(f"finish_reason={finish_reason}")
-            if has_tool_calls:
-                error_parts.append("Response contained tool calls instead of content.")
-            error_msg = " ".join(error_parts)
-            logger.error(error_msg)
-            return None, error_msg
-
-        if not isinstance(content, (str, bytes, bytearray)):
-            error_msg = (
-                "Model returned unsupported content type for JSON parsing: "
-                f"{type(content).__name__}"
+            choice = completion.choices[0]
+            message = choice.message
+            content = message.content
+            logger.info(
+                "Structured output response (attempt %s/%s): %r",
+                attempt,
+                max_attempts,
+                content,
             )
-            logger.error(error_msg)
-            return None, error_msg
 
-        content_text = (
-            content
-            if isinstance(content, str)
-            else content.decode("utf-8", errors="replace")
-        )
+            if content is None:
+                refusal = getattr(message, "refusal", None)
+                finish_reason = getattr(choice, "finish_reason", None)
+                has_tool_calls = bool(getattr(message, "tool_calls", None))
+                error_parts = ["Model returned no JSON content."]
+                if refusal:
+                    error_parts.append(f"Refusal: {refusal}")
+                if finish_reason:
+                    error_parts.append(f"finish_reason={finish_reason}")
+                if has_tool_calls:
+                    error_parts.append(
+                        "Response contained tool calls instead of content."
+                    )
+                error_msg = " ".join(error_parts)
+                logger.error(error_msg)
+                last_error_msg = error_msg
+                if refusal:
+                    return None, error_msg
+                if attempt < max_attempts:
+                    logger.warning(
+                        "Retrying structured output after missing content "
+                        "(attempt %s/%s). finish_reason=%s",
+                        attempt + 1,
+                        max_attempts,
+                        finish_reason,
+                    )
+                    continue
+                return None, error_msg
 
-        # Parse the JSON response
+            if not isinstance(content, (str, bytes, bytearray)):
+                error_msg = (
+                    "Model returned unsupported content type for JSON parsing: "
+                    f"{type(content).__name__}"
+                )
+                logger.error(error_msg)
+                last_error_msg = error_msg
+                if attempt < max_attempts:
+                    logger.warning(
+                        "Retrying structured output after unsupported content type "
+                        "(attempt %s/%s).",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    continue
+                return None, error_msg
 
-        try:
-            response_data = json.loads(content_text)
-            result = model_class.model_validate(response_data)
-            llm_structured_cache.set(cache_key, result.model_dump())
-            return result, None
-        except json.JSONDecodeError as e:
-            error_msg = (
-                f"Failed to parse JSON response: {e}. Raw content: {content_text!r}"
+            content_text = (
+                content
+                if isinstance(content, str)
+                else content.decode("utf-8", errors="replace")
             )
-            logger.error(error_msg)
-            return None, error_msg
-        except Exception as e:
-            error_msg = f"Failed to validate response data: {e}"
-            logger.error(error_msg)
-            return None, error_msg
+
+            try:
+                response_data = json.loads(content_text)
+                result = model_class.model_validate(response_data)
+                llm_structured_cache.set(cache_key, result.model_dump())
+                return result, None
+            except json.JSONDecodeError as e:
+                error_msg = (
+                    f"Failed to parse JSON response: {e}. Raw content: {content_text!r}"
+                )
+                logger.error(error_msg)
+                last_error_msg = error_msg
+                if attempt < max_attempts:
+                    logger.warning(
+                        "Retrying structured output after JSON parse failure "
+                        "(attempt %s/%s).",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    continue
+                return None, error_msg
+            except Exception as e:
+                error_msg = f"Failed to validate response data: {e}"
+                logger.error(error_msg)
+                last_error_msg = error_msg
+                if attempt < max_attempts:
+                    logger.warning(
+                        "Retrying structured output after validation failure "
+                        "(attempt %s/%s).",
+                        attempt + 1,
+                        max_attempts,
+                    )
+                    continue
+                return None, error_msg
+
+        return None, last_error_msg or "Structured output failed without an error"
 
     except Exception as e:
         error_msg = f"LLM API call failed: {e}"
