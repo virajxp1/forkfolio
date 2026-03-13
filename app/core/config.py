@@ -110,6 +110,13 @@ class Settings:
         self.LLM_RETRY_MAX_SECONDS: float = self._cfg.getfloat(
             "llm", "retry_max_seconds", fallback=10.0
         )
+        self.LLM_STRUCTURED_MAX_TOKENS: int = self._cfg.getint(
+            "llm", "structured_max_tokens", fallback=3500
+        )
+        structured_attempts = self._cfg.getint(
+            "llm", "structured_output_max_attempts", fallback=2
+        )
+        self.LLM_STRUCTURED_OUTPUT_MAX_ATTEMPTS: int = max(1, structured_attempts)
 
         # Dedupe
         self.DEDUPE_EMBEDDING_TYPE: str = self._cfg.get(
