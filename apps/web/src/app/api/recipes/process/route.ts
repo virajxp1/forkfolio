@@ -8,6 +8,8 @@ import {
 
 type ProcessRoutePayload = {
   raw_input?: unknown;
+  source_url?: unknown;
+  sourceUrl?: unknown;
   enforce_deduplication?: unknown;
   isTest?: unknown;
   is_test?: unknown;
@@ -26,6 +28,12 @@ type NormalizedPayloadResult =
 function normalizePayload(payload: ProcessRoutePayload): NormalizedPayloadResult {
   const rawInput =
     typeof payload.raw_input === "string" ? payload.raw_input.trim() : "";
+  const rawSourceUrl =
+    typeof payload.source_url === "string"
+      ? payload.source_url.trim()
+      : typeof payload.sourceUrl === "string"
+        ? payload.sourceUrl.trim()
+        : "";
 
   if (!rawInput) {
     return {
@@ -39,6 +47,28 @@ function normalizePayload(payload: ProcessRoutePayload): NormalizedPayloadResult
       detail: `raw_input must be at least ${MIN_RECIPE_INPUT_LENGTH} characters.`,
       status: 422,
     };
+  }
+
+  let normalizedSourceUrl: string | undefined;
+  if (rawSourceUrl) {
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(rawSourceUrl);
+    } catch {
+      return {
+        detail: "source_url must be a valid URL.",
+        status: 422,
+      };
+    }
+
+    if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+      return {
+        detail: "source_url must use http or https.",
+        status: 422,
+      };
+    }
+
+    normalizedSourceUrl = parsedUrl.toString();
   }
 
   const isTestValue =
@@ -56,6 +86,7 @@ function normalizePayload(payload: ProcessRoutePayload): NormalizedPayloadResult
           ? payload.enforce_deduplication
           : true,
       isTest: isTestValue,
+      ...(normalizedSourceUrl ? { source_url: normalizedSourceUrl } : {}),
     },
     status: 200,
   };

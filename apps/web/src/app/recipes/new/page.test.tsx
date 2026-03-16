@@ -133,6 +133,16 @@ describe("/recipes/new page", () => {
     expect(screen.getByRole("button", { name: /Save Another Recipe/i })).toBeInTheDocument();
     expect(screen.queryByLabelText("Recipe URL")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Raw recipe text")).not.toBeInTheDocument();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/recipes/process");
+    const saveRequestInit = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    const savePayload = JSON.parse(String(saveRequestInit.body));
+    expect(savePayload).toMatchObject({
+      source_url: "https://example.com/pasta",
+      enforce_deduplication: true,
+      isTest: false,
+    });
   });
 
   it("shows error state when API returns failure", async () => {
