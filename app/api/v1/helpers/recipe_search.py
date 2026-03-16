@@ -1,5 +1,9 @@
+import json
+from functools import lru_cache
+from pathlib import Path
 import re
 
+from app.core.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -7,7 +11,7 @@ logger = get_logger(__name__)
 WRAPPING_QUOTES = {'"', "'"}
 TOKEN_PATTERN = re.compile(r"[a-z]+")
 
-CUISINE_KEYWORDS: dict[str, set[str]] = {
+DEFAULT_CUISINE_KEYWORDS: dict[str, set[str]] = {
     "indian": {
         "indian",
         "paneer",
@@ -46,7 +50,7 @@ CUISINE_KEYWORDS: dict[str, set[str]] = {
     "japanese": {"japanese", "udon", "ramen", "miso", "dashi", "teriyaki"},
 }
 
-CURRY_FAMILY_KEYWORDS = {
+DEFAULT_CURRY_FAMILY_KEYWORDS = {
     "curry",
     "masala",
     "korma",
@@ -58,6 +62,58 @@ CURRY_FAMILY_KEYWORDS = {
     "tikka",
     "dal",
 }
+
+
+def _normalize_keywords(values: object) -> set[str]:
+    if not isinstance(values, list):
+        return set()
+    normalized: set[str] = set()
+    for value in values:
+        normalized.update(TOKEN_PATTERN.findall(str(value).lower()))
+    return normalized
+
+
+@lru_cache(maxsize=1)
+def _load_keyword_sets() -> tuple[dict[str, set[str]], set[str]]:
+    config_path: Path = settings.SEARCH_KEYWORDS_FILE
+    try:
+        payload = json.loads(config_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        logger.warning(
+            "Search keyword config file not found at %s; using defaults.",
+            config_path,
+        )
+        return DEFAULT_CUISINE_KEYWORDS, DEFAULT_CURRY_FAMILY_KEYWORDS
+    except Exception as exc:
+        logger.warning(
+            "Failed loading search keyword config from %s; using defaults. Error: %s",
+            config_path,
+            exc,
+        )
+        return DEFAULT_CUISINE_KEYWORDS, DEFAULT_CURRY_FAMILY_KEYWORDS
+
+    cuisines_payload = payload.get("cuisines", {})
+    if not isinstance(cuisines_payload, dict):
+        cuisines_payload = {}
+    cuisines: dict[str, set[str]] = {}
+    for cuisine, keywords in cuisines_payload.items():
+        normalized_cuisine = str(cuisine).strip().lower()
+        if not normalized_cuisine:
+            continue
+        normalized_keywords = _normalize_keywords(keywords)
+        if normalized_keywords:
+            cuisines[normalized_cuisine] = normalized_keywords
+
+    families_payload = payload.get("families", {})
+    if not isinstance(families_payload, dict):
+        families_payload = {}
+    curry_family = _normalize_keywords(families_payload.get("curry", []))
+
+    if not cuisines:
+        cuisines = DEFAULT_CUISINE_KEYWORDS
+    if not curry_family:
+        curry_family = DEFAULT_CURRY_FAMILY_KEYWORDS
+    return cuisines, curry_family
 
 
 def normalize_search_query(raw_query: str) -> str:
@@ -102,15 +158,17 @@ def _tokenize(value: object) -> set[str]:
 
 
 def _infer_cuisines(tokens: set[str]) -> set[str]:
+    cuisine_keywords, _ = _load_keyword_sets()
     matched: set[str] = set()
-    for cuisine, cuisine_tokens in CUISINE_KEYWORDS.items():
+    for cuisine, cuisine_tokens in cuisine_keywords.items():
         if tokens & cuisine_tokens:
             matched.add(cuisine)
     return matched
 
 
 def _curry_intent(tokens: set[str]) -> bool:
-    return bool(tokens & CURRY_FAMILY_KEYWORDS)
+    _, curry_family_keywords = _load_keyword_sets()
+    return bool(tokens & curry_family_keywords)
 
 
 def _compute_boosts(
@@ -119,6 +177,9 @@ def _compute_boosts(
     cuisine_boost: float,
     family_boost: float,
 ) -> tuple[float, float, float]:
+    if not settings.SEMANTIC_SEARCH_HEURISTICS_ENABLED:
+        return 0.0, 0.0, 0.0
+
     if not query:
         return 0.0, 0.0, 0.0
 

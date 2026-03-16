@@ -1,3 +1,5 @@
+from app.core.config import settings
+
 RECIPE_EXTRACTION_SYSTEM_PROMPT = """
 You are a precise and reliable assistant that extracts structured recipe data from
 unstructured text. You always return ONLY a valid JSON object conforming to the
@@ -40,9 +42,8 @@ Example:
 "total_time": "Not specified"}
 """
 
-# System Prompt for cleaning up messy input data before recipe extraction
-
-CLEANUP_SYSTEM_PROMPT = """
+# System prompt for cleaning up messy input data before recipe extraction.
+_CLEANUP_SYSTEM_PROMPT_TEMPLATE = """
 You are a helpful assistant that cleans up messy text data, particularly content
 scraped from websites, and returns well-formatted recipe text.
 
@@ -66,7 +67,7 @@ Formatting guidelines:
 - Standardize measurements (use "cups", "tablespoons", "teaspoons", "ounces",
   etc.)
 - Preserve exact quantities and fractions (1/2, 1/4, 3/4)
-- Keep temperatures in Fahrenheit with °F (e.g., "350°F")
+- {temperature_guidance}
 - Keep cooking times clear (e.g., "15 minutes", "1 hour")
 - Remove duplicate information
 - Ensure instructions are clearly numbered and in logical order
@@ -89,6 +90,31 @@ Input may contain:
 Return ONLY the cleaned, well-formatted recipe text. Do not include any
 explanations, comments, or non-recipe content.
 """
+
+
+def _cleanup_temperature_guidance(unit_system: str) -> str:
+    if unit_system == "metric":
+        return 'Keep temperatures in Celsius with °C (e.g., "180°C")'
+    if unit_system == "both":
+        return (
+            "Keep temperatures with both Fahrenheit and Celsius when possible "
+            '(e.g., "350°F / 180°C")'
+        )
+    return 'Keep temperatures in Fahrenheit with °F (e.g., "350°F")'
+
+
+def build_cleanup_system_prompt(unit_system: str | None = None) -> str:
+    normalized_unit_system = (
+        (unit_system or settings.RECIPE_UNIT_SYSTEM).strip().lower()
+    )
+    if normalized_unit_system not in {"us", "metric", "both"}:
+        normalized_unit_system = "us"
+    return _CLEANUP_SYSTEM_PROMPT_TEMPLATE.format(
+        temperature_guidance=_cleanup_temperature_guidance(normalized_unit_system)
+    )
+
+
+CLEANUP_SYSTEM_PROMPT = build_cleanup_system_prompt()
 
 DEDUPLICATION_SYSTEM_PROMPT = """
 You are an expert cooking assistant. Determine if two recipes are essentially
