@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   MIN_RECIPE_INPUT_LENGTH,
@@ -29,6 +30,8 @@ type ErrorPayload = {
   detail?: string;
   error?: string;
 };
+
+type InputMode = "url" | "text";
 
 class BrowserApiError extends Error {
   status: number;
@@ -139,7 +142,13 @@ function formatRecipePreviewAsRawInput(preview: RecipePreviewRecord): string {
   ].join("\n");
 }
 
-function SuccessState({ result }: { result: ProcessRecipeSuccessResponse }) {
+function SuccessState({
+  result,
+  onStartOver,
+}: {
+  result: ProcessRecipeSuccessResponse;
+  onStartOver: () => void;
+}) {
   const title = result.recipe.title?.trim() || "Recipe";
   const message = result.message?.trim()
     ? result.message
@@ -171,7 +180,10 @@ function SuccessState({ result }: { result: ProcessRecipeSuccessResponse }) {
               <ArrowRight className="size-4" />
             </Link>
           </Button>
-          <Button asChild variant="outline" className="sm:flex-1">
+          <Button type="button" variant="outline" className="sm:flex-1" onClick={onStartOver}>
+            Save Another Recipe
+          </Button>
+          <Button asChild variant="ghost" className="sm:flex-1">
             <Link href="/browse">Browse Recipes</Link>
           </Button>
         </div>
@@ -183,6 +195,7 @@ function SuccessState({ result }: { result: ProcessRecipeSuccessResponse }) {
 export default function NewRecipePage() {
   const [rawInput, setRawInput] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [inputMode, setInputMode] = useState<InputMode>("url");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSavingPreview, setIsSavingPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -221,6 +234,7 @@ export default function NewRecipePage() {
 
     setIsSubmitting(true);
     setErrorMessage(null);
+    setPreviewErrorMessage(null);
     setResult(null);
 
     try {
@@ -245,6 +259,7 @@ export default function NewRecipePage() {
 
     setIsPreviewing(true);
     setPreviewErrorMessage(null);
+    setErrorMessage(null);
     setPreviewResult(null);
 
     try {
@@ -271,9 +286,11 @@ export default function NewRecipePage() {
 
     try {
       const response = await processRecipeClient(normalizedInput);
-      setRawInput(normalizedInput);
       setResult(response);
-      if (!response.success) {
+      if (response.success) {
+        setPreviewResult(null);
+        setSourceUrl("");
+      } else {
         setErrorMessage(response.error || "Recipe processing failed.");
       }
     } catch (error) {
@@ -281,6 +298,25 @@ export default function NewRecipePage() {
     } finally {
       setIsSavingPreview(false);
     }
+  }
+
+  function applyPreviewAsText(preview: RecipePreviewRecord) {
+    setRawInput(formatRecipePreviewAsRawInput(preview));
+    setInputMode("text");
+    setPreviewErrorMessage(null);
+  }
+
+  function resetComposer() {
+    setRawInput("");
+    setSourceUrl("");
+    setInputMode("url");
+    setIsPreviewing(false);
+    setIsSavingPreview(false);
+    setIsSubmitting(false);
+    setPreviewErrorMessage(null);
+    setErrorMessage(null);
+    setPreviewResult(null);
+    setResult(null);
   }
 
   const successfulResult = result?.success ? result : null;
@@ -310,188 +346,231 @@ export default function NewRecipePage() {
           </Link>
         </Button>
 
-        <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
-          <div className="mx-auto max-w-4xl space-y-8">
-            <div className="space-y-3">
-              <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
-                Add Recipe
-              </Badge>
-              <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
-                Turn raw text into a saved recipe
-              </h1>
-              <p className="text-lg text-muted-foreground">
-                Paste unstructured recipe text and ForkFolio will clean, extract, and
-                store it in your collection.
-              </p>
+        {successfulResult ? (
+          <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
+            <div className="mx-auto max-w-4xl space-y-6">
+              <div className="space-y-3">
+                <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
+                  Recipe Saved
+                </Badge>
+                <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
+                  Recipe saved successfully
+                </h1>
+                <p className="text-lg text-muted-foreground">
+                  Open the saved recipe, browse your collection, or start another import.
+                </p>
+              </div>
+
+              <SuccessState result={successfulResult} onStartOver={resetComposer} />
             </div>
+          </section>
+        ) : (
+          <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
+            <div className="mx-auto max-w-4xl space-y-8">
+              <div className="space-y-3">
+                <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
+                  Add Recipe
+                </Badge>
+                <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
+                  Turn raw text into a saved recipe
+                </h1>
+                <p className="text-lg text-muted-foreground">
+                  Import from a URL or paste plain text. Use one path at a time for a
+                  cleaner save flow.
+                </p>
+              </div>
 
-            <Card className="border-border/80 bg-background/80">
-              <CardHeader className="space-y-2">
-                <CardTitle className="font-display text-3xl">
-                  Import From URL
-                </CardTitle>
-                <CardDescription>
-                  Fetch a webpage, preview extracted recipe fields, then save the
-                  recipe directly.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <form onSubmit={onPreviewSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="source_url">Recipe URL</Label>
-                    <Input
-                      id="source_url"
-                      name="source_url"
-                      type="url"
-                      value={sourceUrl}
-                      onChange={(event) => setSourceUrl(event.target.value)}
-                      placeholder="https://example.com/chocolate-chip-cookies"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Preview alone does not insert into your database until you save.
-                    </p>
-                  </div>
+              <Tabs
+                value={inputMode}
+                onValueChange={(value) => setInputMode(value as InputMode)}
+                className="space-y-4"
+              >
+                <TabsList className="grid w-full grid-cols-2" variant="default">
+                  <TabsTrigger value="url">Import URL</TabsTrigger>
+                  <TabsTrigger value="text">Paste Text</TabsTrigger>
+                </TabsList>
 
-                  <Button
-                    type="submit"
-                    variant="secondary"
-                    disabled={isPreviewing || !canPreviewFromUrl}
-                  >
-                    {isPreviewing ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Fetching Preview...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="size-4" />
-                        Fetch URL Preview
-                      </>
-                    )}
-                  </Button>
-                </form>
-
-                {previewErrorMessage ? (
-                  <p className="text-sm text-destructive">{previewErrorMessage}</p>
-                ) : null}
-
-                {successfulPreview ? (
-                  <Card className="border-primary/30 bg-primary/5">
+                <TabsContent value="url">
+                  <Card className="border-border/80 bg-background/80">
                     <CardHeader className="space-y-2">
-                      <Badge className="w-fit rounded-full px-3 py-0.5">Preview</Badge>
-                      <CardTitle className="font-display text-2xl leading-tight">
-                        {successfulPreview.recipe_preview.title}
+                      <CardTitle className="font-display text-3xl">
+                        Import From URL
                       </CardTitle>
-                      <CardDescription className="text-sm">
-                        Servings: {successfulPreview.recipe_preview.servings} | Total
-                        time: {successfulPreview.recipe_preview.total_time}
+                      <CardDescription>
+                        Fetch a webpage, preview extracted recipe fields, then save the
+                        recipe directly.
                       </CardDescription>
                     </CardHeader>
-                    <CardContent className="space-y-5">
-                      <div className="grid gap-5 md:grid-cols-2">
+                    <CardContent className="space-y-4">
+                      <form onSubmit={onPreviewSubmit} className="space-y-4">
                         <div className="space-y-2">
-                          <p className="text-sm font-medium text-foreground/90">
-                            Ingredients
+                          <Label htmlFor="source_url">Recipe URL</Label>
+                          <Input
+                            id="source_url"
+                            name="source_url"
+                            type="url"
+                            value={sourceUrl}
+                            onChange={(event) => setSourceUrl(event.target.value)}
+                            placeholder="https://example.com/chocolate-chip-cookies"
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            Preview alone does not insert into your database until you save.
                           </p>
-                          <ul className="list-disc space-y-1 pl-5 text-sm text-foreground/90">
-                            {previewIngredients.map((ingredient, index) => (
-                              <li key={`${ingredient}-${index}`}>{ingredient}</li>
-                            ))}
-                            {additionalIngredientCount > 0 ? (
-                              <li className="text-muted-foreground">
-                                +{additionalIngredientCount} more
-                              </li>
-                            ) : null}
-                          </ul>
                         </div>
 
-                        <div className="space-y-2">
-                          <p className="text-sm font-medium text-foreground/90">
-                            Instructions
-                          </p>
-                          <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground/90">
-                            {previewInstructions.map((instruction, index) => (
-                              <li key={`${instruction}-${index}`}>{instruction}</li>
-                            ))}
-                            {additionalInstructionCount > 0 ? (
-                              <li className="text-muted-foreground">
-                                +{additionalInstructionCount} more
-                              </li>
-                            ) : null}
-                          </ol>
-                        </div>
-                      </div>
+                        <Button
+                          type="submit"
+                          variant="secondary"
+                          disabled={isPreviewing || !canPreviewFromUrl}
+                        >
+                          {isPreviewing ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Fetching Preview...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="size-4" />
+                              Fetch URL Preview
+                            </>
+                          )}
+                        </Button>
+                      </form>
 
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => void savePreviewRecipe(successfulPreview.recipe_preview)}
-                        disabled={isSavingPreview}
-                      >
-                        {isSavingPreview ? (
-                          <>
-                            <Loader2 className="size-4 animate-spin" />
-                            Saving...
-                          </>
-                        ) : (
-                          "Save Recipe"
-                        )}
-                      </Button>
+                      {previewErrorMessage ? (
+                        <p className="text-sm text-destructive">{previewErrorMessage}</p>
+                      ) : null}
+
+                      {successfulPreview ? (
+                        <Card className="border-primary/30 bg-primary/5">
+                          <CardHeader className="space-y-2">
+                            <Badge className="w-fit rounded-full px-3 py-0.5">Preview</Badge>
+                            <CardTitle className="font-display text-2xl leading-tight">
+                              {successfulPreview.recipe_preview.title}
+                            </CardTitle>
+                            <CardDescription className="text-sm">
+                              Servings: {successfulPreview.recipe_preview.servings} | Total
+                              time: {successfulPreview.recipe_preview.total_time}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent className="space-y-5">
+                            <div className="grid gap-5 md:grid-cols-2">
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium text-foreground/90">
+                                  Ingredients
+                                </p>
+                                <ul className="list-disc space-y-1 pl-5 text-sm text-foreground/90">
+                                  {previewIngredients.map((ingredient, index) => (
+                                    <li key={`${ingredient}-${index}`}>{ingredient}</li>
+                                  ))}
+                                  {additionalIngredientCount > 0 ? (
+                                    <li className="text-muted-foreground">
+                                      +{additionalIngredientCount} more
+                                    </li>
+                                  ) : null}
+                                </ul>
+                              </div>
+
+                              <div className="space-y-2">
+                                <p className="text-sm font-medium text-foreground/90">
+                                  Instructions
+                                </p>
+                                <ol className="list-decimal space-y-1 pl-5 text-sm text-foreground/90">
+                                  {previewInstructions.map((instruction, index) => (
+                                    <li key={`${instruction}-${index}`}>{instruction}</li>
+                                  ))}
+                                  {additionalInstructionCount > 0 ? (
+                                    <li className="text-muted-foreground">
+                                      +{additionalInstructionCount} more
+                                    </li>
+                                  ) : null}
+                                </ol>
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-2 sm:flex-row">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => void savePreviewRecipe(successfulPreview.recipe_preview)}
+                                disabled={isSavingPreview}
+                              >
+                                {isSavingPreview ? (
+                                  <>
+                                    <Loader2 className="size-4 animate-spin" />
+                                    Saving...
+                                  </>
+                                ) : (
+                                  "Save Recipe"
+                                )}
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                disabled={isSavingPreview}
+                                onClick={() => applyPreviewAsText(successfulPreview.recipe_preview)}
+                              >
+                                Edit As Text
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ) : null}
                     </CardContent>
                   </Card>
-                ) : null}
-              </CardContent>
-            </Card>
+                </TabsContent>
 
-            <Card className="border-border/80 bg-background/80">
-              <CardHeader className="space-y-2">
-                <CardTitle className="font-display text-3xl">
-                  Recipe Input
-                </CardTitle>
-                <CardDescription>
-                  Include a title, ingredients, and instructions in plain text.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={onSubmit} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="raw_input">Raw recipe text</Label>
-                    <Textarea
-                      id="raw_input"
-                      name="raw_input"
-                      value={rawInput}
-                      onChange={(event) => setRawInput(event.target.value)}
-                      placeholder={
-                        "Chocolate Chip Cookies\n\nIngredients:\n- 2 cups flour\n- 1 cup butter\n\nInstructions:\n1. Mix ingredients\n2. Bake at 350F"
-                      }
-                      className="min-h-56 resize-y"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      {trimmedLength} characters
-                      {inputTooShort
-                        ? ` (${MIN_RECIPE_INPUT_LENGTH - trimmedLength} more needed)`
-                        : ""}
-                    </p>
-                  </div>
+                <TabsContent value="text">
+                  <Card className="border-border/80 bg-background/80">
+                    <CardHeader className="space-y-2">
+                      <CardTitle className="font-display text-3xl">Recipe Input</CardTitle>
+                      <CardDescription>
+                        Include a title, ingredients, and instructions in plain text.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={onSubmit} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="raw_input">Raw recipe text</Label>
+                          <Textarea
+                            id="raw_input"
+                            name="raw_input"
+                            value={rawInput}
+                            onChange={(event) => setRawInput(event.target.value)}
+                            placeholder={
+                              "Chocolate Chip Cookies\n\nIngredients:\n- 2 cups flour\n- 1 cup butter\n\nInstructions:\n1. Mix ingredients\n2. Bake at 350F"
+                            }
+                            className="min-h-56 resize-y"
+                          />
+                          <p className="text-sm text-muted-foreground">
+                            {trimmedLength} characters
+                            {inputTooShort
+                              ? ` (${MIN_RECIPE_INPUT_LENGTH - trimmedLength} more needed)`
+                              : ""}
+                          </p>
+                        </div>
 
-                  <Button type="submit" size="lg" disabled={isSubmitting || inputTooShort}>
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="size-4" />
-                        Process & Save Recipe
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </div>
-        </section>
+                        <Button type="submit" size="lg" disabled={isSubmitting || inputTooShort}>
+                          {isSubmitting ? (
+                            <>
+                              <Loader2 className="size-4 animate-spin" />
+                              Processing...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="size-4" />
+                              Process & Save Recipe
+                            </>
+                          )}
+                        </Button>
+                      </form>
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </div>
+          </section>
+        )}
 
         {errorMessage ? (
           <Card className="mt-6 border-destructive/35 bg-destructive/5">
@@ -500,12 +579,6 @@ export default function NewRecipePage() {
               <CardDescription>{errorMessage}</CardDescription>
             </CardHeader>
           </Card>
-        ) : null}
-
-        {successfulResult ? (
-          <section className="mt-6">
-            <SuccessState result={successfulResult} />
-          </section>
         ) : null}
       </main>
     </div>
