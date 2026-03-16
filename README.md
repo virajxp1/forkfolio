@@ -35,6 +35,19 @@ Python is pinned to `3.11` for consistency across local, CI, and deploy:
 - Docker uses `python:3.11-slim`
 - Render backend runtime is pinned with `PYTHON_VERSION=3.11.11` in `render.yaml`
 
+## Dependency Locking
+
+Backend Python dependencies are managed as:
+
+- `requirements.in` for top-level intent.
+- `requirements.txt` as the compiled lockfile used by CI and deploy.
+
+Refresh the lockfile after dependency changes:
+
+```bash
+make sync-requirements
+```
+
 ## Local Setup
 
 ### 1) Backend
@@ -74,6 +87,11 @@ Backend (required in deployed environments):
 - `API_AUTH_TOKEN`
 - `OPEN_ROUTER_API_KEY`
 - `SUPABASE_PASSWORD`
+
+Backend (optional behavior controls):
+
+- `RECIPE_UNIT_SYSTEM` (`us`, `metric`, or `both`; default from `config/app.config.ini`)
+- `SEARCH_KEYWORDS_FILE` (path to search heuristic keyword JSON; defaults to `config/search_keywords.json`)
 
 Frontend runtime vars:
 

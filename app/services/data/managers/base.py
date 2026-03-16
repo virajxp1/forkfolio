@@ -28,9 +28,3 @@ class BaseManager:
                 yield conn, cursor
             finally:
                 cursor.close()
-
-    def close(self):
-        """Deprecated - connections are now managed automatically"""
-        logger.warning(
-            "close() method is deprecated - connections are managed automatically"
-        )

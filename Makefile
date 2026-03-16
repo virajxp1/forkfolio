@@ -7,6 +7,9 @@ setup-python:
 	uv venv --python 3.11 .venv
 	uv pip install --python .venv/bin/python -r requirements.txt
 
+sync-requirements:
+	uv pip compile requirements.in -o requirements.txt
+
 run:
 	$(PYTHON_BIN) scripts/run.py --reload
 

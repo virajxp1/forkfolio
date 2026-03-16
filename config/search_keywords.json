@@ -1,0 +1,61 @@
+{
+  "cuisines": {
+    "indian": [
+      "indian",
+      "paneer",
+      "tikka",
+      "masala",
+      "aloo",
+      "gobi",
+      "chana",
+      "dal",
+      "garam",
+      "korma",
+      "vindaloo",
+      "saag"
+    ],
+    "thai": [
+      "thai",
+      "lemongrass",
+      "galangal",
+      "basil",
+      "coconut",
+      "kaffir",
+      "krapow",
+      "tom",
+      "yum"
+    ],
+    "italian": [
+      "italian",
+      "pasta",
+      "lasagna",
+      "spaghetti",
+      "penne",
+      "risotto",
+      "parmesan",
+      "pecorino"
+    ],
+    "japanese": [
+      "japanese",
+      "udon",
+      "ramen",
+      "miso",
+      "dashi",
+      "teriyaki"
+    ]
+  },
+  "families": {
+    "curry": [
+      "curry",
+      "masala",
+      "korma",
+      "vindaloo",
+      "saag",
+      "aloo",
+      "gobi",
+      "chana",
+      "tikka",
+      "dal"
+    ]
+  }
+}

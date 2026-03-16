@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+pydantic
+python-dotenv
+pytest
+pytest-asyncio
+pytest-xdist
+pytest-cov
+ruff
+pre-commit
+openai~=1.78.1
+requests~=2.32.3
+httpx~=0.28.1
+psycopg2-binary
+pgvector
+openapi-spec-validator

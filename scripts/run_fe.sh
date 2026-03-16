@@ -18,7 +18,11 @@ cd "${WEB_DIR}"
 
 if [[ ! -d node_modules ]]; then
   echo "Installing frontend dependencies..."
-  npm install
+  if [[ -f package-lock.json ]]; then
+    npm ci
+  else
+    npm install
+  fi
 fi
 
 echo "Starting frontend dev server at http://localhost:3000"

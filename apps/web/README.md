@@ -14,7 +14,7 @@ Search-first frontend for ForkFolio, built with Next.js + `shadcn/ui`.
 ## Run
 
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 

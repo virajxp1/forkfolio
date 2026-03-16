@@ -1,4 +1,4 @@
-from ..core.prompts import CLEANUP_SYSTEM_PROMPT
+from ..core.prompts import build_cleanup_system_prompt
 from .llm_generation_service import make_llm_call_text_generation
 
 
@@ -35,7 +35,8 @@ class RecipeInputCleanupServiceImpl:
             ValueError: If the LLM output is invalid or empty
         """
         user_prompt = f"Please clean up this messy recipe data:\n\n{messy_input}"
-        cleaned_text = make_llm_call_text_generation(user_prompt, CLEANUP_SYSTEM_PROMPT)
+        system_prompt = build_cleanup_system_prompt()
+        cleaned_text = make_llm_call_text_generation(user_prompt, system_prompt)
 
         if self._validate_cleaned_output(cleaned_text):
             return cleaned_text
