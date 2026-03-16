@@ -95,7 +95,10 @@ describe("POST /api/recipes/process", () => {
 
     const request = new NextRequest("http://localhost:3000/api/recipes/process", {
       method: "POST",
-      body: JSON.stringify({ raw_input: "  raw recipe text  " }),
+      body: JSON.stringify({
+        raw_input: "  raw recipe text  ",
+        source_url: "  https://example.com/recipe  ",
+      }),
       headers: {
         "Content-Type": "application/json",
       },
@@ -107,9 +110,31 @@ describe("POST /api/recipes/process", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(processRecipeMock).toHaveBeenCalledWith({
       raw_input: "raw recipe text",
+      source_url: "https://example.com/recipe",
       enforce_deduplication: true,
       isTest: false,
     });
+  });
+
+  it("returns 422 when source_url is invalid", async () => {
+    const request = new NextRequest("http://localhost:3000/api/recipes/process", {
+      method: "POST",
+      body: JSON.stringify({
+        raw_input: "valid input content",
+        source_url: "ftp://example.com/recipe",
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(422);
+    expect(await response.json()).toEqual({
+      detail: "source_url must use http or https.",
+    });
+    expect(processRecipeMock).not.toHaveBeenCalled();
   });
 
   it("maps Forkfolio API errors", async () => {

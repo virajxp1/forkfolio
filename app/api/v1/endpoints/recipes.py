@@ -69,9 +69,12 @@ def process_and_store_recipe(
     Takes raw unstructured recipe text and returns the database ID
     of the stored recipe, or an error if processing fails.
     """
+    source_url = (
+        str(ingestion_request.source_url) if ingestion_request.source_url else None
+    )
     recipe_id, error, created = processing_service.process_raw_recipe(
         raw_input=ingestion_request.raw_input,
-        source_url=None,  # Could extend request model to include source_url if needed
+        source_url=source_url,
         enforce_deduplication=ingestion_request.enforce_deduplication,
         is_test=ingestion_request.is_test,
     )

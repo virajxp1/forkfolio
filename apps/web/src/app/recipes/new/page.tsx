@@ -64,7 +64,10 @@ async function readErrorPayload(response: Response): Promise<ErrorPayload | null
   }
 }
 
-async function processRecipeClient(rawInput: string): Promise<ProcessRecipeResponse> {
+async function processRecipeClient(
+  rawInput: string,
+  sourceUrl?: string,
+): Promise<ProcessRecipeResponse> {
   const response = await fetch("/api/recipes/process", {
     method: "POST",
     headers: {
@@ -76,6 +79,7 @@ async function processRecipeClient(rawInput: string): Promise<ProcessRecipeRespo
       raw_input: rawInput,
       enforce_deduplication: true,
       isTest: false,
+      ...(sourceUrl ? { source_url: sourceUrl } : {}),
     }),
   });
 
@@ -195,6 +199,7 @@ function SuccessState({
 export default function NewRecipePage() {
   const [rawInput, setRawInput] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [textModeSourceUrl, setTextModeSourceUrl] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSavingPreview, setIsSavingPreview] = useState(false);
@@ -238,7 +243,10 @@ export default function NewRecipePage() {
     setResult(null);
 
     try {
-      const response = await processRecipeClient(normalizedInput);
+      const response = await processRecipeClient(
+        normalizedInput,
+        textModeSourceUrl ?? undefined,
+      );
       setResult(response);
       if (!response.success) {
         setErrorMessage(response.error || "Recipe processing failed.");
@@ -261,6 +269,7 @@ export default function NewRecipePage() {
     setPreviewErrorMessage(null);
     setErrorMessage(null);
     setPreviewResult(null);
+    setTextModeSourceUrl(null);
 
     try {
       const response = await previewRecipeFromUrlClient(normalizedSourceUrl);
@@ -277,7 +286,7 @@ export default function NewRecipePage() {
     }
   }
 
-  async function savePreviewRecipe(preview: RecipePreviewRecord) {
+  async function savePreviewRecipe(preview: RecipePreviewRecord, sourceUrlForSave: string) {
     const normalizedInput = formatRecipePreviewAsRawInput(preview);
 
     setIsSavingPreview(true);
@@ -285,11 +294,12 @@ export default function NewRecipePage() {
     setResult(null);
 
     try {
-      const response = await processRecipeClient(normalizedInput);
+      const response = await processRecipeClient(normalizedInput, sourceUrlForSave);
       setResult(response);
       if (response.success) {
         setPreviewResult(null);
         setSourceUrl("");
+        setTextModeSourceUrl(null);
       } else {
         setErrorMessage(response.error || "Recipe processing failed.");
       }
@@ -300,9 +310,10 @@ export default function NewRecipePage() {
     }
   }
 
-  function applyPreviewAsText(preview: RecipePreviewRecord) {
+  function applyPreviewAsText(preview: RecipePreviewRecord, sourceUrlForSave: string) {
     setRawInput(formatRecipePreviewAsRawInput(preview));
     setInputMode("text");
+    setTextModeSourceUrl(sourceUrlForSave);
     setPreviewErrorMessage(null);
   }
 
@@ -310,6 +321,7 @@ export default function NewRecipePage() {
     setRawInput("");
     setSourceUrl("");
     setInputMode("url");
+    setTextModeSourceUrl(null);
     setIsPreviewing(false);
     setIsSavingPreview(false);
     setIsSubmitting(false);
@@ -382,7 +394,10 @@ export default function NewRecipePage() {
 
               <Tabs
                 value={inputMode}
-                onValueChange={(value) => setInputMode(value as InputMode)}
+                onValueChange={(value) => {
+                  setInputMode(value as InputMode);
+                  setTextModeSourceUrl(null);
+                }}
                 className="space-y-4"
               >
                 <TabsList className="grid w-full grid-cols-2" variant="default">
@@ -492,7 +507,12 @@ export default function NewRecipePage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => void savePreviewRecipe(successfulPreview.recipe_preview)}
+                                onClick={() =>
+                                  void savePreviewRecipe(
+                                    successfulPreview.recipe_preview,
+                                    successfulPreview.url,
+                                  )
+                                }
                                 disabled={isSavingPreview}
                               >
                                 {isSavingPreview ? (
@@ -508,7 +528,12 @@ export default function NewRecipePage() {
                                 type="button"
                                 variant="ghost"
                                 disabled={isSavingPreview}
-                                onClick={() => applyPreviewAsText(successfulPreview.recipe_preview)}
+                                onClick={() =>
+                                  applyPreviewAsText(
+                                    successfulPreview.recipe_preview,
+                                    successfulPreview.url,
+                                  )
+                                }
                               >
                                 Edit As Text
                               </Button>

@@ -19,6 +19,12 @@ class RecipeIngestionRequest(BaseModel):
             )
         },
     )
+    source_url: AnyHttpUrl | None = Field(
+        None,
+        description="Optional source URL where the recipe was sourced from.",
+        alias="sourceUrl",
+        json_schema_extra={"example": "https://example.com/chocolate-chip-cookies"},
+    )
     enforce_deduplication: bool = Field(
         True,
         description=(
