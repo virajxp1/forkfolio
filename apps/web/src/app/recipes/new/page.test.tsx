@@ -15,6 +15,7 @@ describe("/recipes/new page", () => {
 
     render(<NewRecipePage />);
 
+    await user.click(screen.getByRole("tab", { name: /Paste Text/i }));
     await user.type(screen.getByLabelText("Raw recipe text"), "too short");
 
     expect(screen.getByRole("button", { name: /Process & Save Recipe/i })).toBeDisabled();
@@ -50,6 +51,7 @@ describe("/recipes/new page", () => {
 
     render(<NewRecipePage />);
 
+    await user.click(screen.getByRole("tab", { name: /Paste Text/i }));
     await user.type(
       screen.getByLabelText("Raw recipe text"),
       "Chocolate Chip Cookies with flour, sugar, and butter.",
@@ -128,6 +130,9 @@ describe("/recipes/new page", () => {
     expect(await screen.findByText("Recipe processed and stored successfully")).toBeInTheDocument();
     const detailsLink = screen.getByRole("link", { name: /Open Recipe/i });
     expect(detailsLink).toHaveAttribute("href", "/recipes/recipe-preview-123");
+    expect(screen.getByRole("button", { name: /Save Another Recipe/i })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Recipe URL")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Raw recipe text")).not.toBeInTheDocument();
   });
 
   it("shows error state when API returns failure", async () => {
@@ -142,6 +147,7 @@ describe("/recipes/new page", () => {
 
     render(<NewRecipePage />);
 
+    await user.click(screen.getByRole("tab", { name: /Paste Text/i }));
     await user.type(
       screen.getByLabelText("Raw recipe text"),
       "Long enough recipe text for API processing",
