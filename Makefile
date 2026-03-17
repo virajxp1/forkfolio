@@ -37,7 +37,7 @@ format:
 	$(RUFF_BIN) check --fix .
 	$(RUFF_BIN) format .
 
-# Optional Docker flows (not required for Render deploys).
+# Optional Docker flows.
 docker-build:
 	docker build -t forkfolio -f docker/Dockerfile .
 
