@@ -238,6 +238,24 @@ function formatHistoryPreview(thread: ExperimentThreadSummary): string {
   return text.length > 80 ? `${text.slice(0, 77)}...` : text;
 }
 
+function toThreadSummary(thread: ExperimentThreadRecord): ExperimentThreadSummary {
+  const messages = Array.isArray(thread.messages) ? thread.messages : [];
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  return {
+    id: thread.id,
+    mode: thread.mode,
+    status: thread.status,
+    title: thread.title,
+    memory_summary: thread.memory_summary,
+    metadata: thread.metadata ?? {},
+    created_at: thread.created_at,
+    updated_at: thread.updated_at,
+    last_message_role: lastMessage?.role ?? null,
+    last_message_content: lastMessage?.content ?? null,
+    last_message_created_at: lastMessage?.created_at ?? null,
+  };
+}
+
 function parseSseEvent(block: string): ParsedSseEvent | null {
   const lines = block.split("\n");
   let event = "message";
@@ -318,6 +336,14 @@ export default function ExperimentPage() {
     } finally {
       setIsLoadingHistory(false);
     }
+  }
+
+  function upsertThreadHistory(nextThread: ExperimentThreadRecord) {
+    const nextSummary = toThreadSummary(nextThread);
+    setThreadHistory((current) => {
+      const withoutCurrent = current.filter((item) => item.id !== nextSummary.id);
+      return [nextSummary, ...withoutCurrent];
+    });
   }
 
   useEffect(() => {
@@ -449,7 +475,8 @@ export default function ExperimentPage() {
         const createResponse = await createThreadClient();
         activeThread = normalizeThread(createResponse.thread);
         setThread(activeThread);
-        await refreshHistory();
+        upsertThreadHistory(activeThread);
+        void refreshHistory();
       } catch (error) {
         setErrorMessage(getErrorMessage(error, "Failed to start a new conversation."));
         setIsSendingMessage(false);
@@ -641,7 +668,8 @@ export default function ExperimentPage() {
           setAttachmentFeedback(finalAttachmentText);
         }
       }
-      await refreshHistory();
+      upsertThreadHistory(nextThread);
+      void refreshHistory();
     } catch (error) {
       setThread(previousThreadSnapshot);
       setErrorMessage(getErrorMessage(error, "Failed to send message."));
