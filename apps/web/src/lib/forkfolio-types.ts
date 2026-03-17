@@ -271,6 +271,7 @@ export type GetExperimentThreadResponse = {
 export type CreateExperimentMessageRequest = {
   content: string;
   context_recipe_ids?: string[];
+  attach_recipe_ids?: string[];
   attach_recipe_names?: string[];
 };
 

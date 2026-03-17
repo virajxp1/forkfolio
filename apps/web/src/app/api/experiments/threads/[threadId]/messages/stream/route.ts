@@ -6,6 +6,7 @@ const DEFAULT_API_BASE_PATH = "/api/v1";
 type ThreadMessageRoutePayload = {
   content?: unknown;
   context_recipe_ids?: unknown;
+  attach_recipe_ids?: unknown;
   attach_recipe_names?: unknown;
 };
 
@@ -14,6 +15,7 @@ type NormalizedPayloadResult =
       payload: {
         content: string;
         context_recipe_ids?: string[];
+        attach_recipe_ids?: string[];
         attach_recipe_names?: string[];
       };
       status: 200;
@@ -85,11 +87,19 @@ function normalizePayload(payload: ThreadMessageRoutePayload): NormalizedPayload
       status: 400,
     };
   }
+  const attachRecipeIds = normalizeStringArray(payload.attach_recipe_ids);
+  if (attachRecipeIds === null) {
+    return {
+      detail: "attach_recipe_ids must be an array of strings.",
+      status: 400,
+    };
+  }
 
   return {
     payload: {
       content,
       ...(contextRecipeIds.length ? { context_recipe_ids: contextRecipeIds } : {}),
+      ...(attachRecipeIds.length ? { attach_recipe_ids: attachRecipeIds } : {}),
       ...(attachRecipeNames.length ? { attach_recipe_names: attachRecipeNames } : {}),
     },
     status: 200,

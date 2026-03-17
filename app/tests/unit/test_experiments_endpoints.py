@@ -87,6 +87,7 @@ class StubExperimentService:
         thread_id: str,
         content: str,
         context_recipe_ids: list[str] | None = None,
+        attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
     ) -> dict:
         if thread_id != THREAD_ID:
@@ -121,7 +122,7 @@ class StubExperimentService:
             "attached_recipes": [
                 {"id": RECIPE_ID, "title": "Chicken Tikka Masala", "created_at": None}
             ]
-            if attach_recipe_names
+            if attach_recipe_ids or attach_recipe_names
             else [],
             "unresolved_recipe_names": [],
             "attachment_message": None,
@@ -132,6 +133,7 @@ class StubExperimentService:
         thread_id: str,
         content: str,
         context_recipe_ids: list[str] | None = None,
+        attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
     ):
         if thread_id != THREAD_ID:
@@ -273,6 +275,24 @@ def test_create_experiment_message_with_attach_names_success() -> None:
     body = response.json()
     assert body["success"] is True
     assert len(body["attached_recipes"]) == 1
+
+
+def test_create_experiment_message_with_attach_ids_success() -> None:
+    client = TestClient(build_experiments_app())
+
+    response = client.post(
+        f"/api/v1/experiments/threads/{THREAD_ID}/messages",
+        json={
+            "content": "Attach exact recipe id",
+            "attach_recipe_ids": [RECIPE_ID],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert len(body["attached_recipes"]) == 1
+    assert body["attached_recipes"][0]["id"] == RECIPE_ID
 
 
 def test_create_experiment_message_invalid_thread_id_returns_422() -> None:

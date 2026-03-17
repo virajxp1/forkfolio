@@ -47,6 +47,32 @@ describe("POST /api/experiments/threads/[threadId]/messages/stream", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when attach recipe IDs are invalid", async () => {
+    const request = new NextRequest(
+      "http://localhost:3000/api/experiments/threads/thread-1/messages/stream",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          content: "Make this vegan",
+          attach_recipe_ids: "not-an-array",
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    const response = await POST(request, {
+      params: Promise.resolve({ threadId: "thread-1" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      detail: "attach_recipe_ids must be an array of strings.",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("proxies SSE stream from backend", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockResolvedValue(

@@ -166,7 +166,7 @@ async function streamMessageClient(
   threadId: string,
   payload: {
     content: string;
-    attach_recipe_names?: string[];
+    attach_recipe_ids?: string[];
   },
 ): Promise<Response> {
   const response = await fetch(
@@ -530,7 +530,7 @@ export default function ExperimentPage() {
       const response = await streamMessageClient(activeThread.id, {
         content: normalizedMessage,
         ...(pendingAttachments.length
-          ? { attach_recipe_names: pendingAttachments.map((item) => item.name) }
+          ? { attach_recipe_ids: pendingAttachments.map((item) => item.id) }
           : {}),
       });
 
@@ -541,8 +541,13 @@ export default function ExperimentPage() {
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
-      let finalPayload: CreateExperimentMessageResponse | null = null;
-      let streamError: string | null = null;
+      const streamState: {
+        finalPayload: CreateExperimentMessageResponse | null;
+        streamError: string | null;
+      } = {
+        finalPayload: null,
+        streamError: null,
+      };
 
       const applyStreamEvent = (parsed: ParsedSseEvent) => {
         if (parsed.event === "status") {
@@ -586,13 +591,13 @@ export default function ExperimentPage() {
         }
 
         if (parsed.event === "final") {
-          finalPayload = parsed.data as CreateExperimentMessageResponse;
+          streamState.finalPayload = parsed.data as CreateExperimentMessageResponse;
           return;
         }
 
         if (parsed.event === "error") {
           const data = parsed.data as { detail?: string };
-          streamError = data?.detail ?? "Failed to stream assistant response.";
+          streamState.streamError = data?.detail ?? "Failed to stream assistant response.";
         }
       };
 
@@ -630,12 +635,12 @@ export default function ExperimentPage() {
         }
       }
 
-      if (streamError) {
-        throw new BrowserApiError(streamError, 500, streamError);
+      if (streamState.streamError) {
+        throw new BrowserApiError(streamState.streamError, 500, streamState.streamError);
       }
       let nextThread: ExperimentThreadRecord | null = null;
-      if (finalPayload) {
-        nextThread = normalizeThread(finalPayload.thread);
+      if (streamState.finalPayload) {
+        nextThread = normalizeThread(streamState.finalPayload.thread);
       } else {
         try {
           const fallbackResponse = await getThreadClient(activeThread.id);
@@ -662,8 +667,8 @@ export default function ExperimentPage() {
       setAttachSearchResults([]);
       setIsAttachDialogOpen(false);
 
-      if (finalPayload) {
-        const finalAttachmentText = attachmentFeedbackText(finalPayload);
+      if (streamState.finalPayload) {
+        const finalAttachmentText = attachmentFeedbackText(streamState.finalPayload);
         if (finalAttachmentText) {
           setAttachmentFeedback(finalAttachmentText);
         }

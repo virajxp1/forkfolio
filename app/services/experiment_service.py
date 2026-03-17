@@ -82,6 +82,10 @@ class ExperimentService:
             normalized.append(name)
         return normalized
 
+    @staticmethod
+    def _normalize_attach_recipe_ids(recipe_ids: list[str] | None) -> list[str]:
+        return ExperimentService._normalize_context_recipe_ids(recipe_ids or [])
+
     def _validate_recipe_ids(self, recipe_ids: list[str]) -> list[str]:
         normalized_ids = self._normalize_context_recipe_ids(recipe_ids)
         if not normalized_ids:
@@ -136,6 +140,35 @@ class ExperimentService:
                 continue
             attached_recipes.append(matches[0])
         return attached_recipes, unresolved_names
+
+    def _resolve_attach_recipe_ids(
+        self, recipe_ids: list[str]
+    ) -> tuple[list[dict], list[str]]:
+        attached_recipes: list[dict] = []
+        unresolved_ids: list[str] = []
+
+        for recipe_id in self._normalize_attach_recipe_ids(recipe_ids):
+            recipe = self.recipe_manager.get_full_recipe(recipe_id)
+            if not recipe:
+                unresolved_ids.append(recipe_id)
+                continue
+            attached_recipes.append(
+                {
+                    "id": str(recipe.get("id") or recipe_id),
+                    "title": recipe.get("title"),
+                    "created_at": recipe.get("created_at"),
+                }
+            )
+        return attached_recipes, unresolved_ids
+
+    def _resolve_attach_recipes(
+        self,
+        attach_recipe_ids: list[str] | None = None,
+        attach_recipe_names: list[str] | None = None,
+    ) -> tuple[list[dict], list[str]]:
+        if attach_recipe_ids:
+            return self._resolve_attach_recipe_ids(attach_recipe_ids)
+        return self._resolve_attach_recipe_names(attach_recipe_names or [])
 
     def get_thread(self, thread_id: str, message_limit: int = 100) -> dict:
         thread = self.experiment_manager.get_thread(
@@ -262,6 +295,7 @@ class ExperimentService:
         thread_id: str,
         content: str,
         context_recipe_ids: list[str] | None = None,
+        attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
     ) -> dict:
         normalized_content = content.strip()
@@ -280,8 +314,9 @@ class ExperimentService:
             )
             thread["context_recipe_ids"] = validated_context_ids
 
-        attached_recipes, unresolved_recipe_names = self._resolve_attach_recipe_names(
-            attach_recipe_names or []
+        attached_recipes, unresolved_recipe_names = self._resolve_attach_recipes(
+            attach_recipe_ids=attach_recipe_ids,
+            attach_recipe_names=attach_recipe_names,
         )
         attachment_message = None
         if attached_recipes:
@@ -358,6 +393,7 @@ class ExperimentService:
         thread_id: str,
         content: str,
         context_recipe_ids: list[str] | None = None,
+        attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
     ) -> Iterator[dict]:
         normalized_content = content.strip()
@@ -376,8 +412,9 @@ class ExperimentService:
             )
             thread["context_recipe_ids"] = validated_context_ids
 
-        attached_recipes, unresolved_recipe_names = self._resolve_attach_recipe_names(
-            attach_recipe_names or []
+        attached_recipes, unresolved_recipe_names = self._resolve_attach_recipes(
+            attach_recipe_ids=attach_recipe_ids,
+            attach_recipe_names=attach_recipe_names,
         )
         attachment_message = None
         if attached_recipes:

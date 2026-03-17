@@ -6,6 +6,7 @@ import type { CreateExperimentMessageRequest } from "@/lib/forkfolio-types";
 type ThreadMessageRoutePayload = {
   content?: unknown;
   context_recipe_ids?: unknown;
+  attach_recipe_ids?: unknown;
   attach_recipe_names?: unknown;
 };
 
@@ -64,11 +65,19 @@ function normalizePayload(payload: ThreadMessageRoutePayload): NormalizedPayload
       status: 400,
     };
   }
+  const attachRecipeIds = normalizeContextRecipeIds(payload.attach_recipe_ids);
+  if (attachRecipeIds === null) {
+    return {
+      detail: "attach_recipe_ids must be an array of strings.",
+      status: 400,
+    };
+  }
 
   return {
     payload: {
       content,
       ...(contextRecipeIds.length ? { context_recipe_ids: contextRecipeIds } : {}),
+      ...(attachRecipeIds.length ? { attach_recipe_ids: attachRecipeIds } : {}),
       ...(attachRecipeNames.length ? { attach_recipe_names: attachRecipeNames } : {}),
     },
     status: 200,

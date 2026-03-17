@@ -97,6 +97,32 @@ describe("POST /api/experiments/threads/[threadId]/messages", () => {
     expect(createExperimentMessageMock).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when attach recipe IDs are invalid", async () => {
+    const request = new NextRequest(
+      "http://localhost:3000/api/experiments/threads/thread-1/messages",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          content: "Make this vegan",
+          attach_recipe_ids: "not-an-array",
+        }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    const response = await POST(request, {
+      params: Promise.resolve({ threadId: "thread-1" }),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      detail: "attach_recipe_ids must be an array of strings.",
+    });
+    expect(createExperimentMessageMock).not.toHaveBeenCalled();
+  });
+
   it("normalizes payload and forwards message creation", async () => {
     createExperimentMessageMock.mockResolvedValue({
       success: true,
@@ -142,7 +168,7 @@ describe("POST /api/experiments/threads/[threadId]/messages", () => {
         body: JSON.stringify({
           content: "  Make this vegan  ",
           context_recipe_ids: ["recipe-1", "recipe-1", " "],
-          attach_recipe_names: ["Chicken Tikka Masala"],
+          attach_recipe_ids: ["recipe-1", "recipe-1", " "],
         }),
         headers: {
           "Content-Type": "application/json",
@@ -159,7 +185,7 @@ describe("POST /api/experiments/threads/[threadId]/messages", () => {
     expect(createExperimentMessageMock).toHaveBeenCalledWith("thread-1", {
       content: "Make this vegan",
       context_recipe_ids: ["recipe-1"],
-      attach_recipe_names: ["Chicken Tikka Masala"],
+      attach_recipe_ids: ["recipe-1"],
     });
   });
 

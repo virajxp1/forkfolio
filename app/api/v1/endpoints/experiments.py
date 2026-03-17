@@ -124,12 +124,18 @@ def create_experiment_message(
         if payload.context_recipe_ids is not None
         else None
     )
+    attach_recipe_ids = (
+        _to_string_ids(payload.attach_recipe_ids)
+        if payload.attach_recipe_ids is not None
+        else None
+    )
     attach_recipe_names = payload.attach_recipe_names or None
     try:
         response_payload = experiment_service.send_user_message(
             thread_id=thread_id_str,
             content=payload.content,
             context_recipe_ids=context_recipe_ids,
+            attach_recipe_ids=attach_recipe_ids,
             attach_recipe_names=attach_recipe_names,
         )
         return {"thread_id": thread_id_str, **response_payload, "success": True}
@@ -166,6 +172,11 @@ def stream_experiment_message(
         if payload.context_recipe_ids is not None
         else None
     )
+    attach_recipe_ids = (
+        _to_string_ids(payload.attach_recipe_ids)
+        if payload.attach_recipe_ids is not None
+        else None
+    )
     attach_recipe_names = payload.attach_recipe_names or None
 
     def stream():
@@ -174,6 +185,7 @@ def stream_experiment_message(
                 thread_id=thread_id_str,
                 content=payload.content,
                 context_recipe_ids=context_recipe_ids,
+                attach_recipe_ids=attach_recipe_ids,
                 attach_recipe_names=attach_recipe_names,
             )
             for event_payload in event_iterator:
