@@ -27,6 +27,19 @@ def _normalize_lines(values: list[str]) -> list[str]:
     return [value.strip() for value in values if value and value.strip()]
 
 
+def _clean_list_item(line: str) -> str:
+    stripped = line.strip()
+    if not stripped:
+        return ""
+    bullet_item = re.match(r"^[-*]\s*(.+)$", stripped)
+    if bullet_item:
+        return bullet_item.group(1).strip()
+    numbered_item = re.match(r"^\d+[.)]\s*(.+)$", stripped)
+    if numbered_item:
+        return numbered_item.group(1).strip()
+    return stripped
+
+
 def _fallback_title(raw_text: str) -> str:
     for line in raw_text.splitlines():
         stripped = line.strip()
@@ -53,6 +66,38 @@ def _fallback_instructions(raw_text: str) -> list[str]:
                 fallback_steps.append(step)
 
     return fallback_steps
+
+
+def _fallback_ingredients(raw_text: str) -> list[str]:
+    fallback_items: list[str] = []
+    in_ingredients_section = False
+
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        lowered = stripped.lower().removesuffix(":")
+        if lowered.startswith("ingredients"):
+            in_ingredients_section = True
+            continue
+
+        if in_ingredients_section and (
+            lowered.startswith("instructions")
+            or lowered.startswith("directions")
+            or lowered.startswith("method")
+            or lowered.startswith("steps")
+        ):
+            break
+
+        if not in_ingredients_section:
+            continue
+
+        item = _clean_list_item(stripped)
+        if item:
+            fallback_items.append(item)
+
+    return fallback_items
 
 
 class RecipeExtractorImpl:
@@ -96,6 +141,8 @@ class RecipeExtractorImpl:
 
         if not title:
             title = _fallback_title(raw_text)
+        if not ingredients:
+            ingredients = _fallback_ingredients(raw_text)
         if not instructions:
             instructions = _fallback_instructions(raw_text)
 

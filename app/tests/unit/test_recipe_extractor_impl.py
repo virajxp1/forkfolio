@@ -38,3 +38,38 @@ def test_extract_recipe_backfills_missing_title_and_instructions(monkeypatch) ->
     assert recipe.title == "Simple Omelet"
     assert recipe.instructions == ["Beat eggs.", "Melt butter.", "Cook eggs."]
     assert recipe.ingredients == ["2 eggs", "1 tbsp butter", "Salt"]
+
+
+def test_extract_recipe_backfills_missing_ingredients(monkeypatch) -> None:
+    raw_text = (
+        "Simple Omelet\n"
+        "Servings: 1\n"
+        "Total time: 10 minutes\n"
+        "Ingredients:\n- 2 eggs\n- 1 tbsp butter\n- Salt\n"
+        "Instructions:\n1. Beat eggs.\n2. Melt butter.\n3. Cook eggs.\n"
+    )
+
+    def fake_llm_call(*args, **kwargs):  # noqa: ANN002, ANN003
+        del args, kwargs
+        return (
+            Recipe(
+                title="Simple Omelet",
+                ingredients=[],
+                instructions=["Beat eggs.", "Melt butter.", "Cook eggs."],
+                servings="",
+                total_time="",
+            ),
+            None,
+        )
+
+    monkeypatch.setattr(
+        recipe_extractor_impl,
+        "make_llm_call_structured_output_generic",
+        fake_llm_call,
+    )
+
+    recipe, error = RecipeExtractorImpl().extract_recipe_from_raw_text(raw_text)
+
+    assert error is None
+    assert recipe is not None
+    assert recipe.ingredients == ["2 eggs", "1 tbsp butter", "Salt"]
