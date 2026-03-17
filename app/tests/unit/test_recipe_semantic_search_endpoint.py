@@ -36,12 +36,17 @@ class FakeRecipeManager:
         results: list[dict] | None = None,
         error: Exception | None = None,
         ingredient_previews: dict[str, list[str]] | None = None,
+        title_results: list[dict] | None = None,
+        title_error: Exception | None = None,
     ):
         self.results = results or []
         self.error = error
         self.ingredient_previews = ingredient_previews or {}
+        self.title_results = title_results or []
+        self.title_error = title_error
         self.calls: list[dict] = []
         self.preview_calls: list[dict] = []
+        self.title_calls: list[dict] = []
 
     def search_recipes_by_embedding(
         self,
@@ -77,6 +82,16 @@ class FakeRecipeManager:
             recipe_id: self.ingredient_previews.get(recipe_id, [])
             for recipe_id in recipe_ids
         }
+
+    def find_recipes_by_title_query(
+        self,
+        title_query: str,
+        limit: int = 5,
+    ) -> list[dict]:
+        self.title_calls.append({"title_query": title_query, "limit": limit})
+        if self.title_error:
+            raise self.title_error
+        return self.title_results
 
 
 class FakeRerankerService:
@@ -125,6 +140,68 @@ def build_client(
 
 
 SEMANTIC_SEARCH_PATH = f"{settings.API_BASE_PATH}/recipes/search/semantic"
+NAME_SEARCH_PATH = f"{settings.API_BASE_PATH}/recipes/search/by-name"
+
+
+def test_name_search_returns_results() -> None:
+    fake_manager = FakeRecipeManager(
+        title_results=[
+            {
+                "id": "recipe-1",
+                "title": "Chicken Tikka Masala",
+                "created_at": None,
+            },
+            {
+                "id": "recipe-2",
+                "title": "Chili Paneer",
+                "created_at": None,
+            },
+        ]
+    )
+    fake_embeddings = FakeEmbeddingsService()
+    client = build_client(fake_manager, fake_embeddings)
+
+    response = client.get(NAME_SEARCH_PATH, params={"query": "chi", "limit": 10})
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["query"] == "chi"
+    assert payload["count"] == 2
+    assert payload["results"] == [
+        {
+            "id": "recipe-1",
+            "name": "Chicken Tikka Masala",
+            "distance": None,
+        },
+        {
+            "id": "recipe-2",
+            "name": "Chili Paneer",
+            "distance": None,
+        },
+    ]
+    assert fake_manager.title_calls == [{"title_query": "chi", "limit": 10}]
+
+
+def test_name_search_rejects_short_queries() -> None:
+    fake_manager = FakeRecipeManager()
+    fake_embeddings = FakeEmbeddingsService()
+    client = build_client(fake_manager, fake_embeddings)
+
+    response = client.get(NAME_SEARCH_PATH, params={"query": "ab"})
+
+    assert response.status_code == 422
+    assert fake_manager.title_calls == []
+
+
+def test_name_search_returns_500_on_manager_error() -> None:
+    fake_manager = FakeRecipeManager(title_error=RuntimeError("db down"))
+    fake_embeddings = FakeEmbeddingsService()
+    client = build_client(fake_manager, fake_embeddings)
+
+    response = client.get(NAME_SEARCH_PATH, params={"query": "chicken"})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "Error performing recipe title search: db down"
 
 
 def test_semantic_search_reuses_cached_response(monkeypatch) -> None:

@@ -90,6 +90,15 @@ WHERE (created_at, id) < (%s::timestamp, %s::uuid)
 ORDER BY created_at DESC, id DESC
 LIMIT %s
 """
+RECIPES_BY_TITLE_SQL = """
+SELECT id, title, created_at
+FROM recipes
+WHERE title ILIKE %s
+ORDER BY
+    CASE WHEN lower(title) = lower(%s) THEN 0 ELSE 1 END,
+    created_at DESC
+LIMIT %s
+"""
 
 
 class RecipeManager(BaseManager):
@@ -344,6 +353,33 @@ class RecipeManager(BaseManager):
             return previews
         except Exception as e:
             raise DatabaseError(f"Failed to get ingredient previews: {e!s}") from e
+
+    def find_recipes_by_title_query(
+        self, title_query: str, limit: int = 5
+    ) -> list[dict]:
+        normalized_query = (title_query or "").strip()
+        if not normalized_query:
+            return []
+
+        query_limit = max(1, min(int(limit), 20))
+        like_pattern = f"%{normalized_query}%"
+        try:
+            with self.get_db_context() as (_conn, cursor):
+                cursor.execute(
+                    RECIPES_BY_TITLE_SQL,
+                    (like_pattern, normalized_query, query_limit),
+                )
+                rows = cursor.fetchall()
+                return [
+                    {
+                        "id": str(row["id"]),
+                        "title": row["title"],
+                        "created_at": row["created_at"],
+                    }
+                    for row in rows
+                ]
+        except Exception as e:
+            raise DatabaseError(f"Failed to find recipes by title: {e!s}") from e
 
     def get_ingredients_for_recipes(
         self, recipe_ids: list[str]

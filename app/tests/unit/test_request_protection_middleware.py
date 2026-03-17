@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Sequence
 
 from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
 from fastapi.testclient import TestClient
 
 import app.main as main_module
@@ -118,6 +119,29 @@ def test_request_size_limit_blocks_large_payloads() -> None:
     )
 
     assert response.status_code == 413
+
+
+def test_request_size_limit_preserves_streaming_responses() -> None:
+    app = FastAPI()
+
+    @app.post("/stream")
+    async def stream():
+        def events():
+            yield 'event: status\ndata: {"step":"drafting"}\n\n'
+            yield 'event: final\ndata: {"ok":true}\n\n'
+
+        return StreamingResponse(events(), media_type="text/event-stream")
+
+    app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=1.0)
+    app.add_middleware(AuthTokenMiddleware, token="", exempt_paths=())
+    app.add_middleware(RateLimitMiddleware, requests_per_minute=100, exempt_paths=())
+    app.add_middleware(RequestSizeLimitMiddleware, max_body_size_bytes=1024)
+
+    client = TestClient(app)
+    response = client.post("/stream", json={"hello": "world"})
+
+    assert response.status_code == 200
+    assert "event: final" in response.text
 
 
 def test_request_timeout_returns_504() -> None:

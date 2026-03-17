@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from collections.abc import Iterator
 from typing import Callable, Optional, TypeVar, Union
 
 from app.core.cache import hash_cache_key, llm_structured_cache, llm_text_cache
@@ -102,6 +103,52 @@ def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     if content is not None:
         llm_text_cache.set(cache_key, content)
     return content
+
+
+def stream_llm_call_text_generation(
+    user_prompt: str,
+    system_prompt: str,
+) -> Iterator[str]:
+    model_name = _get_chat_model_name()
+    if not model_name:
+        raise ValueError("LLM model name is not set.")
+
+    cache_key = hash_cache_key("llm_text", model_name, system_prompt, user_prompt)
+    cached = llm_text_cache.get(cache_key)
+    if cached is not None:
+        yield cached
+        return
+
+    messages: list[
+        Union[ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam]
+    ] = [
+        ChatCompletionSystemMessageParam(role="system", content=system_prompt),
+        ChatCompletionUserMessageParam(role="user", content=user_prompt),
+    ]
+
+    client = _get_openai_client()
+    stream = _with_retries(
+        lambda: client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            stream=True,
+        )
+    )
+
+    parts: list[str] = []
+    for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta
+        text = getattr(delta, "content", None)
+        if not text:
+            continue
+        parts.append(text)
+        yield text
+
+    content = "".join(parts)
+    if content:
+        llm_text_cache.set(cache_key, content)
 
 
 def make_llm_call_structured_output_generic(

@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { BookOpenText, Plus, Search, ShoppingBag, UtensilsCrossed } from "lucide-react";
+import {
+  BookOpenText,
+  FlaskConical,
+  Plus,
+  Search,
+  ShoppingBag,
+  UtensilsCrossed,
+} from "lucide-react";
 
 import { useGroceryBag } from "@/components/grocery-bag-provider";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -40,6 +47,12 @@ export function ForkfolioHeader() {
             <Link href="/books">
               <BookOpenText className="size-4" />
               Books
+            </Link>
+          </Button>
+          <Button asChild variant="secondary" size="sm">
+            <Link href="/experiment">
+              <FlaskConical className="size-4" />
+              Experiment
             </Link>
           </Button>
           <Button asChild variant="secondary" size="sm">
