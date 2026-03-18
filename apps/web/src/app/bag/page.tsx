@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, Loader2, ShoppingBag, Trash2 } from "lucide-react";
+import { Loader2, ShoppingBag, Trash2 } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { useGroceryBag } from "@/components/grocery-bag-provider";
+import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -127,32 +128,19 @@ export default function GroceryBagPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <PageShell>
       <ForkfolioHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <Button asChild variant="ghost" className="mb-4">
-          <Link href="/browse">
-            <ArrowLeft className="size-4" />
-            Back to Browse
-          </Link>
-        </Button>
+      <PageMain className="space-y-8 ff-animate-enter">
+        <PageBackLink href="/browse" label="Back to Browse" />
 
-        <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
-          <div className="mx-auto max-w-5xl space-y-6">
-            <div className="space-y-3">
-              <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
-                Grocery Bag
-              </Badge>
-              <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
-                Bag then build list
-              </h1>
-              <p className="text-lg text-muted-foreground">
-                Add recipes as you browse, then generate one combined grocery list.
-              </p>
-            </div>
-
-            <Card className="border-border/80 bg-background/85">
+        <PageHero
+          badge="Grocery Bag"
+          title="Bag then build list"
+          description="Add recipes as you browse, then generate one combined grocery list."
+          contentClassName="max-w-5xl"
+        >
+            <Card className="border-border/80 bg-background/85 shadow-none">
               <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
                 <div>
                   <CardTitle className="font-display text-3xl">Selected Recipes</CardTitle>
@@ -234,7 +222,7 @@ export default function GroceryBagPage() {
               </CardContent>
             </Card>
 
-            <Card className="border-border/80 bg-background/85">
+            <Card className="border-border/80 bg-background/85 shadow-none">
               <CardHeader>
                 <CardTitle className="font-display text-3xl">Build Grocery List</CardTitle>
                 <CardDescription>
@@ -265,7 +253,7 @@ export default function GroceryBagPage() {
             </Card>
 
             {generatedList ? (
-              <Card className="border-primary/30 bg-primary/5">
+              <Card className="border-primary/30 bg-primary/6 shadow-none">
                 <CardHeader>
                   <CardTitle className="font-display text-3xl">Your Grocery List</CardTitle>
                   <CardDescription>
@@ -288,9 +276,8 @@ export default function GroceryBagPage() {
                 </CardContent>
               </Card>
             ) : null}
-          </div>
-        </section>
-      </main>
-    </div>
+        </PageHero>
+      </PageMain>
+    </PageShell>
   );
 }

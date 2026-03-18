@@ -13,6 +13,7 @@ const { getRecipeBookMock, getRecipeMock, isForkfolioApiErrorMock, notFoundMock 
 
 vi.mock("next/navigation", () => ({
   notFound: notFoundMock,
+  usePathname: () => "/books/book-1",
 }));
 
 vi.mock("@/lib/forkfolio-api", () => ({

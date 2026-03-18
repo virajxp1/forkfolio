@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
     push: pushMock,
     refresh: refreshMock,
   }),
+  usePathname: () => "/recipes/recipe-1",
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {

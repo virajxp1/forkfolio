@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowLeft, Clock3, Users2 } from "lucide-react";
+import { Clock3, Users2 } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
+import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -101,19 +102,14 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
     recipeIds.length > 0 && availableRecipes.length === 0 && missingRecipesCount > 0;
 
   return (
-    <div className="min-h-screen">
+    <PageShell>
       <ForkfolioHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <Button asChild variant="ghost" className="mb-4">
-          <Link href="/books">
-            <ArrowLeft className="size-4" />
-            Back to Recipe Books
-          </Link>
-        </Button>
+      <PageMain className="space-y-6 ff-animate-enter">
+        <PageBackLink href="/books" label="Back to Recipe Books" />
 
         {loadError || !recipeBook ? (
-          <Card className="border-destructive/35 bg-destructive/5">
+          <Card className="border-destructive/35 bg-destructive/5 shadow-none">
             <CardHeader>
               <CardTitle>Unable to load recipe book</CardTitle>
               <CardDescription>{loadError ?? "Something went wrong."}</CardDescription>
@@ -121,19 +117,14 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
           </Card>
         ) : (
           <>
-            <Card className="mb-5">
-              <CardHeader className="space-y-4">
-                <Badge variant="secondary" className="w-fit rounded-full px-3 py-0.5 text-xs">
-                  Recipe Book
-                </Badge>
-                <CardTitle className="font-display text-5xl leading-tight tracking-tight text-primary">
-                  {recipeBook.name}
-                </CardTitle>
-                <CardDescription>
-                  {recipeBook.description?.trim() || "No description yet."}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <PageHero
+              badge="Recipe Book"
+              title={recipeBook.name}
+              description={recipeBook.description?.trim() || "No description yet."}
+              contentClassName="max-w-5xl"
+            >
+              <Card className="border-border/80 bg-background/82 shadow-none">
+                <CardContent className="space-y-4 pt-6">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline">
                     {recipeBook.recipe_count} recipe{recipeBook.recipe_count === 1 ? "" : "s"}
@@ -147,11 +138,12 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
                 <p className="text-sm text-muted-foreground">
                   Book ID: {recipeBook.id}
                 </p>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </PageHero>
 
             {missingRecipesCount > 0 && !allRecipesUnavailable ? (
-              <Card className="mb-5 border-border/80 bg-background/80">
+              <Card className="border-border/80 bg-background/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="text-base">Some recipes could not be loaded</CardTitle>
                   <CardDescription>
@@ -163,7 +155,7 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
             ) : null}
 
             {!recipeIds.length ? (
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle>No recipes in this book yet</CardTitle>
                   <CardDescription>
@@ -177,7 +169,7 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
                 </CardContent>
               </Card>
             ) : allRecipesUnavailable ? (
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <CardTitle>Recipes are currently unavailable</CardTitle>
                   <CardDescription>
@@ -196,7 +188,7 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
                 <h2 className="font-display text-3xl tracking-tight">Recipes</h2>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
                   {availableRecipes.map(({ id, recipe }) => (
-                    <Card key={id} className="border-border/80">
+                    <Card key={id} className="border-border/80 bg-background/80 shadow-none">
                       <CardHeader className="space-y-3">
                         <CardTitle className="font-display text-3xl leading-tight">
                           {recipe.title || "Untitled recipe"}
@@ -232,7 +224,7 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
             )}
           </>
         )}
-      </main>
-    </div>
+      </PageMain>
+    </PageShell>
   );
 }
