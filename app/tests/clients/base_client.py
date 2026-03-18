@@ -64,6 +64,7 @@ class BaseAPIClient:
                 else None
             ),
             "text": response.text,
+            "headers": dict(response.headers),
         }
 
     def get(

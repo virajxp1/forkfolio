@@ -2,6 +2,8 @@
 Dependency injection providers for the application.
 """
 
+from app.services.experiment_service import ExperimentService
+from app.services.data.managers.experiment_manager import ExperimentManager
 from app.services.data.managers.recipe_book_manager import RecipeBookManager
 from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.grocery_list_aggregation_impl import GroceryListAggregationServiceImpl
@@ -18,6 +20,11 @@ def get_recipe_manager() -> RecipeManager:
         RecipeManager instance
     """
     return RecipeManager()
+
+
+def get_experiment_manager() -> ExperimentManager:
+    """Dependency provider for ExperimentManager."""
+    return ExperimentManager()
 
 
 def get_recipe_book_manager() -> RecipeBookManager:
@@ -48,3 +55,11 @@ def get_grocery_list_aggregation_service() -> GroceryListAggregationServiceImpl:
 def get_recipe_processing_service() -> RecipeProcessingService:
     """Dependency provider for RecipeProcessingService."""
     return RecipeProcessingService()
+
+
+def get_experiment_service() -> ExperimentService:
+    """Dependency provider for ExperimentService."""
+    return ExperimentService(
+        experiment_manager=get_experiment_manager(),
+        recipe_manager=get_recipe_manager(),
+    )

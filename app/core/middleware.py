@@ -154,7 +154,9 @@ class RequestSizeLimitMiddleware:
         async def receive_wrapper():
             if buffered_messages:
                 return buffered_messages.pop(0)
-            return {"type": "http.request", "body": b"", "more_body": False}
+            # Delegate to the original receive channel after the buffered request body
+            # is consumed so downstream middleware can observe disconnect messages.
+            return await receive()
 
         await self.app(scope, receive_wrapper, send)
 

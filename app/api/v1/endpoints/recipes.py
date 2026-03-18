@@ -330,6 +330,55 @@ def semantic_search_recipes(
         ) from e
 
 
+@router.get("/search/by-name")
+def search_recipes_by_name(
+    query: str = Query(
+        ...,
+        min_length=3,
+        description="Case-insensitive substring match against recipe titles.",
+    ),
+    limit: int = Query(
+        10,
+        ge=1,
+        le=10,
+        description="Maximum number of title matches to return.",
+    ),
+    recipe_manager=recipe_manager_dep,
+) -> dict:
+    normalized_query = normalize_search_query(query)
+    if len(normalized_query) < 3:
+        raise HTTPException(
+            status_code=422,
+            detail="Query must contain at least 3 non-whitespace characters.",
+        )
+
+    try:
+        matches = recipe_manager.find_recipes_by_title_query(
+            title_query=normalized_query,
+            limit=limit,
+        )
+        results = [
+            {
+                "id": match["id"],
+                "name": match["title"],
+                "distance": None,
+            }
+            for match in matches
+        ]
+        return {
+            "query": normalized_query,
+            "count": len(results),
+            "results": results,
+            "success": True,
+        }
+    except Exception as e:
+        logger.error(f"Error performing recipe title search: {e!s}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error performing recipe title search: {e!s}",
+        ) from e
+
+
 @router.post("/grocery-list")
 def create_grocery_list(
     grocery_list_request: GroceryListCreateRequest = GROCERY_LIST_BODY,

@@ -73,6 +73,10 @@ describe("ForkfolioHeader", () => {
     renderHeader();
 
     const bagLink = await screen.findByRole("link", { name: /Bag/i });
+    expect(screen.getByRole("link", { name: "Experiment" })).toHaveAttribute(
+      "href",
+      "/experiment",
+    );
     await waitFor(() => {
       expect(bagLink).toHaveTextContent("2");
     });

@@ -92,3 +92,4 @@ jobs:
       env:
         SUPABASE_PASSWORD: ${{ secrets.SUPABASE_PASSWORD }}
         OPEN_ROUTER_API_KEY: ${{ secrets.OPEN_ROUTER_API_KEY }}
+        TEST_REQUEST_TIMEOUT_SECONDS: "240"

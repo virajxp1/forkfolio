@@ -3,11 +3,16 @@ import "server-only";
 import type {
   AddRecipeToBookResponse,
   ApiErrorPayload,
+  CreateExperimentMessageRequest,
+  CreateExperimentMessageResponse,
+  CreateExperimentThreadRequest,
+  CreateExperimentThreadResponse,
   CreateGroceryListRequest,
   CreateGroceryListResponse,
   CreateRecipeBookRequest,
   CreateRecipeBookResponse,
   DeleteRecipeResponse,
+  GetExperimentThreadResponse,
   GetRecipeResponse,
   PreviewRecipeFromUrlRequest,
   PreviewRecipeFromUrlResponse,
@@ -15,6 +20,7 @@ import type {
   GetRecipeBooksForRecipeResponse,
   GetRecipeBookStatsResponse,
   ListRecipeBooksResponse,
+  ListExperimentThreadsResponse,
   ListRecipesResponse,
   ProcessRecipeRequest,
   ProcessRecipeResponse,
@@ -129,6 +135,20 @@ export async function searchRecipes(
 
   return forkfolioFetch<SearchRecipesResponse>(
     `/recipes/search/semantic?${params.toString()}`,
+  );
+}
+
+export async function searchRecipesByName(
+  query: string,
+  limit = 10,
+): Promise<SearchRecipesResponse> {
+  const params = new URLSearchParams({
+    query: query.trim(),
+    limit: String(limit),
+  });
+
+  return forkfolioFetch<SearchRecipesResponse>(
+    `/recipes/search/by-name?${params.toString()}`,
   );
 }
 
@@ -254,6 +274,55 @@ export async function createGroceryList(
     }),
     body: JSON.stringify(payload),
   });
+}
+
+export async function createExperimentThread(
+  payload: CreateExperimentThreadRequest,
+): Promise<CreateExperimentThreadResponse> {
+  return forkfolioFetch<CreateExperimentThreadResponse>("/experiments/threads", {
+    method: "POST",
+    headers: buildHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function listExperimentThreads(
+  limit = 20,
+): Promise<ListExperimentThreadsResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return forkfolioFetch<ListExperimentThreadsResponse>(
+    `/experiments/threads?${params.toString()}`,
+  );
+}
+
+export async function getExperimentThread(
+  threadId: string,
+  messageLimit = 120,
+): Promise<GetExperimentThreadResponse> {
+  const params = new URLSearchParams({
+    message_limit: String(messageLimit),
+  });
+  return forkfolioFetch<GetExperimentThreadResponse>(
+    `/experiments/threads/${encodeURIComponent(threadId)}?${params.toString()}`,
+  );
+}
+
+export async function createExperimentMessage(
+  threadId: string,
+  payload: CreateExperimentMessageRequest,
+): Promise<CreateExperimentMessageResponse> {
+  return forkfolioFetch<CreateExperimentMessageResponse>(
+    `/experiments/threads/${encodeURIComponent(threadId)}/messages`,
+    {
+      method: "POST",
+      headers: buildHeaders({
+        "Content-Type": "application/json",
+      }),
+      body: JSON.stringify(payload),
+    },
+  );
 }
 
 export type { RecipeRecord };

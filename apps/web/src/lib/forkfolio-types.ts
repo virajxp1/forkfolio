@@ -225,3 +225,89 @@ export type RemoveRecipeFromBookResponse = {
 };
 
 export type DeleteRecipeResponse = boolean;
+
+export type ExperimentMode = "invent_new" | "modify_existing";
+
+export type ExperimentMessageRole = "system" | "user" | "assistant" | "tool";
+
+export type ExperimentMessageRecord = {
+  id: string;
+  thread_id: string;
+  sequence_no: number;
+  role: ExperimentMessageRole;
+  content: string;
+  tool_name: string | null;
+  tool_call: Record<string, unknown> | null;
+  created_at: string | null;
+};
+
+export type ExperimentThreadRecord = {
+  id: string;
+  mode: ExperimentMode;
+  status: string;
+  title: string | null;
+  memory_summary: string | null;
+  metadata: Record<string, unknown>;
+  context_recipe_ids: string[];
+  messages: ExperimentMessageRecord[];
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type CreateExperimentThreadRequest = {
+  mode: ExperimentMode;
+  title?: string;
+  context_recipe_ids?: string[];
+};
+
+export type CreateExperimentThreadResponse = {
+  thread: ExperimentThreadRecord;
+  success?: boolean;
+};
+
+export type GetExperimentThreadResponse = {
+  thread: ExperimentThreadRecord;
+  success?: boolean;
+};
+
+export type CreateExperimentMessageRequest = {
+  content: string;
+  context_recipe_ids?: string[];
+  attach_recipe_ids?: string[];
+  attach_recipe_names?: string[];
+};
+
+export type ExperimentThreadSummary = {
+  id: string;
+  mode: ExperimentMode;
+  status: string;
+  title: string | null;
+  memory_summary: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string | null;
+  updated_at: string | null;
+  last_message_role: ExperimentMessageRole | null;
+  last_message_content: string | null;
+  last_message_created_at: string | null;
+};
+
+export type ListExperimentThreadsResponse = {
+  threads: ExperimentThreadSummary[];
+  count: number;
+  success?: boolean;
+};
+
+export type CreateExperimentMessageResponse = {
+  thread_id: string;
+  thread: ExperimentThreadRecord;
+  user_message: ExperimentMessageRecord;
+  assistant_message: ExperimentMessageRecord;
+  attachment_message: ExperimentMessageRecord | null;
+  attached_recipes: Array<{
+    id: string;
+    title: string;
+    created_at: string | null;
+  }>;
+  unresolved_recipe_names: string[];
+  success?: boolean;
+};
