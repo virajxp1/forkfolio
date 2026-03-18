@@ -118,7 +118,9 @@ def test_experiment_thread_crud_lifecycle(api_client: APIClient) -> None:
         assert message_data.get("success") is True
         assert message_data.get("assistant_message", {}).get("role") == "assistant"
 
-        get_after_message = api_client.experiments.get_thread(thread_id, message_limit=200)
+        get_after_message = api_client.experiments.get_thread(
+            thread_id, message_limit=200
+        )
         assert get_after_message["status_code"] == HTTP_OK
         messages = get_after_message["data"].get("thread", {}).get("messages", [])
         roles = [message.get("role") for message in messages]
@@ -164,7 +166,9 @@ def test_experiment_stream_emits_events_and_persists(api_client: APIClient) -> N
     assistant_content = str(assistant_message.get("content") or "").strip()
     assert assistant_content
 
-    get_thread_response = api_client.experiments.get_thread(thread_id, message_limit=200)
+    get_thread_response = api_client.experiments.get_thread(
+        thread_id, message_limit=200
+    )
     assert get_thread_response["status_code"] == HTTP_OK
     thread_messages = get_thread_response["data"].get("thread", {}).get("messages", [])
     message_ids = [message.get("id") for message in thread_messages]
@@ -216,10 +220,12 @@ def test_experiment_attach_ids_uses_exact_recipe(api_client: APIClient) -> None:
         assert recipe_id_b in attached_ids
         assert recipe_id_a not in attached_ids
 
-        get_thread_response = api_client.experiments.get_thread(thread_id, message_limit=200)
+        get_thread_response = api_client.experiments.get_thread(
+            thread_id, message_limit=200
+        )
         assert get_thread_response["status_code"] == HTTP_OK
-        context_ids = get_thread_response["data"].get("thread", {}).get(
-            "context_recipe_ids", []
+        context_ids = (
+            get_thread_response["data"].get("thread", {}).get("context_recipe_ids", [])
         )
         assert recipe_id_b in context_ids
         assert recipe_id_a not in context_ids
