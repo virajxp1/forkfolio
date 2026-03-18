@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, BookOpenText, Loader2, Plus, RefreshCw } from "lucide-react";
+import { BookOpenText, Loader2, Plus, RefreshCw } from "lucide-react";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
-import { Badge } from "@/components/ui/badge";
+import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -116,7 +116,7 @@ async function createRecipeBookClient(
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <Card className="border-border/80 bg-background/80">
+    <Card className="border-border/80 bg-background/82 shadow-none">
       <CardHeader className="space-y-1">
         <CardDescription>{label}</CardDescription>
         <CardTitle className="font-display text-4xl tracking-tight">{value}</CardTitle>
@@ -127,7 +127,7 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 function RecipeBookCard({ recipeBook }: { recipeBook: RecipeBookRecord }) {
   return (
-    <Card className="border-border/80 transition hover:-translate-y-0.5 hover:shadow-sm">
+    <Card className="border-border/80 bg-background/80 shadow-none transition hover:-translate-y-0.5 hover:shadow-sm">
       <CardHeader>
         <CardTitle className="font-display text-3xl leading-tight">
           {recipeBook.name}
@@ -225,34 +225,20 @@ export default function RecipeBooksPage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <PageShell>
       <ForkfolioHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <Button asChild variant="ghost" className="mb-4">
-          <Link href="/">
-            <ArrowLeft className="size-4" />
-            Back to Home
-          </Link>
-        </Button>
+      <PageMain className="space-y-10 ff-animate-enter">
+        <PageBackLink href="/" label="Back to Home" />
 
-        <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
-          <div className="mx-auto max-w-5xl space-y-8">
-            <div className="space-y-3">
-              <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
-                Recipe Books
-              </Badge>
-              <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
-                Organize recipes into collections
-              </h1>
-              <p className="text-lg text-muted-foreground">
-                Group recipes by cuisine, mood, season, or any style that helps you cook
-                faster.
-              </p>
-            </div>
-
+        <PageHero
+          badge="Recipe Books"
+          title="Organize recipes into collections"
+          description="Group recipes by cuisine, mood, season, or any style that helps you cook faster."
+          contentClassName="max-w-5xl"
+        >
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1.25fr_1fr]">
-              <Card className="border-border/80 bg-background/80">
+              <Card className="border-border/80 bg-background/82 shadow-none">
                 <CardHeader>
                   <CardTitle className="font-display text-3xl">Create Recipe Book</CardTitle>
                   <CardDescription>
@@ -268,6 +254,7 @@ export default function RecipeBooksPage() {
                         value={name}
                         onChange={(event) => setName(event.target.value)}
                         placeholder="Weeknight Dinners"
+                        className="border-border/80 bg-background/80"
                       />
                     </div>
 
@@ -278,7 +265,7 @@ export default function RecipeBooksPage() {
                         value={description}
                         onChange={(event) => setDescription(event.target.value)}
                         placeholder="Fast, high-protein meals for weekdays"
-                        className="min-h-24 resize-y"
+                        className="min-h-24 resize-y border-border/80 bg-background/80"
                       />
                     </div>
 
@@ -360,14 +347,13 @@ export default function RecipeBooksPage() {
                 )}
               </div>
             </div>
-          </div>
-        </section>
+        </PageHero>
 
-        <section className="mt-10 space-y-5">
+        <section className="space-y-5 ff-animate-enter-delayed">
           <h2 className="font-display text-3xl tracking-tight">Your Recipe Books</h2>
 
           {!isLoading && !loadError && isBookListTruncated ? (
-            <Card className="border-border/80 bg-background/80">
+            <Card className="border-border/80 bg-background/80 shadow-none">
               <CardHeader>
                 <CardTitle className="text-base">
                   Showing first {RECIPE_BOOKS_LIMIT} recipe books
@@ -416,7 +402,7 @@ export default function RecipeBooksPage() {
             </div>
           ) : null}
         </section>
-      </main>
-    </div>
+      </PageMain>
+    </PageShell>
   );
 }

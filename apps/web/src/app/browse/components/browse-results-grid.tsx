@@ -13,7 +13,7 @@ function recipeTitleFromResult(result: SearchRecipeResult): string {
 
 function ResultCardLoading() {
   return (
-    <Card className="h-full border-border/80">
+    <Card className="h-full border-border/80 bg-background/80 shadow-none">
       <CardHeader className="space-y-4">
         <Skeleton className="h-8 w-2/3 rounded-lg bg-muted/85" />
         <div className="flex gap-2">
@@ -50,7 +50,7 @@ function SearchCard({
 
   return (
     <Card
-      className={`relative h-full border-border/80 transition ${
+      className={`relative h-full border-border/80 bg-background/80 shadow-none transition ${
         canOpen ? "hover:-translate-y-0.5 hover:shadow-md" : "opacity-60"
       }`}
     >
@@ -149,8 +149,8 @@ function SearchCard({
             />
           ) : null}
           <div className="inline-flex items-center gap-1.5 text-sm font-medium text-primary">
-          Open recipe
-          <ArrowRight className="size-4" />
+            Open recipe
+            <ArrowRight className="size-4" />
           </div>
         </div>
       </CardContent>
@@ -188,13 +188,13 @@ export function BrowseResultsGrid({
   onCardOpen,
 }: BrowseResultsGridProps) {
   return (
-    <section className="mt-10 space-y-5">
-      <h2 className="font-display text-3xl tracking-tight">
+    <section className="space-y-5 ff-animate-enter-delayed">
+      <h2 className="font-display text-[clamp(1.8rem,3vw,2.4rem)] tracking-tight">
         {queryFromUrl ? `Results for "${queryFromUrl}"` : "Browse Recipes"}
       </h2>
 
       {searchError ? (
-        <Card className="border-destructive/35 bg-destructive/5">
+        <Card className="border-destructive/35 bg-destructive/5 shadow-none">
           <CardHeader>
             <CardTitle>Search Error</CardTitle>
             <CardDescription>{searchError}</CardDescription>
@@ -203,7 +203,7 @@ export function BrowseResultsGrid({
       ) : null}
 
       {showInitialPrompt ? (
-        <Card>
+        <Card className="shadow-none">
           <CardHeader>
             <CardTitle>Start with a query</CardTitle>
             <CardDescription>
@@ -225,7 +225,7 @@ export function BrowseResultsGrid({
       ) : null}
 
       {showNoResults ? (
-        <Card>
+        <Card className="shadow-none">
           <CardHeader>
             <CardTitle>No recipes found</CardTitle>
             <CardDescription>

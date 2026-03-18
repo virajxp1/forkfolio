@@ -25,7 +25,7 @@ export function BrowseSearchForm({
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
       <div className="relative flex-1">
-        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground" />
+        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2 text-muted-foreground/80" />
         <Input
           type="search"
           name="q"
@@ -34,13 +34,13 @@ export function BrowseSearchForm({
             onQueryInputChange(event.target.value);
           }}
           placeholder="Search recipes... e.g. 'creamy pasta' or 'quick breakfast'"
-          className="h-14 rounded-2xl border-border/90 bg-background pl-11 text-base"
+          className="h-14 rounded-2xl border-border/85 bg-background/85 pl-11 text-base"
         />
       </div>
       <Button
         type="submit"
         size="lg"
-        className="h-14 rounded-2xl px-8 text-lg"
+        className="h-14 rounded-2xl px-8 text-base sm:text-lg"
         disabled={isSearching}
       >
         Search

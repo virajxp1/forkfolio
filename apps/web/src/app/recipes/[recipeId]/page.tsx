@@ -1,14 +1,13 @@
-import Link from "next/link";
-import { ArrowLeft, Clock3, LinkIcon, Users2 } from "lucide-react";
+import { Clock3, LinkIcon, Users2 } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { DeleteRecipeButton } from "@/components/delete-recipe-button";
 import { ForkfolioHeader } from "@/components/forkfolio-header";
+import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
 import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { RecipeBookMembership } from "@/components/recipe-book-membership";
 import { TrackRecipeHistory } from "@/components/track-recipe-history";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -55,7 +54,7 @@ function MetadataBadges({ recipe }: { recipe: RecipeRecord }) {
 function RecipeBody({ recipe }: { recipe: RecipeRecord }) {
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.3fr]">
-      <Card>
+      <Card className="border-border/80 bg-background/80 shadow-none">
         <CardHeader>
           <CardTitle className="font-display text-3xl">Ingredients</CardTitle>
           <CardDescription>
@@ -74,7 +73,7 @@ function RecipeBody({ recipe }: { recipe: RecipeRecord }) {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="border-border/80 bg-background/80 shadow-none">
         <CardHeader>
           <CardTitle className="font-display text-3xl">Instructions</CardTitle>
           <CardDescription>
@@ -119,17 +118,12 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
 
   if (!recipe) {
     return (
-      <div className="min-h-screen">
+      <PageShell>
         <ForkfolioHeader />
-        <main className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6">
-          <Button asChild variant="ghost" className="mb-4">
-            <Link href="/browse">
-              <ArrowLeft className="size-4" />
-              Back to Search
-            </Link>
-          </Button>
+        <PageMain className="max-w-3xl space-y-5 ff-animate-enter">
+          <PageBackLink href="/browse" label="Back to Search" />
 
-          <Card className="border-destructive/35 bg-destructive/5">
+          <Card className="border-destructive/35 bg-destructive/5 shadow-none">
             <CardHeader>
               <CardTitle>Unable to load recipe</CardTitle>
               <CardDescription>
@@ -137,64 +131,61 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
               </CardDescription>
             </CardHeader>
           </Card>
-        </main>
-      </div>
+        </PageMain>
+      </PageShell>
     );
   }
 
   return (
-    <div className="min-h-screen">
+    <PageShell>
       <TrackRecipeHistory
         recipeId={recipe.id}
         recipeTitle={recipe.title || "Untitled recipe"}
       />
       <ForkfolioHeader />
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <Button asChild variant="ghost" className="mb-4">
-          <Link href="/browse">
-            <ArrowLeft className="size-4" />
-            Back to Search
-          </Link>
-        </Button>
+      <PageMain className="space-y-6 ff-animate-enter">
+        <PageBackLink href="/browse" label="Back to Search" />
 
-        <Card className="mb-5">
-          <CardHeader className="space-y-4">
-            <CardTitle className="font-display text-5xl leading-tight tracking-tight text-primary">
-              {recipe.title || "Untitled recipe"}
-            </CardTitle>
-            <MetadataBadges recipe={recipe} />
-          </CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            <div className="flex flex-wrap gap-x-5 gap-y-1">
-              {recipe.created_at ? <span>Created: {recipe.created_at}</span> : null}
-              {recipe.updated_at ? <span>Updated: {recipe.updated_at}</span> : null}
-            </div>
-            <div className="mt-5">
-              <RecipeBagToggleButton
-                recipe={{
-                  id: recipe.id,
-                  title: recipe.title,
-                  servings: recipe.servings,
-                  total_time: recipe.total_time,
-                }}
-              />
-            </div>
-            <Separator className="mt-5" />
-            <div className="mt-5">
-              <DeleteRecipeButton
-                recipeId={recipe.id}
-                recipeTitle={recipe.title || "Untitled recipe"}
-              />
-            </div>
-          </CardContent>
-        </Card>
+        <PageHero
+          badge="Recipe"
+          title={recipe.title || "Untitled recipe"}
+          contentClassName="max-w-5xl"
+        >
+          <MetadataBadges recipe={recipe} />
 
-        <section className="mb-5">
+          <Card className="border-border/80 bg-background/82 shadow-none">
+            <CardContent className="space-y-5 pt-6 text-sm text-muted-foreground">
+              <div className="flex flex-wrap gap-x-5 gap-y-1">
+                {recipe.created_at ? <span>Created: {recipe.created_at}</span> : null}
+                {recipe.updated_at ? <span>Updated: {recipe.updated_at}</span> : null}
+              </div>
+              <div>
+                <RecipeBagToggleButton
+                  recipe={{
+                    id: recipe.id,
+                    title: recipe.title,
+                    servings: recipe.servings,
+                    total_time: recipe.total_time,
+                  }}
+                />
+              </div>
+              <Separator />
+              <div>
+                <DeleteRecipeButton
+                  recipeId={recipe.id}
+                  recipeTitle={recipe.title || "Untitled recipe"}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </PageHero>
+
+        <section>
           <RecipeBookMembership recipeId={recipe.id} />
         </section>
 
         <RecipeBody recipe={recipe} />
-      </main>
-    </div>
+      </PageMain>
+    </PageShell>
   );
 }

@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({
     push: pushMock,
   }),
+  usePathname: () => "/",
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {
