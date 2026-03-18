@@ -85,6 +85,8 @@ export type GetRecipeResponse = {
 
 export type ProcessRecipeRequest = {
   raw_input: string;
+  source_url?: string;
+  sourceUrl?: string;
   enforce_deduplication?: boolean;
   isTest?: boolean;
   is_test?: boolean;

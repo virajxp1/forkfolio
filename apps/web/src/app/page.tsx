@@ -12,10 +12,12 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
+import { PageHero, PageMain, PageShell } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   RECENT_RECIPES_STORAGE_KEY,
   readRecentRecipes,
@@ -254,50 +256,38 @@ export default function HomePage() {
   }, [hasRecentRecipes]);
 
   return (
-    <div className="min-h-screen">
+    <PageShell>
       <ForkfolioHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-12">
-        <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10 sm:py-12">
-          <div className="mx-auto max-w-5xl space-y-8">
-            <div className="space-y-3">
-              <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
-                Home
-              </Badge>
-              <h1 className="font-display text-5xl leading-tight tracking-tight text-foreground sm:text-6xl">
-                {heroTitle}
-              </h1>
-              <p className="max-w-4xl text-lg leading-snug text-muted-foreground sm:text-xl">
-                Capture recipes in seconds, search semantically, and organize everything
-                into books that make cooking faster.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Button asChild size="lg" className="h-14 rounded-full px-8 text-lg font-semibold sm:col-span-1">
+      <PageMain className="space-y-10 ff-animate-enter">
+        <PageHero
+          badge={hasRecentRecipes ? "Welcome Back" : "Home"}
+          title={heroTitle}
+          description="Capture recipes in seconds, search semantically, and organize everything into books that make cooking faster."
+          actions={(
+            <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-3">
+              <Button asChild size="lg" className="h-12 rounded-full text-base font-semibold sm:h-14 sm:text-lg">
                 <Link href="/recipes/new">
                   <Plus className="size-5" />
                   Add Recipe
                 </Link>
               </Button>
-
               <Button
                 asChild
                 size="lg"
                 variant="secondary"
-                className="h-14 rounded-full px-8 text-lg font-semibold sm:col-span-1"
+                className="h-12 rounded-full border border-border/70 bg-background/72 text-base font-semibold sm:h-14 sm:text-lg"
               >
                 <Link href="/browse">
                   <Search className="size-5" />
                   Browse
                 </Link>
               </Button>
-
               <Button
                 asChild
                 size="lg"
                 variant="secondary"
-                className="h-14 rounded-full px-8 text-lg font-semibold sm:col-span-1"
+                className="h-12 rounded-full border border-border/70 bg-background/72 text-base font-semibold sm:h-14 sm:text-lg"
               >
                 <Link href="/books">
                   <BookOpenText className="size-5" />
@@ -305,81 +295,88 @@ export default function HomePage() {
                 </Link>
               </Button>
             </div>
+          )}
+        >
+          <Card className="border-border/80 bg-background/88 shadow-none">
+            <CardHeader>
+              <CardTitle className="font-display text-3xl tracking-tight">
+                Find recipes instantly
+              </CardTitle>
+              <CardDescription>
+                Start typing to get quick suggestions, or jump to full browse search.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <form
+                className="flex flex-col gap-3 sm:flex-row"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  router.push(buildBrowseHref(searchInput));
+                }}
+              >
+                <Input
+                  type="search"
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Search by dish, ingredient, or style"
+                  className="h-11 border-border/80 bg-background/80 text-base"
+                />
+                <Button type="submit" variant="outline" className="h-11">
+                  <Search className="size-4" />
+                  Search
+                </Button>
+              </form>
 
-            <Card className="border-border/80 bg-background/80">
-              <CardHeader>
-                <CardTitle className="font-display text-3xl tracking-tight">
-                  Find recipes instantly
-                </CardTitle>
-                <CardDescription>
-                  Start typing to get quick suggestions, or jump to full browse search.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <form
-                  className="flex flex-col gap-3 sm:flex-row"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    router.push(buildBrowseHref(searchInput));
-                  }}
-                >
-                  <Input
-                    type="search"
-                    value={searchInput}
-                    onChange={(event) => setSearchInput(event.target.value)}
-                    placeholder="Search by dish, ingredient, or style"
-                    className="h-11 text-base"
-                  />
-                  <Button type="submit" variant="outline" className="h-11">
-                    <Search className="size-4" />
-                    Search
+              <div className="flex flex-wrap gap-2">
+                {QUICK_SEARCH_CHIPS.map((chip) => (
+                  <Button key={chip} asChild size="sm" variant="secondary" className="rounded-full">
+                    <Link href={buildBrowseHref(chip)}>{chip}</Link>
                   </Button>
-                </form>
+                ))}
+              </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {QUICK_SEARCH_CHIPS.map((chip) => (
-                    <Button key={chip} asChild size="sm" variant="secondary">
-                      <Link href={buildBrowseHref(chip)}>{chip}</Link>
-                    </Button>
-                  ))}
+              {canShowQuickResults ? (
+                <div className="space-y-2 rounded-xl border border-border/70 bg-background/74 px-4 py-3">
+                  <p className="text-sm font-semibold text-foreground/90">Quick Results</p>
+                  {visibleSearching ? (
+                    <p className="text-sm text-muted-foreground">Searching...</p>
+                  ) : visibleSearchError ? (
+                    <p className="text-sm text-destructive">{visibleSearchError}</p>
+                  ) : visibleSuggestions.length ? (
+                    visibleSuggestions.map((suggestion) => (
+                      <Button
+                        key={suggestion.id}
+                        asChild
+                        variant="ghost"
+                        className="h-9 w-full justify-start rounded-lg"
+                      >
+                        <Link href={`/recipes/${suggestion.id}`}>{suggestion.name}</Link>
+                      </Button>
+                    ))
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No quick matches yet.</p>
+                  )}
                 </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  Type at least {MIN_SEARCH_LENGTH} characters to show quick matches.
+                </p>
+              )}
+            </CardContent>
+          </Card>
 
-                {canShowQuickResults ? (
-                  <Card className="border-border/70">
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base">Quick Results</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      {visibleSearching ? (
-                        <p className="text-sm text-muted-foreground">Searching...</p>
-                      ) : visibleSearchError ? (
-                        <p className="text-sm text-destructive">{visibleSearchError}</p>
-                      ) : visibleSuggestions.length ? (
-                        visibleSuggestions.map((suggestion) => (
-                          <Button
-                            key={suggestion.id}
-                            asChild
-                            variant="ghost"
-                            className="w-full justify-start"
-                          >
-                            <Link href={`/recipes/${suggestion.id}`}>{suggestion.name}</Link>
-                          </Button>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">
-                          No quick matches yet.
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ) : null}
-              </CardContent>
-            </Card>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className="rounded-full bg-background/65 px-3 py-1 text-xs">
+              {recentRecipes.length} recent recipe{recentRecipes.length === 1 ? "" : "s"}
+            </Badge>
+            <Badge variant="outline" className="rounded-full bg-background/65 px-3 py-1 text-xs">
+              {recipeBooks.length} book{recipeBooks.length === 1 ? "" : "s"} loaded
+            </Badge>
           </div>
-        </section>
+        </PageHero>
 
-        <section className="mt-10 grid grid-cols-1 gap-5 lg:grid-cols-[1.4fr_1fr]">
-          <Card className="border-border/80 bg-background/80">
+        <section className="grid grid-cols-1 gap-5 ff-animate-enter-delayed lg:grid-cols-[1.4fr_1fr]">
+          <Card className="border-border/80 bg-background/80 shadow-none">
             <CardHeader>
               <CardTitle className="font-display text-3xl tracking-tight">
                 {hasRecentRecipes ? "Continue where you left off" : "No recent recipes yet"}
@@ -394,19 +391,20 @@ export default function HomePage() {
               {hasRecentRecipes ? (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {recentRecipes.map((recipe) => (
-                    <Card key={recipe.id} className="border-border/70">
-                      <CardHeader>
-                        <CardTitle className="text-xl">{recipe.title}</CardTitle>
-                        <CardDescription>
+                    <article
+                      key={recipe.id}
+                      className="space-y-3 rounded-xl border border-border/70 bg-background/74 px-4 py-4"
+                    >
+                      <div className="space-y-1">
+                        <h3 className="line-clamp-2 text-lg font-semibold">{recipe.title}</h3>
+                        <p className="text-sm text-muted-foreground">
                           Viewed {new Date(recipe.viewed_at).toLocaleDateString()}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <Button asChild size="sm" variant="outline">
-                          <Link href={`/recipes/${recipe.id}`}>Open Recipe</Link>
-                        </Button>
-                      </CardContent>
-                    </Card>
+                        </p>
+                      </div>
+                      <Button asChild size="sm" variant="outline">
+                        <Link href={`/recipes/${recipe.id}`}>Open Recipe</Link>
+                      </Button>
+                    </article>
                   ))}
                 </div>
               ) : (
@@ -417,7 +415,7 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          <Card className="border-border/80 bg-background/80">
+          <Card className="border-border/80 bg-background/80 shadow-none">
             <CardHeader>
               <CardTitle className="font-display text-3xl tracking-tight">
                 Recipe Books Snapshot
@@ -431,14 +429,15 @@ export default function HomePage() {
                 <p className="text-sm text-destructive">{bookSnapshotError}</p>
               ) : recipeBooks.length ? (
                 recipeBooks.map((book) => (
-                  <Card key={book.id} className="border-border/70">
-                    <CardHeader className="space-y-1">
-                      <CardTitle className="text-lg">{book.name}</CardTitle>
-                      <CardDescription>
-                        {book.recipe_count} recipe{book.recipe_count === 1 ? "" : "s"}
-                      </CardDescription>
-                    </CardHeader>
-                  </Card>
+                  <article
+                    key={book.id}
+                    className="space-y-1 rounded-xl border border-border/70 bg-background/74 px-4 py-3"
+                  >
+                    <h3 className="text-lg font-semibold">{book.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {book.recipe_count} recipe{book.recipe_count === 1 ? "" : "s"}
+                    </p>
+                  </article>
                 ))
               ) : (
                 <p className="text-sm text-muted-foreground">No books yet.</p>
@@ -451,11 +450,19 @@ export default function HomePage() {
           </Card>
         </section>
 
-        <section className="mt-10 space-y-5">
-          <h2 className="font-display text-4xl tracking-tight">What You Can Do</h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <section className="space-y-5 ff-animate-enter-delayed">
+          <h2 className="font-display text-[clamp(2rem,3.2vw,2.8rem)] tracking-tight">
+            What You Can Do
+          </h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {FEATURE_CARDS.map((feature) => (
-              <Card key={feature.id} className="border-border/80 bg-background/80">
+              <Card
+                key={feature.id}
+                className={cn(
+                  "border-border/80 bg-background/80 shadow-none",
+                  feature.id === "add" && "md:col-span-2 xl:col-span-1",
+                )}
+              >
                 <CardHeader className="space-y-2">
                   <CardTitle className="font-display text-3xl tracking-tight">
                     {feature.title}
@@ -476,7 +483,7 @@ export default function HomePage() {
             ))}
           </div>
         </section>
-      </main>
-    </div>
+      </PageMain>
+    </PageShell>
   );
 }

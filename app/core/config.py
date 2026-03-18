@@ -82,6 +82,9 @@ class Settings:
         self.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST: float = min(
             max(rerank_family_boost, 0.0), 1.0
         )
+        self.SEMANTIC_SEARCH_HEURISTICS_ENABLED: bool = self._cfg.getboolean(
+            "api", "semantic_search_heuristics_enabled", fallback=True
+        )
 
         # DB settings
         self.DB_HOST: str = self._cfg.get("database", "host")
@@ -117,6 +120,17 @@ class Settings:
             "llm", "structured_output_max_attempts", fallback=2
         )
         self.LLM_STRUCTURED_OUTPUT_MAX_ATTEMPTS: int = max(1, structured_attempts)
+        recipe_unit_system = os.getenv(
+            "RECIPE_UNIT_SYSTEM",
+            self._cfg.get("llm", "recipe_unit_system", fallback="us"),
+        )
+        normalized_unit_system = recipe_unit_system.strip().lower()
+        if normalized_unit_system in {"metric", "si"}:
+            self.RECIPE_UNIT_SYSTEM = "metric"
+        elif normalized_unit_system == "both":
+            self.RECIPE_UNIT_SYSTEM = "both"
+        else:
+            self.RECIPE_UNIT_SYSTEM = "us"
 
         # Dedupe
         self.DEDUPE_EMBEDDING_TYPE: str = self._cfg.get(
@@ -127,6 +141,20 @@ class Settings:
         )
         self.DEDUPE_DISTANCE_THRESHOLD: float = self._cfg.getfloat(
             "dedupe", "distance_threshold", fallback=0.30
+        )
+
+        # Search behavior
+        default_keywords_path = repo_root / "config" / "search_keywords.json"
+        configured_keywords_file = os.getenv(
+            "SEARCH_KEYWORDS_FILE", ""
+        ).strip() or self._cfg.get(
+            "search",
+            "keywords_file",
+            fallback=str(default_keywords_path.relative_to(repo_root)),
+        )
+        self.SEARCH_KEYWORDS_FILE: Path = self._resolve_repo_path(
+            configured_keywords_file,
+            default_keywords_path,
         )
 
         # Secrets: environment-only.
@@ -149,6 +177,15 @@ class Settings:
             normalized = f"/{normalized}"
         normalized = normalized.rstrip("/")
         return normalized or "/api/v1"
+
+    def _resolve_repo_path(self, raw_path: str, fallback: Path) -> Path:
+        normalized = (raw_path or "").strip()
+        if not normalized:
+            return fallback
+        candidate = Path(normalized).expanduser()
+        if not candidate.is_absolute():
+            candidate = self._repo_root / candidate
+        return candidate
 
 
 settings = Settings()

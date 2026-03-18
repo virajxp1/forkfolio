@@ -1,4 +1,5 @@
 import { ForkfolioHeader } from "@/components/forkfolio-header";
+import { PageHero, PageMain, PageShell } from "@/components/page-shell";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -25,26 +26,28 @@ function ResultCardSkeleton() {
 
 export default function BrowseLoading() {
   return (
-    <div className="min-h-screen">
+    <PageShell>
       <ForkfolioHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
-          <div className="mx-auto max-w-4xl space-y-6">
-            <div className="space-y-3">
-              <Skeleton className="h-5 w-28 rounded-full" />
-              <Skeleton className="h-14 w-2/3" />
-              <Skeleton className="h-6 w-4/5" />
-            </div>
-
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Skeleton className="h-14 flex-1 rounded-2xl" />
-              <Skeleton className="h-14 w-full rounded-2xl sm:w-36" />
-            </div>
+      <PageMain className="space-y-10">
+        <PageHero
+          badge="Browse Recipes"
+          title="Find anything instantly"
+          description="Browse your latest recipes or search by dish, ingredient, or cuisine."
+          contentClassName="max-w-4xl"
+        >
+          <div className="space-y-3">
+            <Skeleton className="h-14 w-2/3" />
+            <Skeleton className="h-6 w-4/5" />
           </div>
-        </section>
 
-        <section className="mt-10 space-y-5">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Skeleton className="h-14 flex-1 rounded-2xl" />
+            <Skeleton className="h-14 w-full rounded-2xl sm:w-36" />
+          </div>
+        </PageHero>
+
+        <section className="space-y-5">
           <Skeleton className="h-10 w-64" />
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <ResultCardSkeleton />
@@ -55,7 +58,7 @@ export default function BrowseLoading() {
             <ResultCardSkeleton />
           </div>
         </section>
-      </main>
-    </div>
+      </PageMain>
+    </PageShell>
   );
 }

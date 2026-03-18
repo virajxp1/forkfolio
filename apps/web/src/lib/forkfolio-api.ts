@@ -29,7 +29,7 @@ import type {
   SearchRecipesResponse,
 } from "@/lib/forkfolio-types";
 
-const DEFAULT_API_BASE_URL = "https://forkfolio-be.onrender.com";
+const DEFAULT_API_BASE_URL = "http://localhost:8000";
 const DEFAULT_API_BASE_PATH = "/api/v1";
 
 function normalizeApiBasePath(rawPath: string): string {

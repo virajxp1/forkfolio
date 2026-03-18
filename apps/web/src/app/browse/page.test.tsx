@@ -14,6 +14,7 @@ vi.mock("next/navigation", () => ({
     replace: replaceMock,
   }),
   useSearchParams: () => searchParams,
+  usePathname: () => "/browse",
 }));
 
 function jsonResponse(body: unknown, status = 200): Response {

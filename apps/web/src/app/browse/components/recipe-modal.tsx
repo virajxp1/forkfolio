@@ -38,11 +38,11 @@ export function RecipeModal({
       <DialogContent
         showCloseButton={false}
         aria-describedby={undefined}
-        className="w-full max-w-5xl overflow-hidden border-border/80 bg-background p-0 shadow-xl sm:max-w-5xl"
+        className="w-full max-w-5xl overflow-hidden rounded-2xl border-border/80 bg-background/95 p-0 shadow-2xl sm:max-w-5xl"
       >
         <DialogTitle className="sr-only">{title}</DialogTitle>
 
-        <div className="flex items-start justify-between gap-4 border-b border-border/70 px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-border/70 bg-card/45 px-6 py-5">
           <div className="space-y-2">
             {recipe ? (
               <h3 className="font-display text-4xl leading-tight tracking-tight text-primary sm:text-5xl">
@@ -108,7 +108,7 @@ export function RecipeModal({
 
         <div className="max-h-[75vh] overflow-y-auto px-6 py-5">
           {error ? (
-            <Card className="border-destructive/35 bg-destructive/5">
+            <Card className="border-destructive/35 bg-destructive/5 shadow-none">
               <CardHeader>
                 <CardTitle>Unable to load recipe</CardTitle>
                 <CardDescription>{error}</CardDescription>
@@ -118,7 +118,7 @@ export function RecipeModal({
 
           {!error && isLoading && !recipe ? (
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.3fr]">
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <Skeleton className="h-10 w-40 bg-muted/85" />
                   <Skeleton className="h-5 w-24 bg-muted/85" />
@@ -131,7 +131,7 @@ export function RecipeModal({
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="shadow-none">
                 <CardHeader>
                   <Skeleton className="h-10 w-44 bg-muted/85" />
                   <Skeleton className="h-5 w-24 bg-muted/85" />
@@ -148,7 +148,7 @@ export function RecipeModal({
 
           {recipe ? (
             <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.3fr]">
-              <Card>
+              <Card className="border-border/80 bg-background/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="font-display text-3xl">Ingredients</CardTitle>
                   <CardDescription>
@@ -167,7 +167,7 @@ export function RecipeModal({
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card className="border-border/80 bg-background/80 shadow-none">
                 <CardHeader>
                   <CardTitle className="font-display text-3xl">Instructions</CardTitle>
                   <CardDescription>

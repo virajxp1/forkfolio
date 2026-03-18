@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
+import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,7 +65,10 @@ async function readErrorPayload(response: Response): Promise<ErrorPayload | null
   }
 }
 
-async function processRecipeClient(rawInput: string): Promise<ProcessRecipeResponse> {
+async function processRecipeClient(
+  rawInput: string,
+  sourceUrl?: string,
+): Promise<ProcessRecipeResponse> {
   const response = await fetch("/api/recipes/process", {
     method: "POST",
     headers: {
@@ -76,6 +80,7 @@ async function processRecipeClient(rawInput: string): Promise<ProcessRecipeRespo
       raw_input: rawInput,
       enforce_deduplication: true,
       isTest: false,
+      ...(sourceUrl ? { source_url: sourceUrl } : {}),
     }),
   });
 
@@ -195,6 +200,7 @@ function SuccessState({
 export default function NewRecipePage() {
   const [rawInput, setRawInput] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
+  const [textModeSourceUrl, setTextModeSourceUrl] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSavingPreview, setIsSavingPreview] = useState(false);
@@ -238,7 +244,10 @@ export default function NewRecipePage() {
     setResult(null);
 
     try {
-      const response = await processRecipeClient(normalizedInput);
+      const response = await processRecipeClient(
+        normalizedInput,
+        textModeSourceUrl ?? undefined,
+      );
       setResult(response);
       if (!response.success) {
         setErrorMessage(response.error || "Recipe processing failed.");
@@ -261,6 +270,7 @@ export default function NewRecipePage() {
     setPreviewErrorMessage(null);
     setErrorMessage(null);
     setPreviewResult(null);
+    setTextModeSourceUrl(null);
 
     try {
       const response = await previewRecipeFromUrlClient(normalizedSourceUrl);
@@ -277,7 +287,7 @@ export default function NewRecipePage() {
     }
   }
 
-  async function savePreviewRecipe(preview: RecipePreviewRecord) {
+  async function savePreviewRecipe(preview: RecipePreviewRecord, sourceUrlForSave: string) {
     const normalizedInput = formatRecipePreviewAsRawInput(preview);
 
     setIsSavingPreview(true);
@@ -285,11 +295,12 @@ export default function NewRecipePage() {
     setResult(null);
 
     try {
-      const response = await processRecipeClient(normalizedInput);
+      const response = await processRecipeClient(normalizedInput, sourceUrlForSave);
       setResult(response);
       if (response.success) {
         setPreviewResult(null);
         setSourceUrl("");
+        setTextModeSourceUrl(null);
       } else {
         setErrorMessage(response.error || "Recipe processing failed.");
       }
@@ -300,9 +311,10 @@ export default function NewRecipePage() {
     }
   }
 
-  function applyPreviewAsText(preview: RecipePreviewRecord) {
+  function applyPreviewAsText(preview: RecipePreviewRecord, sourceUrlForSave: string) {
     setRawInput(formatRecipePreviewAsRawInput(preview));
     setInputMode("text");
+    setTextModeSourceUrl(sourceUrlForSave);
     setPreviewErrorMessage(null);
   }
 
@@ -310,6 +322,7 @@ export default function NewRecipePage() {
     setRawInput("");
     setSourceUrl("");
     setInputMode("url");
+    setTextModeSourceUrl(null);
     setIsPreviewing(false);
     setIsSavingPreview(false);
     setIsSubmitting(false);
@@ -335,54 +348,34 @@ export default function NewRecipePage() {
     : 0;
 
   return (
-    <div className="min-h-screen">
+    <PageShell>
       <ForkfolioHeader />
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-        <Button asChild variant="ghost" className="mb-4">
-          <Link href="/">
-            <ArrowLeft className="size-4" />
-            Back to Home
-          </Link>
-        </Button>
+      <PageMain className="space-y-8 ff-animate-enter">
+        <PageBackLink href="/" label="Back to Home" />
 
         {successfulResult ? (
-          <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
-            <div className="mx-auto max-w-4xl space-y-6">
-              <div className="space-y-3">
-                <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
-                  Recipe Saved
-                </Badge>
-                <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
-                  Recipe saved successfully
-                </h1>
-                <p className="text-lg text-muted-foreground">
-                  Open the saved recipe, browse your collection, or start another import.
-                </p>
-              </div>
-
-              <SuccessState result={successfulResult} onStartOver={resetComposer} />
-            </div>
-          </section>
+          <PageHero
+            badge="Recipe Saved"
+            title="Recipe saved successfully"
+            description="Open the saved recipe, browse your collection, or start another import."
+            contentClassName="max-w-4xl"
+          >
+            <SuccessState result={successfulResult} onStartOver={resetComposer} />
+          </PageHero>
         ) : (
-          <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
-            <div className="mx-auto max-w-4xl space-y-8">
-              <div className="space-y-3">
-                <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
-                  Add Recipe
-                </Badge>
-                <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
-                  Turn raw text into a saved recipe
-                </h1>
-                <p className="text-lg text-muted-foreground">
-                  Import from a URL or paste plain text. Use one path at a time for a
-                  cleaner save flow.
-                </p>
-              </div>
-
+          <PageHero
+            badge="Add Recipe"
+            title="Turn raw text into a saved recipe"
+            description="Import from a URL or paste plain text. Use one path at a time for a cleaner save flow."
+            contentClassName="max-w-4xl"
+          >
               <Tabs
                 value={inputMode}
-                onValueChange={(value) => setInputMode(value as InputMode)}
+                onValueChange={(value) => {
+                  setInputMode(value as InputMode);
+                  setTextModeSourceUrl(null);
+                }}
                 className="space-y-4"
               >
                 <TabsList className="grid w-full grid-cols-2" variant="default">
@@ -391,7 +384,7 @@ export default function NewRecipePage() {
                 </TabsList>
 
                 <TabsContent value="url">
-                  <Card className="border-border/80 bg-background/80">
+                  <Card className="border-border/80 bg-background/82 shadow-none">
                     <CardHeader className="space-y-2">
                       <CardTitle className="font-display text-3xl">
                         Import From URL
@@ -412,6 +405,7 @@ export default function NewRecipePage() {
                             value={sourceUrl}
                             onChange={(event) => setSourceUrl(event.target.value)}
                             placeholder="https://example.com/chocolate-chip-cookies"
+                            className="border-border/80 bg-background/80"
                           />
                           <p className="text-sm text-muted-foreground">
                             Preview alone does not insert into your database until you save.
@@ -492,7 +486,12 @@ export default function NewRecipePage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => void savePreviewRecipe(successfulPreview.recipe_preview)}
+                                onClick={() =>
+                                  void savePreviewRecipe(
+                                    successfulPreview.recipe_preview,
+                                    successfulPreview.url,
+                                  )
+                                }
                                 disabled={isSavingPreview}
                               >
                                 {isSavingPreview ? (
@@ -508,7 +507,12 @@ export default function NewRecipePage() {
                                 type="button"
                                 variant="ghost"
                                 disabled={isSavingPreview}
-                                onClick={() => applyPreviewAsText(successfulPreview.recipe_preview)}
+                                onClick={() =>
+                                  applyPreviewAsText(
+                                    successfulPreview.recipe_preview,
+                                    successfulPreview.url,
+                                  )
+                                }
                               >
                                 Edit As Text
                               </Button>
@@ -521,7 +525,7 @@ export default function NewRecipePage() {
                 </TabsContent>
 
                 <TabsContent value="text">
-                  <Card className="border-border/80 bg-background/80">
+                  <Card className="border-border/80 bg-background/82 shadow-none">
                     <CardHeader className="space-y-2">
                       <CardTitle className="font-display text-3xl">Recipe Input</CardTitle>
                       <CardDescription>
@@ -540,7 +544,7 @@ export default function NewRecipePage() {
                             placeholder={
                               "Chocolate Chip Cookies\n\nIngredients:\n- 2 cups flour\n- 1 cup butter\n\nInstructions:\n1. Mix ingredients\n2. Bake at 350F"
                             }
-                            className="min-h-56 resize-y"
+                            className="min-h-56 resize-y border-border/80 bg-background/80"
                           />
                           <p className="text-sm text-muted-foreground">
                             {trimmedLength} characters
@@ -568,19 +572,18 @@ export default function NewRecipePage() {
                   </Card>
                 </TabsContent>
               </Tabs>
-            </div>
-          </section>
+          </PageHero>
         )}
 
         {errorMessage ? (
-          <Card className="mt-6 border-destructive/35 bg-destructive/5">
+          <Card className="border-destructive/35 bg-destructive/5 shadow-none">
             <CardHeader>
               <CardTitle>Unable to process recipe</CardTitle>
               <CardDescription>{errorMessage}</CardDescription>
             </CardHeader>
           </Card>
         ) : null}
-      </main>
-    </div>
+      </PageMain>
+    </PageShell>
   );
 }

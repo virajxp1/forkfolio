@@ -33,7 +33,20 @@ Python is pinned to `3.11` for consistency across local, CI, and deploy:
 - `.python-version` => `3.11`
 - CI workflows use Python `3.11`
 - Docker uses `python:3.11-slim`
-- Render backend runtime is pinned with `PYTHON_VERSION=3.11.11` in `render.yaml`
+- Deployed environments should use Python `3.11.x`
+
+## Dependency Locking
+
+Backend Python dependencies are managed as:
+
+- `requirements.in` for top-level intent.
+- `requirements.txt` as the compiled lockfile used by CI and deploy.
+
+Refresh the lockfile after dependency changes:
+
+```bash
+make sync-requirements
+```
 
 ## Local Setup
 
@@ -75,9 +88,14 @@ Backend (required in deployed environments):
 - `OPEN_ROUTER_API_KEY`
 - `SUPABASE_PASSWORD`
 
+Backend (optional behavior controls):
+
+- `RECIPE_UNIT_SYSTEM` (`us`, `metric`, or `both`; default from `config/app.config.ini`)
+- `SEARCH_KEYWORDS_FILE` (path to search heuristic keyword JSON; defaults to `config/search_keywords.json`)
+
 Frontend runtime vars:
 
-- `FORKFOLIO_API_BASE_URL` (example: `https://forkfolio-be.onrender.com`)
+- `FORKFOLIO_API_BASE_URL` (example: `https://api.your-domain.com`)
 - `FORKFOLIO_API_BASE_PATH` (usually `/api/v1`)
 - `FORKFOLIO_API_TOKEN` (required when backend token middleware is enabled)
 
@@ -107,18 +125,27 @@ CI workflows:
 
 ## Deployment
 
-### Backend (Render)
+### Backend
 
-`render.yaml` contains backend service config:
+Use any Python host that can run these commands:
 
-- Runtime: Python
 - Build: `pip install -r requirements.txt`
 - Start: `python3 scripts/run.py`
-- Health check: `/api/v1/health`
+- Health check path: `/api/v1/health`
 
-### Frontend (Render)
+Set required backend env vars before startup:
 
-Use a separate Render Web Service for `apps/web`.
+- `API_AUTH_TOKEN`
+- `OPEN_ROUTER_API_KEY`
+- `SUPABASE_PASSWORD`
+
+### Frontend
+
+Deploy `apps/web` on any Node host with:
+
+- Build: `npm ci && npm run build`
+- Start: `npm run start`
+- Health check path: `/`
 
 Canonical FE deploy steps (commands, env vars, health check) are documented in:
 
@@ -129,7 +156,7 @@ Canonical FE deploy steps (commands, env vars, health check) are documented in:
 1. Branch is synced with `main`.
 2. All backend and frontend quality gates pass.
 3. OpenAPI contract validation passes (`make validate-openapi` or `make lint`).
-4. Render env vars are present and correct for backend and frontend services.
+4. Production env vars are present and correct for backend and frontend services.
 5. Smoke-test key user flows on deployed FE:
    - Browse + open recipe
    - Add recipe (manual and URL preview)

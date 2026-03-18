@@ -1,11 +1,7 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
-
 import { ForkfolioHeader } from "@/components/forkfolio-header";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
 
 import { BrowseResultsGrid } from "./components/browse-results-grid";
 import { BrowseSearchForm } from "./components/browse-search-form";
@@ -39,40 +35,26 @@ export default function BrowsePage() {
   } = useBrowseData();
 
   return (
-    <div className="min-h-screen">
+    <PageShell>
       <div className={hasModal ? "pointer-events-none select-none blur-[3px]" : ""}>
         <ForkfolioHeader />
 
-        <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-          <Button asChild variant="ghost" className="mb-4">
-            <Link href="/">
-              <ArrowLeft className="size-4" />
-              Back to Home
-            </Link>
-          </Button>
+        <PageMain className="space-y-8 ff-animate-enter">
+          <PageBackLink href="/" label="Back to Home" />
 
-          <section className="rounded-[2rem] border border-border/70 bg-card/35 px-6 py-10 sm:px-10">
-            <div className="mx-auto max-w-4xl space-y-6">
-              <div className="space-y-2">
-                <Badge variant="secondary" className="rounded-full px-3 py-0.5 text-xs">
-                  Browse Recipes
-                </Badge>
-                <h1 className="font-display text-5xl tracking-tight sm:text-6xl">
-                  Find anything instantly
-                </h1>
-                <p className="text-lg text-muted-foreground">
-                  Browse your latest recipes or search by dish, ingredient, or cuisine.
-                </p>
-              </div>
-
+          <PageHero
+            badge="Browse Recipes"
+            title="Find anything instantly"
+            description="Browse your latest recipes or search by dish, ingredient, or cuisine."
+            contentClassName="max-w-4xl"
+          >
               <BrowseSearchForm
                 queryInput={queryInput}
                 isSearching={isSearching}
                 onQueryInputChange={handleQueryInputChange}
                 onSearchSubmit={handleSearchSubmit}
               />
-            </div>
-          </section>
+          </PageHero>
 
           <BrowseResultsGrid
             queryFromUrl={queryFromUrl}
@@ -88,7 +70,7 @@ export default function BrowsePage() {
             onLoadMore={handleLoadMore}
             onCardOpen={openRecipeModal}
           />
-        </main>
+        </PageMain>
       </div>
 
       {hasModal ? (
@@ -100,6 +82,6 @@ export default function BrowsePage() {
           onClose={closeRecipeModal}
         />
       ) : null}
-    </div>
+    </PageShell>
   );
 }
