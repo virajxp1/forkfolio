@@ -731,21 +731,24 @@ export default function ExperimentPage() {
                 <p className="text-sm text-muted-foreground">No conversation history yet.</p>
               ) : (
                 threadHistory.map((threadItem) => (
-                  <button
+                  <Button
                     key={threadItem.id}
                     type="button"
-                    className={`w-full rounded-md border px-3 py-2 text-left transition-colors ${
+                    variant="ghost"
+                    className={`h-auto w-full justify-start rounded-md border px-3 py-2 text-left transition-colors ${
                       thread?.id === threadItem.id
                         ? "border-primary/40 bg-primary/5"
                         : "border-border/70 hover:bg-accent/40"
                     }`}
                     onClick={() => void handleSelectThread(threadItem.id)}
                   >
-                    <p className="truncate text-sm font-medium">{formatThreadLabel(threadItem)}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {formatHistoryPreview(threadItem)}
-                    </p>
-                  </button>
+                    <span className="w-full">
+                      <p className="truncate text-sm font-medium">{formatThreadLabel(threadItem)}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {formatHistoryPreview(threadItem)}
+                      </p>
+                    </span>
+                  </Button>
                 ))
               )}
             </CardContent>
@@ -798,15 +801,16 @@ export default function ExperimentPage() {
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {STARTER_PROMPTS.map((prompt) => (
-                          <button
+                          <Button
                             key={prompt}
                             type="button"
-                            className="rounded-md border border-border/70 bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
+                            variant="outline"
+                            className="h-auto justify-start whitespace-normal border-border/70 bg-background px-3 py-2 text-left text-sm hover:bg-accent/40"
                             onClick={() => applyStarterPrompt(prompt)}
                             disabled={isBusy}
                           >
                             {prompt}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -827,15 +831,16 @@ export default function ExperimentPage() {
                       </p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {STARTER_PROMPTS.map((prompt) => (
-                          <button
+                          <Button
                             key={prompt}
                             type="button"
-                            className="rounded-md border border-border/70 bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-accent/40"
+                            variant="outline"
+                            className="h-auto justify-start whitespace-normal border-border/70 bg-background px-3 py-2 text-left text-sm hover:bg-accent/40"
                             onClick={() => applyStarterPrompt(prompt)}
                             disabled={isBusy}
                           >
                             {prompt}
-                          </button>
+                          </Button>
                         ))}
                       </div>
                     </div>
@@ -909,14 +914,16 @@ export default function ExperimentPage() {
                           className="inline-flex items-center gap-1"
                         >
                           <span>{attachment.name}</span>
-                          <button
+                          <Button
                             type="button"
-                            className="inline-flex items-center justify-center rounded-sm opacity-80 transition-opacity hover:opacity-100"
+                            variant="ghost"
+                            size="icon-xs"
+                            className="opacity-80 transition-opacity hover:opacity-100"
                             onClick={() => removePendingAttachment(attachment.id)}
                             aria-label={`Remove ${attachment.name}`}
                           >
                             <X className="size-3" />
-                          </button>
+                          </Button>
                         </Badge>
                       ))}
                     </div>
@@ -1017,14 +1024,16 @@ export default function ExperimentPage() {
                                   className="inline-flex items-center gap-1"
                                 >
                                   <span>{attachment.name}</span>
-                                  <button
+                                  <Button
                                     type="button"
-                                    className="inline-flex items-center justify-center rounded-sm opacity-80 transition-opacity hover:opacity-100"
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    className="opacity-80 transition-opacity hover:opacity-100"
                                     onClick={() => removePendingAttachment(attachment.id)}
                                     aria-label={`Remove ${attachment.name}`}
                                   >
                                     <X className="size-3" />
-                                  </button>
+                                  </Button>
                                 </Badge>
                               ))}
                             </div>
