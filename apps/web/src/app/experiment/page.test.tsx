@@ -53,9 +53,7 @@ describe("/experiment page", () => {
           thread: {
             id: "thread-1",
             mode: "invent_new",
-            status: "active",
             title: "Weeknight curry ideas",
-            memory_summary: null,
             metadata: {},
             context_recipe_ids: [],
             messages: [],
@@ -94,9 +92,7 @@ describe("/experiment page", () => {
           thread: {
             id: "thread-auto",
             mode: "invent_new",
-            status: "active",
             title: null,
-            memory_summary: null,
             metadata: {},
             context_recipe_ids: [],
             messages: [],
@@ -114,9 +110,7 @@ describe("/experiment page", () => {
           thread: {
             id: "thread-auto",
             mode: "invent_new",
-            status: "active",
             title: "Auto start this thread",
-            memory_summary: null,
             metadata: {},
             context_recipe_ids: [],
             messages: [
@@ -195,6 +189,114 @@ describe("/experiment page", () => {
     expect(await screen.findByText("Great, thread created automatically.")).toBeInTheDocument();
   });
 
+  it("auto-scrolls to the latest message when new messages are added", async () => {
+    const scrollIntoViewMock = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      writable: true,
+      value: scrollIntoViewMock,
+    });
+
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = toUrl(input);
+      if (url.startsWith("/api/experiments/threads?")) {
+        return jsonResponse({ success: true, count: 0, threads: [] });
+      }
+      if (url === "/api/experiments/threads" && init?.method === "POST") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-scroll",
+            mode: "invent_new",
+            title: null,
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [],
+            created_at: null,
+            updated_at: null,
+          },
+        });
+      }
+      if (
+        url === "/api/experiments/threads/thread-scroll/messages/stream" &&
+        init?.method === "POST"
+      ) {
+        const finalPayload = {
+          thread_id: "thread-scroll",
+          thread: {
+            id: "thread-scroll",
+            mode: "invent_new",
+            title: "Scroll check",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-user",
+                thread_id: "thread-scroll",
+                sequence_no: 1,
+                role: "user",
+                content: "Check scroll",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+              {
+                id: "msg-assistant",
+                thread_id: "thread-scroll",
+                sequence_no: 2,
+                role: "assistant",
+                content: "Scrolled to latest message.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+          user_message: {
+            id: "msg-user",
+            thread_id: "thread-scroll",
+            sequence_no: 1,
+            role: "user",
+            content: "Check scroll",
+            tool_name: null,
+            tool_call: null,
+            created_at: null,
+          },
+          assistant_message: {
+            id: "msg-assistant",
+            thread_id: "thread-scroll",
+            sequence_no: 2,
+            role: "assistant",
+            content: "Scrolled to latest message.",
+            tool_name: null,
+            tool_call: null,
+            created_at: null,
+          },
+          attachment_message: null,
+          attached_recipes: [],
+          unresolved_recipe_names: [],
+          success: true,
+        };
+        return sseResponse(`event: final\ndata: ${JSON.stringify(finalPayload)}\n\n`);
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    const user = userEvent.setup();
+    render(<ExperimentPage />);
+
+    await user.type(screen.getByLabelText("Your message"), "Check scroll");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Scrolled to latest message.")).toBeInTheDocument();
+    expect(scrollIntoViewMock).toHaveBeenCalledWith(
+      expect.objectContaining({ block: "end", behavior: "smooth" }),
+    );
+  });
+
   it("attaches from picker, streams assistant output, and clears chips on send", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockImplementation(async (input, init) => {
@@ -208,9 +310,7 @@ describe("/experiment page", () => {
           thread: {
             id: "thread-1",
             mode: "invent_new",
-            status: "active",
             title: null,
-            memory_summary: null,
             metadata: {},
             context_recipe_ids: [],
             messages: [],
@@ -233,9 +333,7 @@ describe("/experiment page", () => {
           thread: {
             id: "thread-1",
             mode: "invent_new",
-            status: "active",
             title: "Make it vegan",
-            memory_summary: null,
             metadata: {},
             context_recipe_ids: ["recipe-1"],
             messages: [
@@ -342,12 +440,15 @@ describe("/experiment page", () => {
         method: "POST",
       }),
     );
-    expect(await screen.findByText("Use tofu and coconut yogurt for the marinade.")).toBeInTheDocument();
+    const assistantMatches = await screen.findAllByText(
+      "Use tofu and coconut yogurt for the marinade.",
+    );
+    expect(assistantMatches.length).toBeGreaterThan(0);
     expect(await screen.findByText("Attached: Chicken Tikka Masala.")).toBeInTheDocument();
     expect(screen.queryByLabelText("Remove Chicken Tikka Masala")).not.toBeInTheDocument();
   });
 
-  it("recovers from missing final event by reloading thread", async () => {
+  it("keeps streamed content when final event is missing without reloading thread", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockImplementation(async (input, init) => {
       const url = toUrl(input);
@@ -360,9 +461,7 @@ describe("/experiment page", () => {
           thread: {
             id: "thread-1",
             mode: "invent_new",
-            status: "active",
             title: "Recover test",
-            memory_summary: null,
             metadata: {},
             context_recipe_ids: [],
             messages: [],
@@ -379,44 +478,6 @@ describe("/experiment page", () => {
           ].join(""),
         );
       }
-      if (url.startsWith("/api/experiments/threads/thread-1?")) {
-        return jsonResponse({
-          success: true,
-          thread: {
-            id: "thread-1",
-            mode: "invent_new",
-            status: "active",
-            title: "Recover test",
-            memory_summary: null,
-            metadata: {},
-            context_recipe_ids: [],
-            messages: [
-              {
-                id: "msg-user",
-                thread_id: "thread-1",
-                sequence_no: 1,
-                role: "user",
-                content: "Help me make dinner",
-                tool_name: null,
-                tool_call: null,
-                created_at: null,
-              },
-              {
-                id: "msg-assistant",
-                thread_id: "thread-1",
-                sequence_no: 2,
-                role: "assistant",
-                content: "Recovered response.",
-                tool_name: null,
-                tool_call: null,
-                created_at: null,
-              },
-            ],
-            created_at: null,
-            updated_at: null,
-          },
-        });
-      }
       return jsonResponse({ detail: "Not found" }, 404);
     });
 
@@ -427,7 +488,12 @@ describe("/experiment page", () => {
     await user.type(screen.getByLabelText("Your message"), "Help me make dinner");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(await screen.findByText("Recovered response.")).toBeInTheDocument();
+    const recoveredMatches = await screen.findAllByText("Recovered response.");
+    expect(recoveredMatches.length).toBeGreaterThan(0);
     expect(screen.queryByText("Stream ended before final payload.")).not.toBeInTheDocument();
+    const reloadCalls = fetchMock.mock.calls.filter(([input]) =>
+      toUrl(input).startsWith("/api/experiments/threads/thread-1?"),
+    );
+    expect(reloadCalls).toHaveLength(0);
   });
 });

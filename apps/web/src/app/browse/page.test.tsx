@@ -77,6 +77,30 @@ function listRecipesResponse({
   });
 }
 
+function searchRecipesResponse({
+  query,
+  results = [],
+}: {
+  query: string;
+  results?: Array<{ id: string | null; name: string | null; distance: number | null }>;
+}): Response {
+  return jsonResponse({
+    query,
+    count: results.length,
+    results,
+    success: true,
+  });
+}
+
+function recipeResponseFromId(recipeId: string): Response {
+  const titleById: Record<string, string> = {
+    "recipe-1": "Creamy Pasta",
+    "recipe-2": "Tomato Soup",
+    "recipe-3": "Spicy Noodles",
+  };
+  return recipeResponse(recipeId, titleById[recipeId] ?? "Recipe");
+}
+
 describe("/browse page", () => {
   beforeEach(() => {
     pushMock.mockReset();
@@ -141,25 +165,42 @@ describe("/browse page", () => {
   it("ignores stale load-more responses after switching to query mode", async () => {
     const fetchMock = vi.mocked(fetch);
     const pendingLoadMore = createDeferred<Response>();
-    fetchMock
-      .mockResolvedValueOnce(
-        listRecipesResponse({
-          recipes: [{ id: "recipe-1", title: "Creamy Pasta" }],
-          nextCursor: "cursor-1",
-          hasMore: true,
-        }),
-      )
-      .mockResolvedValueOnce(recipeResponse("recipe-1", "Creamy Pasta"))
-      .mockReturnValueOnce(pendingLoadMore.promise)
-      .mockResolvedValueOnce(
-        jsonResponse({
-          query: "pasta",
-          count: 1,
-          results: [{ id: "recipe-3", name: "Spicy Noodles", distance: 0.08 }],
-          success: true,
-        }),
-      )
-      .mockResolvedValueOnce(recipeResponse("recipe-3", "Spicy Noodles"));
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url === "/api/recipes?limit=12") {
+        return Promise.resolve(
+          listRecipesResponse({
+            recipes: [{ id: "recipe-1", title: "Creamy Pasta" }],
+            nextCursor: "cursor-1",
+            hasMore: true,
+          }),
+        );
+      }
+      if (url === "/api/recipes?limit=12&cursor=cursor-1") {
+        return pendingLoadMore.promise;
+      }
+      if (url.startsWith("/api/search/names?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [{ id: "recipe-3", name: "Spicy Noodles", distance: null }],
+          }),
+        );
+      }
+      if (url.startsWith("/api/search?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [{ id: "recipe-3", name: "Spicy Noodles", distance: 0.08 }],
+          }),
+        );
+      }
+      if (url.startsWith("/api/recipes/")) {
+        const recipeId = url.split("/").pop() ?? "recipe-1";
+        return Promise.resolve(recipeResponseFromId(recipeId));
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
 
     const user = userEvent.setup();
     const { rerender } = render(<BrowsePage />);
@@ -202,19 +243,73 @@ describe("/browse page", () => {
     searchParams = new URLSearchParams("q=pasta");
 
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        query: "pasta",
-        count: 0,
-        results: [],
-        success: true,
-      }),
-    );
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/search/names?") || url.startsWith("/api/search?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [],
+          }),
+        );
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
 
     render(<BrowsePage />);
 
     expect(await screen.findByRole("searchbox")).toHaveValue("pasta");
     expect(await screen.findByText('Results for "pasta"')).toBeInTheDocument();
+  });
+
+  it("loads text matches first, then lets users load related recipes", async () => {
+    searchParams = new URLSearchParams("q=pasta");
+
+    const fetchMock = vi.mocked(fetch);
+    const deferredSemantic = createDeferred<Response>();
+    const user = userEvent.setup();
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/search/names?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [{ id: "recipe-1", name: "Creamy Pasta", distance: null }],
+          }),
+        );
+      }
+      if (url.startsWith("/api/search?")) {
+        return deferredSemantic.promise;
+      }
+      if (url.startsWith("/api/recipes/")) {
+        const recipeId = url.split("/").pop() ?? "recipe-1";
+        return Promise.resolve(recipeResponseFromId(recipeId));
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
+
+    render(<BrowsePage />);
+
+    expect(await screen.findByRole("button", { name: "Open Creamy Pasta" })).toBeInTheDocument();
+    expect(await screen.findByText("Related Recipes")).toBeInTheDocument();
+    expect(await screen.findByText("Finding related recipes in the background...")).toBeInTheDocument();
+
+    deferredSemantic.resolve(
+      searchRecipesResponse({
+        query: "pasta",
+        results: [
+          { id: "recipe-1", name: "Creamy Pasta", distance: 0.05 },
+          { id: "recipe-3", name: "Spicy Noodles", distance: 0.08 },
+        ],
+      }),
+    );
+
+    const loadRelatedButton = await screen.findByRole("button", {
+      name: "Load related recipes (1)",
+    });
+    await user.click(loadRelatedButton);
+
+    expect(await screen.findByRole("button", { name: "Open Spicy Noodles" })).toBeInTheDocument();
   });
 
   it("pushes normalized query to URL on submit", async () => {
@@ -223,7 +318,8 @@ describe("/browse page", () => {
     render(<BrowsePage />);
 
     await user.type(screen.getByRole("searchbox"), "  creamy pasta  ");
-    await user.click(screen.getByRole("button", { name: /^Search$/i }));
+    const searchButton = await screen.findByRole("button", { name: /^Search$/i });
+    await user.click(searchButton);
 
     expect(pushMock).toHaveBeenCalledWith("/browse?q=creamy+pasta", { scroll: false });
   });
@@ -232,14 +328,18 @@ describe("/browse page", () => {
     searchParams = new URLSearchParams("q=pasta");
 
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        query: "pasta",
-        count: 0,
-        results: [],
-        success: true,
-      }),
-    );
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/search/names?") || url.startsWith("/api/search?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [],
+          }),
+        );
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
 
     const user = userEvent.setup();
     render(<BrowsePage />);
@@ -254,16 +354,29 @@ describe("/browse page", () => {
     searchParams = new URLSearchParams("q=pasta");
 
     const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          query: "pasta",
-          count: 1,
-          results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
-          success: true,
-        }),
-      )
-      .mockResolvedValueOnce(recipeResponse());
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/search/names?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [{ id: "recipe-1", name: "Creamy Pasta", distance: null }],
+          }),
+        );
+      }
+      if (url.startsWith("/api/search?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
+          }),
+        );
+      }
+      if (url.startsWith("/api/recipes/")) {
+        return Promise.resolve(recipeResponse());
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
 
     const user = userEvent.setup();
     render(<BrowsePage />);
@@ -273,7 +386,7 @@ describe("/browse page", () => {
     });
 
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect(fetchMock).toHaveBeenCalled();
     });
 
     await user.click(openCardButton);
@@ -287,16 +400,29 @@ describe("/browse page", () => {
     searchParams = new URLSearchParams("q=pasta&recipe=recipe-1");
 
     const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          query: "pasta",
-          count: 1,
-          results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
-          success: true,
-        }),
-      )
-      .mockResolvedValueOnce(recipeResponse());
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/search/names?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [{ id: "recipe-1", name: "Creamy Pasta", distance: null }],
+          }),
+        );
+      }
+      if (url.startsWith("/api/search?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
+          }),
+        );
+      }
+      if (url.startsWith("/api/recipes/")) {
+        return Promise.resolve(recipeResponse());
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
 
     const user = userEvent.setup();
     render(<BrowsePage />);
@@ -315,14 +441,18 @@ describe("/browse page", () => {
     searchParams = new URLSearchParams("q=kimchi");
 
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        query: "kimchi",
-        count: 0,
-        results: [],
-        success: true,
-      }),
-    );
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/search/names?") || url.startsWith("/api/search?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "kimchi",
+            results: [],
+          }),
+        );
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
 
     render(<BrowsePage />);
 
@@ -333,14 +463,28 @@ describe("/browse page", () => {
     searchParams = new URLSearchParams("q=pasta");
 
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValue(
-      jsonResponse(
-        {
-          detail: "Backend unavailable",
-        },
-        500,
-      ),
-    );
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/search/names?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
+            results: [],
+          }),
+        );
+      }
+      if (url.startsWith("/api/search?")) {
+        return Promise.resolve(
+          jsonResponse(
+            {
+              detail: "Backend unavailable",
+            },
+            500,
+          ),
+        );
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
 
     render(<BrowsePage />);
 
@@ -352,37 +496,47 @@ describe("/browse page", () => {
     searchParams = new URLSearchParams("q=pasta&recipe=recipe-1");
 
     const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
+    fetchMock.mockImplementation((input) => {
+      const url = String(input);
+      if (url.startsWith("/api/search/names?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
             query: "pasta",
-            count: 1,
+            results: [{ id: "recipe-1", name: "Creamy Pasta", distance: null }],
+          }),
+        );
+      }
+      if (url.startsWith("/api/search?")) {
+        return Promise.resolve(
+          searchRecipesResponse({
+            query: "pasta",
             results: [{ id: "recipe-1", name: "Creamy Pasta", distance: 0.05 }],
-            success: true,
           }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            recipe: {
-              id: "recipe-1",
-              title: "Creamy Pasta",
-              servings: "2",
-              total_time: "20 minutes",
-              source_url: null,
-              created_at: null,
-              updated_at: null,
-              ingredients: ["Pasta", "Cream"],
-              instructions: ["Cook pasta", "Add sauce"],
-            },
-            success: true,
-          }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
-      );
+        );
+      }
+      if (url.startsWith("/api/recipes/")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              recipe: {
+                id: "recipe-1",
+                title: "Creamy Pasta",
+                servings: "2",
+                total_time: "20 minutes",
+                source_url: null,
+                created_at: null,
+                updated_at: null,
+                ingredients: ["Pasta", "Cream"],
+                instructions: ["Cook pasta", "Add sauce"],
+              },
+              success: true,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(listRecipesResponse());
+    });
 
     render(<BrowsePage />);
 

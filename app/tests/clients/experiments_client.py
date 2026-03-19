@@ -22,6 +22,7 @@ class ExperimentsClient(BaseAPIClient):
         title: Optional[str] = None,
         context_recipe_ids: Optional[list[str]] = None,
         include_test_data: bool = True,
+        is_test: bool = True,
     ) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
             "mode": mode,
@@ -31,10 +32,16 @@ class ExperimentsClient(BaseAPIClient):
             payload["title"] = title
         if context_recipe_ids is not None:
             payload["context_recipe_ids"] = context_recipe_ids
+        payload["is_test"] = is_test
         return self.post(self.THREADS_ENDPOINT, json_data=payload)
 
-    def list_threads(self, limit: int = 20) -> Dict[str, Any]:
-        return self.get(self.THREADS_ENDPOINT, params={"limit": limit})
+    def list_threads(
+        self, limit: int = 20, include_test: bool = False
+    ) -> Dict[str, Any]:
+        return self.get(
+            self.THREADS_ENDPOINT,
+            params={"limit": limit, "include_test": include_test},
+        )
 
     def get_thread(
         self,
