@@ -5,9 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import type { RecipeRecord, SearchRecipeResult } from "@/lib/forkfolio-types";
+import type { RecipeRecord } from "@/lib/forkfolio-types";
 
-function recipeTitleFromResult(result: SearchRecipeResult): string {
+import type { BrowseSearchResult } from "../use-browse-data";
+
+function recipeTitleFromResult(result: BrowseSearchResult): string {
   return result.name?.trim() || "Untitled recipe";
 }
 
@@ -38,7 +40,7 @@ function SearchCard({
   isDetailsLoading,
   onOpen,
 }: {
-  result: SearchRecipeResult;
+  result: BrowseSearchResult;
   recipe?: RecipeRecord;
   isDetailsLoading: boolean;
   onOpen: (recipeId: string) => void;
@@ -72,6 +74,9 @@ function SearchCard({
         <CardTitle className="font-display text-2xl tracking-tight">{title}</CardTitle>
 
         <CardDescription className="flex min-h-6 flex-wrap items-center gap-2 text-sm">
+          {result.matchSource === "semantic" ? (
+            <Badge variant="secondary">Related recipe</Badge>
+          ) : null}
           {recipe ? (
             <>
               {recipe.total_time ? (
@@ -160,8 +165,11 @@ function SearchCard({
 
 type BrowseResultsGridProps = {
   queryFromUrl: string;
-  results: SearchRecipeResult[];
+  results: BrowseSearchResult[];
+  relatedResultCount: number;
   searchError: string | null;
+  isLoadingRelated: boolean;
+  showLoadRelated: boolean;
   showInitialPrompt: boolean;
   showLoadingGrid: boolean;
   showNoResults: boolean;
@@ -169,6 +177,7 @@ type BrowseResultsGridProps = {
   isLoadingMore: boolean;
   recipeById: Record<string, RecipeRecord>;
   recipeLoadingById: Record<string, boolean>;
+  onLoadRelated: () => void;
   onLoadMore: () => void;
   onCardOpen: (recipeId: string) => void;
 };
@@ -176,7 +185,10 @@ type BrowseResultsGridProps = {
 export function BrowseResultsGrid({
   queryFromUrl,
   results,
+  relatedResultCount,
   searchError,
+  isLoadingRelated,
+  showLoadRelated,
   showInitialPrompt,
   showLoadingGrid,
   showNoResults,
@@ -184,9 +196,12 @@ export function BrowseResultsGrid({
   isLoadingMore,
   recipeById,
   recipeLoadingById,
+  onLoadRelated,
   onLoadMore,
   onCardOpen,
 }: BrowseResultsGridProps) {
+  const isQueryMode = Boolean(queryFromUrl);
+
   return (
     <section className="space-y-5 ff-animate-enter-delayed">
       <h2 className="font-display text-[clamp(1.8rem,3vw,2.4rem)] tracking-tight">
@@ -271,6 +286,26 @@ export function BrowseResultsGrid({
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {isQueryMode && (isLoadingRelated || showLoadRelated) ? (
+        <Card className="border-border/70 bg-muted/20 shadow-none">
+          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="space-y-1">
+              <CardTitle className="text-lg">Related Recipes</CardTitle>
+              <CardDescription>
+                {isLoadingRelated
+                  ? "Finding related recipes in the background..."
+                  : `${relatedResultCount} related recipes are ready to load.`}
+              </CardDescription>
+            </div>
+            {showLoadRelated ? (
+              <Button type="button" variant="outline" onClick={onLoadRelated}>
+                Load related recipes ({relatedResultCount})
+              </Button>
+            ) : null}
+          </CardHeader>
+        </Card>
       ) : null}
     </section>
   );
