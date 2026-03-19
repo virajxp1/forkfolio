@@ -65,9 +65,7 @@ describe("POST /api/experiments/threads", () => {
       thread: {
         id: "thread-1",
         mode: "invent_new",
-        status: "active",
         title: "Vegan weeknight curry",
-        memory_summary: null,
         metadata: {},
         context_recipe_ids: ["recipe-1", "recipe-2"],
         messages: [],
@@ -82,6 +80,7 @@ describe("POST /api/experiments/threads", () => {
         mode: "invent_new",
         title: "  Vegan weeknight curry  ",
         context_recipe_ids: ["recipe-1", "recipe-2", "recipe-1", " "],
+        isTest: true,
       }),
       headers: {
         "Content-Type": "application/json",
@@ -96,6 +95,27 @@ describe("POST /api/experiments/threads", () => {
       mode: "invent_new",
       title: "Vegan weeknight curry",
       context_recipe_ids: ["recipe-1", "recipe-2"],
+      is_test: true,
+    });
+  });
+
+  it("returns 400 when is_test has invalid type", async () => {
+    const request = new NextRequest("http://localhost:3000/api/experiments/threads", {
+      method: "POST",
+      body: JSON.stringify({
+        mode: "invent_new",
+        is_test: "true",
+      }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      detail: "is_test must be a boolean when provided.",
     });
   });
 
@@ -125,19 +145,28 @@ describe("POST /api/experiments/threads", () => {
   it("lists experiment threads", async () => {
     listExperimentThreadsMock.mockResolvedValue({
       success: true,
-      count: 1,
+      count: 2,
       threads: [
         {
           id: "thread-1",
           mode: "invent_new",
-          status: "active",
           title: "Weeknight curry",
-          memory_summary: null,
           metadata: {},
           created_at: null,
           updated_at: null,
           last_message_role: "assistant",
           last_message_content: "Try tofu and chickpeas.",
+          last_message_created_at: null,
+        },
+        {
+          id: "thread-2",
+          mode: "invent_new",
+          title: "Experiment E2E run",
+          metadata: {},
+          created_at: null,
+          updated_at: null,
+          last_message_role: "assistant",
+          last_message_content: "Synthetic e2e response.",
           last_message_created_at: null,
         },
       ],
@@ -148,6 +177,49 @@ describe("POST /api/experiments/threads", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(listExperimentThreadsMock).toHaveBeenCalledWith(10);
+    expect(listExperimentThreadsMock).toHaveBeenCalledWith(10, false);
+    expect(await response.json()).toMatchObject({ count: 1 });
+  });
+
+  it("includes test threads when include_test=true", async () => {
+    listExperimentThreadsMock.mockResolvedValue({
+      success: true,
+      count: 2,
+      threads: [
+        {
+          id: "thread-1",
+          mode: "invent_new",
+          title: "Weeknight curry",
+          metadata: {},
+          created_at: null,
+          updated_at: null,
+          last_message_role: "assistant",
+          last_message_content: "Try tofu and chickpeas.",
+          last_message_created_at: null,
+        },
+        {
+          id: "thread-2",
+          mode: "invent_new",
+          title: "Experiment E2E run",
+          metadata: { is_test: true },
+          created_at: null,
+          updated_at: null,
+          last_message_role: "assistant",
+          last_message_content: "Synthetic e2e response.",
+          last_message_created_at: null,
+        },
+      ],
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/experiments/threads?limit=10&include_test=true",
+    );
+    const response = await GET(request);
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(listExperimentThreadsMock).toHaveBeenCalledWith(10, true);
+    expect(body.count).toBe(2);
+    expect(body.threads).toHaveLength(2);
   });
 });

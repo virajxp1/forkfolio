@@ -290,8 +290,12 @@ export async function createExperimentThread(
 
 export async function listExperimentThreads(
   limit = 20,
+  includeTest = false,
 ): Promise<ListExperimentThreadsResponse> {
-  const params = new URLSearchParams({ limit: String(limit) });
+  const params = new URLSearchParams({
+    limit: String(limit),
+    include_test: String(includeTest),
+  });
   return forkfolioFetch<ListExperimentThreadsResponse>(
     `/experiments/threads?${params.toString()}`,
   );

@@ -46,6 +46,7 @@ def create_experiment_thread(
             mode=payload.mode,
             title=payload.title,
             context_recipe_ids=_to_string_ids(payload.context_recipe_ids),
+            is_test=payload.is_test,
         )
         return {"thread": thread, "success": True}
     except ExperimentValidationError as e:
@@ -73,10 +74,17 @@ def list_experiment_threads(
         le=100,
         description="Maximum number of experiment threads to return.",
     ),
+    include_test: bool = Query(
+        default=False,
+        description="Include threads flagged as test/e2e data.",
+    ),
     experiment_service=experiment_service_dep,
 ) -> dict:
     try:
-        threads = experiment_service.list_threads(limit=limit)
+        threads = experiment_service.list_threads(
+            limit=limit,
+            include_test=include_test,
+        )
         return {"threads": threads, "count": len(threads), "success": True}
     except Exception as e:
         logger.exception("Error listing experiment threads: %s", e)
