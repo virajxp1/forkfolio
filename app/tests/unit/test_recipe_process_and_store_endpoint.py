@@ -34,10 +34,16 @@ class FakeRecipeProcessingService:
 
 class FakeRecipeManager:
     def __init__(self) -> None:
-        self.calls: list[str] = []
+        self.calls: list[dict[str, object]] = []
 
-    def get_full_recipe(self, recipe_id: str) -> dict:
-        self.calls.append(recipe_id)
+    def get_full_recipe(
+        self,
+        recipe_id: str,
+        include_test_data: bool = False,
+    ) -> dict:
+        self.calls.append(
+            {"recipe_id": recipe_id, "include_test_data": include_test_data}
+        )
         return {
             "id": recipe_id,
             "title": "Tomato Pasta",
@@ -88,6 +94,9 @@ def test_process_and_store_forwards_source_url() -> None:
             "is_test": False,
         }
     ]
+    assert recipe_manager.calls == [
+        {"recipe_id": RECIPE_ID, "include_test_data": False}
+    ]
 
 
 def test_process_and_store_accepts_source_url_alias() -> None:
@@ -105,3 +114,28 @@ def test_process_and_store_accepts_source_url_alias() -> None:
 
     assert response.status_code == 200
     assert processing_service.calls[0]["source_url"] == SOURCE_URL
+
+
+def test_process_and_store_returns_test_recipe_when_requested() -> None:
+    processing_service = FakeRecipeProcessingService()
+    recipe_manager = FakeRecipeManager()
+    client = build_client(processing_service, recipe_manager)
+
+    response = client.post(
+        PROCESS_AND_STORE_PATH,
+        json={
+            "raw_input": "Tomato Pasta recipe with ingredients and instructions.",
+            "isTest": True,
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["created"] is True
+    assert body["recipe_id"] == RECIPE_ID
+    assert body["recipe"]["id"] == RECIPE_ID
+    assert processing_service.calls[0]["is_test"] is True
+    assert recipe_manager.calls == [
+        {"recipe_id": RECIPE_ID, "include_test_data": True}
+    ]

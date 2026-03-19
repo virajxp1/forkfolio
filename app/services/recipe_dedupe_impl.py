@@ -41,7 +41,9 @@ class RecipeDedupeServiceImpl:
         ) = _get_dedupe_settings()
 
     def find_duplicate(
-        self, recipe: Recipe
+        self,
+        recipe: Recipe,
+        include_test_data: bool = False,
     ) -> tuple[bool, Optional[str], Optional[list[float]]]:
         embedding_text = RecipeEmbeddingsServiceImpl._build_title_ingredients_text(
             recipe.title, recipe.ingredients
@@ -50,6 +52,7 @@ class RecipeDedupeServiceImpl:
         nearest = self.recipe_manager.find_nearest_embedding(
             embedding=embedding,
             embedding_type=self.embedding_type,
+            include_test_data=include_test_data,
         )
         if not nearest:
             return False, None, embedding
@@ -64,7 +67,10 @@ class RecipeDedupeServiceImpl:
         if distance > self.distance_threshold:
             return False, None, embedding
 
-        existing_recipe = self.recipe_manager.get_full_recipe(nearest["recipe_id"])
+        existing_recipe = self.recipe_manager.get_full_recipe(
+            nearest["recipe_id"],
+            include_test_data=include_test_data,
+        )
         if not existing_recipe:
             return False, None, embedding
 

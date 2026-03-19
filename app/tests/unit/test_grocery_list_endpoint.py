@@ -17,12 +17,19 @@ GROCERY_LIST_PATH = f"{settings.API_BASE_PATH}/recipes/grocery-list"
 class FakeRecipeManager:
     def __init__(self, ingredients_by_recipe: dict[str, list[str]] | None = None):
         self.ingredients_by_recipe = ingredients_by_recipe or {}
-        self.calls: list[list[str]] = []
+        self.calls: list[dict[str, object]] = []
 
     def get_ingredients_for_recipes(
-        self, recipe_ids: list[str]
+        self,
+        recipe_ids: list[str],
+        include_test_data: bool = False,
     ) -> dict[str, list[str]]:
-        self.calls.append(recipe_ids)
+        self.calls.append(
+            {
+                "recipe_ids": recipe_ids,
+                "include_test_data": include_test_data,
+            }
+        )
         return {
             recipe_id: self.ingredients_by_recipe[recipe_id]
             for recipe_id in recipe_ids
@@ -86,7 +93,9 @@ def test_create_grocery_list_returns_aggregated_ingredients() -> None:
     assert body["recipe_ids"] == [RECIPE_ONE, RECIPE_TWO]
     assert body["ingredients"] == ["2 tomatoes", "2 cloves garlic", "1 onion"]
     assert body["count"] == 3
-    assert manager.calls == [[RECIPE_ONE, RECIPE_TWO]]
+    assert manager.calls == [
+        {"recipe_ids": [RECIPE_ONE, RECIPE_TWO], "include_test_data": False}
+    ]
     assert grocery_service.calls == [
         ["1 tomato", "2 cloves garlic", "1 tomato", "1 onion"]
     ]
@@ -110,7 +119,9 @@ def test_create_grocery_list_deduplicates_recipe_ids_before_loading() -> None:
     )
 
     assert response.status_code == 200
-    assert manager.calls == [[RECIPE_ONE, RECIPE_TWO]]
+    assert manager.calls == [
+        {"recipe_ids": [RECIPE_ONE, RECIPE_TWO], "include_test_data": False}
+    ]
 
 
 def test_create_grocery_list_returns_404_when_any_recipe_is_missing() -> None:

@@ -36,7 +36,9 @@ class StubExperimentService:
         mode: str,
         title: str | None = None,
         context_recipe_ids: list[str] | None = None,
+        include_test_data: bool = False,
     ) -> dict:
+        del include_test_data
         if context_recipe_ids and RECIPE_ID not in context_recipe_ids:
             raise ExperimentValidationError(
                 "One or more context recipes were not found.",
@@ -55,7 +57,13 @@ class StubExperimentService:
             "updated_at": "2026-03-16T00:00:00+00:00",
         }
 
-    def get_thread(self, thread_id: str, message_limit: int = 100) -> dict:
+    def get_thread(
+        self,
+        thread_id: str,
+        message_limit: int = 100,
+        include_test_data: bool = False,
+    ) -> dict:
+        del include_test_data
         if thread_id != THREAD_ID:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
         return {
@@ -89,7 +97,9 @@ class StubExperimentService:
         context_recipe_ids: list[str] | None = None,
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
+        include_test_data: bool = False,
     ) -> dict:
+        del include_test_data
         if thread_id != THREAD_ID:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
         if context_recipe_ids and RECIPE_ID not in context_recipe_ids:
@@ -135,7 +145,9 @@ class StubExperimentService:
         context_recipe_ids: list[str] | None = None,
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
+        include_test_data: bool = False,
     ):
+        del include_test_data
         if thread_id != THREAD_ID:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
         yield {"event": "status", "data": {"step": "drafting"}}
