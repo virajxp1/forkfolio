@@ -40,7 +40,9 @@ class FakeExperimentManager:
         payload["messages"] = self.list_messages(thread_id, limit=message_limit)
         return payload
 
-    def set_context_recipe_ids(self, thread_id: str, context_recipe_ids: list[str]) -> None:
+    def set_context_recipe_ids(
+        self, thread_id: str, context_recipe_ids: list[str]
+    ) -> None:
         if thread_id == self.thread["id"]:
             self.thread["context_recipe_ids"] = list(context_recipe_ids)
 
@@ -86,9 +88,7 @@ class FakeExperimentManager:
             return []
         return list(self.thread["context_recipe_ids"])
 
-    def list_threads(
-        self, limit: int = 20, include_test: bool = False
-    ) -> list[dict]:
+    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
         del include_test
         del limit
         return [dict(self.thread)]

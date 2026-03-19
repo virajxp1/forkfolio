@@ -8,9 +8,7 @@ from app.tests.clients.api_client import APIClient
 from app.tests.utils.constants import HTTP_OK
 from app.tests.utils.helpers import maybe_throttle
 
-EXPERIMENT_SCOPE_REFUSAL_SUBSTRING = (
-    "recipe ideation and recipe modifications only"
-)
+EXPERIMENT_SCOPE_REFUSAL_SUBSTRING = "recipe ideation and recipe modifications only"
 
 
 def _build_recipe_input(title: str, run_id: str, variant: str) -> str:
