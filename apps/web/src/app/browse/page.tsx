@@ -13,8 +13,11 @@ export default function BrowsePage() {
     queryFromUrl,
     queryInput,
     results,
+    relatedResultCount,
     searchError,
     isSearching,
+    isLoadingRelated,
+    showLoadRelated,
     recipeById,
     recipeLoadingById,
     recipeIdFromUrl,
@@ -29,6 +32,7 @@ export default function BrowsePage() {
     isLoadingMore,
     handleSearchSubmit,
     handleQueryInputChange,
+    handleLoadRelated,
     handleLoadMore,
     openRecipeModal,
     closeRecipeModal,
@@ -48,23 +52,27 @@ export default function BrowsePage() {
             description="Browse your latest recipes or search by dish, ingredient, or cuisine."
             contentClassName="max-w-4xl"
           >
-              <BrowseSearchForm
-                queryInput={queryInput}
-                isSearching={isSearching}
-                onQueryInputChange={handleQueryInputChange}
-                onSearchSubmit={handleSearchSubmit}
-              />
+            <BrowseSearchForm
+              queryInput={queryInput}
+              isSearching={isSearching}
+              onQueryInputChange={handleQueryInputChange}
+              onSearchSubmit={handleSearchSubmit}
+            />
           </PageHero>
 
           <BrowseResultsGrid
             queryFromUrl={queryFromUrl}
             results={results}
+            relatedResultCount={relatedResultCount}
             searchError={searchError}
+            isLoadingRelated={isLoadingRelated}
+            showLoadRelated={showLoadRelated}
             showInitialPrompt={showInitialPrompt}
             showLoadingGrid={showLoadingGrid}
             showNoResults={showNoResults}
             showLoadMore={showLoadMore}
             isLoadingMore={isLoadingMore}
+            onLoadRelated={handleLoadRelated}
             recipeById={recipeById}
             recipeLoadingById={recipeLoadingById}
             onLoadMore={handleLoadMore}
