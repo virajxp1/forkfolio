@@ -41,12 +41,14 @@ class FakeRecipeManager:
         limit: int = 50,
         cursor_created_at: datetime | None = None,
         cursor_id: str | None = None,
+        include_test_data: bool = False,
     ) -> list[dict]:
         self.calls.append(
             {
                 "limit": limit,
                 "cursor_created_at": cursor_created_at,
                 "cursor_id": cursor_id,
+                "include_test_data": include_test_data,
             }
         )
         if self.error:
@@ -84,6 +86,7 @@ def test_list_recipes_uses_default_limit() -> None:
             "limit": 51,
             "cursor_created_at": None,
             "cursor_id": None,
+            "include_test_data": False,
         }
     ]
 
@@ -115,6 +118,7 @@ def test_list_recipes_returns_next_cursor_when_more_results_exist() -> None:
             "limit": 2,
             "cursor_created_at": None,
             "cursor_id": None,
+            "include_test_data": False,
         }
     ]
 
@@ -136,6 +140,7 @@ def test_list_recipes_passes_decoded_cursor_to_manager() -> None:
             "limit": 26,
             "cursor_created_at": cursor_created_at,
             "cursor_id": RECIPE_ONE,
+            "include_test_data": False,
         }
     ]
 

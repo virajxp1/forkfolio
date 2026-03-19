@@ -21,9 +21,13 @@ class ExperimentsClient(BaseAPIClient):
         mode: str = "invent_new",
         title: Optional[str] = None,
         context_recipe_ids: Optional[list[str]] = None,
+        include_test_data: bool = True,
         is_test: bool = True,
     ) -> Dict[str, Any]:
-        payload: Dict[str, Any] = {"mode": mode}
+        payload: Dict[str, Any] = {
+            "mode": mode,
+            "include_test_data": include_test_data,
+        }
         if title is not None:
             payload["title"] = title
         if context_recipe_ids is not None:
@@ -39,9 +43,20 @@ class ExperimentsClient(BaseAPIClient):
             params={"limit": limit, "include_test": include_test},
         )
 
-    def get_thread(self, thread_id: str, message_limit: int = 120) -> Dict[str, Any]:
+    def get_thread(
+        self,
+        thread_id: str,
+        message_limit: int = 120,
+        include_test_data: bool = True,
+    ) -> Dict[str, Any]:
         endpoint = f"{self.THREADS_ENDPOINT}/{thread_id}"
-        return self.get(endpoint, params={"message_limit": message_limit})
+        return self.get(
+            endpoint,
+            params={
+                "message_limit": message_limit,
+                "include_test_data": include_test_data,
+            },
+        )
 
     def create_message(
         self,
@@ -49,9 +64,13 @@ class ExperimentsClient(BaseAPIClient):
         content: str,
         context_recipe_ids: Optional[list[str]] = None,
         attach_recipe_ids: Optional[list[str]] = None,
+        include_test_data: bool = True,
     ) -> Dict[str, Any]:
         endpoint = f"{self.THREADS_ENDPOINT}/{thread_id}/messages"
-        payload: Dict[str, Any] = {"content": content}
+        payload: Dict[str, Any] = {
+            "content": content,
+            "include_test_data": include_test_data,
+        }
         if context_recipe_ids is not None:
             payload["context_recipe_ids"] = context_recipe_ids
         if attach_recipe_ids is not None:
@@ -64,9 +83,13 @@ class ExperimentsClient(BaseAPIClient):
         content: str,
         context_recipe_ids: Optional[list[str]] = None,
         attach_recipe_ids: Optional[list[str]] = None,
+        include_test_data: bool = True,
     ) -> Dict[str, Any]:
         endpoint = f"{self.THREADS_ENDPOINT}/{thread_id}/messages/stream"
-        payload: Dict[str, Any] = {"content": content}
+        payload: Dict[str, Any] = {
+            "content": content,
+            "include_test_data": include_test_data,
+        }
         if context_recipe_ids is not None:
             payload["context_recipe_ids"] = context_recipe_ids
         if attach_recipe_ids is not None:

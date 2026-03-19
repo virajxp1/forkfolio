@@ -7,12 +7,17 @@ from app.services.experiment_service import ExperimentService
 
 
 class FakeRecipeManager:
-    def get_full_recipe(self, recipe_id: str):
-        del recipe_id
+    def get_full_recipe(self, recipe_id: str, include_test_data: bool = False):
+        del recipe_id, include_test_data
         return None
 
-    def find_recipes_by_title_query(self, query: str, limit: int = 1):
-        del query, limit
+    def find_recipes_by_title_query(
+        self,
+        query: str,
+        limit: int = 1,
+        include_test_data: bool = False,
+    ):
+        del query, limit, include_test_data
         return []
 
 
@@ -32,7 +37,13 @@ class FakeExperimentManager:
         self.messages: list[dict] = []
         self._sequence = 0
 
-    def get_thread(self, thread_id: str, message_limit: int = 100) -> dict | None:
+    def get_thread(
+        self,
+        thread_id: str,
+        message_limit: int = 100,
+        include_test_data: bool = False,
+    ) -> dict | None:
+        del include_test_data
         if thread_id != self.thread["id"]:
             return None
         payload = dict(self.thread)
@@ -83,7 +94,12 @@ class FakeExperimentManager:
             return []
         return list(self.messages[-max(1, limit) :])
 
-    def get_context_recipe_ids(self, thread_id: str) -> list[str]:
+    def get_context_recipe_ids(
+        self,
+        thread_id: str,
+        include_test_data: bool = False,
+    ) -> list[str]:
+        del include_test_data
         if thread_id != self.thread["id"]:
             return []
         return list(self.thread["context_recipe_ids"])

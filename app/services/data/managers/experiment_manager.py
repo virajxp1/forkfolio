@@ -40,10 +40,12 @@ WHERE id = %s
 THREAD_EXISTS_SQL = "SELECT 1 FROM experiment_threads WHERE id = %s"
 
 THREAD_CONTEXT_GET_SQL = """
-SELECT recipe_id
-FROM experiment_context_recipes
-WHERE thread_id = %s
-ORDER BY added_at, recipe_id
+SELECT ecr.recipe_id
+FROM experiment_context_recipes ecr
+JOIN recipes r ON r.id = ecr.recipe_id
+WHERE ecr.thread_id = %s
+  AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+ORDER BY ecr.added_at, ecr.recipe_id
 """
 
 THREAD_CONTEXT_INSERT_SQL = """
@@ -252,10 +254,14 @@ class ExperimentManager(BaseManager):
             cursor.execute(THREAD_CONTEXT_INSERT_SQL, (thread_id, recipe_id))
         return normalized_ids
 
-    def get_context_recipe_ids(self, thread_id: str) -> list[str]:
+    def get_context_recipe_ids(
+        self,
+        thread_id: str,
+        include_test_data: bool = False,
+    ) -> list[str]:
         try:
             with self.get_db_context() as (_conn, cursor):
-                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id,))
+                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id, include_test_data))
                 rows = cursor.fetchall()
                 return [str(row["recipe_id"]) for row in rows]
         except Exception as e:
@@ -292,7 +298,12 @@ class ExperimentManager(BaseManager):
         except Exception as e:
             raise DatabaseError(f"Failed to create experiment thread: {e!s}") from e
 
-    def get_thread(self, thread_id: str, message_limit: int = 100) -> dict | None:
+    def get_thread(
+        self,
+        thread_id: str,
+        message_limit: int = 100,
+        include_test_data: bool = False,
+    ) -> dict | None:
         query_limit = max(1, min(int(message_limit), 500))
         try:
             with self.get_db_context() as (_conn, cursor):
@@ -302,7 +313,7 @@ class ExperimentManager(BaseManager):
                     return None
 
                 thread = self._serialize_thread(dict(row))
-                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id,))
+                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id, include_test_data))
                 context_rows = cursor.fetchall()
                 thread["context_recipe_ids"] = [
                     str(context_row["recipe_id"]) for context_row in context_rows

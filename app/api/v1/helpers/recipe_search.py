@@ -267,7 +267,11 @@ def _rank_matches(
     return ordered_matches, ranked_ids_found
 
 
-def build_rerank_candidates(matches: list[dict], recipe_manager) -> list[dict]:
+def build_rerank_candidates(
+    matches: list[dict],
+    recipe_manager,
+    include_test_data: bool = False,
+) -> list[dict]:
     recipe_ids = []
     for item in matches:
         recipe_id = _normalize_recipe_id(item.get("id"))
@@ -280,6 +284,7 @@ def build_rerank_candidates(matches: list[dict], recipe_manager) -> list[dict]:
             ingredient_previews = recipe_manager.get_ingredient_previews(
                 recipe_ids=recipe_ids,
                 max_ingredients=8,
+                include_test_data=include_test_data,
             )
         except Exception as exc:
             logger.warning(
