@@ -6,6 +6,7 @@ import type {
 
 const SEARCH_LIMIT = 12;
 export const MIN_QUERY_LENGTH = 2;
+export const MIN_TEXT_MATCH_QUERY_LENGTH = 3;
 
 type ErrorPayload = {
   detail?: string;
@@ -71,6 +72,14 @@ export async function searchRecipesClient(
 ): Promise<SearchRecipesResponse> {
   const params = new URLSearchParams({ query, limit: String(limit) });
   return browserFetch<SearchRecipesResponse>(`/api/search?${params.toString()}`);
+}
+
+export async function searchRecipesByNameClient(
+  query: string,
+  limit = SEARCH_LIMIT,
+): Promise<SearchRecipesResponse> {
+  const params = new URLSearchParams({ query, limit: String(limit) });
+  return browserFetch<SearchRecipesResponse>(`/api/search/names?${params.toString()}`);
 }
 
 export async function listRecipesClient(
