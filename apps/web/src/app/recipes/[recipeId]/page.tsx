@@ -1,4 +1,3 @@
-import { Clock3, LinkIcon, Users2 } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { DeleteRecipeButton } from "@/components/delete-recipe-button";
@@ -6,8 +5,9 @@ import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
 import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { RecipeBookMembership } from "@/components/recipe-book-membership";
+import { RecipeContentColumns } from "@/components/recipe-content-columns";
+import { RecipeMetadataBadges } from "@/components/recipe-metadata-badges";
 import { TrackRecipeHistory } from "@/components/track-recipe-history";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -25,78 +25,6 @@ import {
 type RecipePageProps = {
   params: Promise<{ recipeId: string }>;
 };
-
-function MetadataBadges({ recipe }: { recipe: RecipeRecord }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {recipe.total_time ? (
-        <Badge variant="secondary" className="gap-1.5">
-          <Clock3 className="size-3.5" />
-          {recipe.total_time}
-        </Badge>
-      ) : null}
-      {recipe.servings ? (
-        <Badge variant="secondary" className="gap-1.5">
-          <Users2 className="size-3.5" />
-          {recipe.servings}
-        </Badge>
-      ) : null}
-      {recipe.source_url ? (
-        <Badge variant="outline" className="max-w-full gap-1.5 truncate">
-          <LinkIcon className="size-3.5" />
-          <span className="truncate">{recipe.source_url}</span>
-        </Badge>
-      ) : null}
-    </div>
-  );
-}
-
-function RecipeBody({ recipe }: { recipe: RecipeRecord }) {
-  return (
-    <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.3fr]">
-      <Card className="border-border/80 bg-background/80 shadow-none">
-        <CardHeader>
-          <CardTitle className="font-display text-3xl">Ingredients</CardTitle>
-          <CardDescription>
-            {recipe.ingredients.length} item
-            {recipe.ingredients.length === 1 ? "" : "s"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2">
-            {recipe.ingredients.map((ingredient, index) => (
-              <li key={`${ingredient}-${index}`} className="text-foreground/90">
-                • {ingredient}
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/80 bg-background/80 shadow-none">
-        <CardHeader>
-          <CardTitle className="font-display text-3xl">Instructions</CardTitle>
-          <CardDescription>
-            {recipe.instructions.length} step
-            {recipe.instructions.length === 1 ? "" : "s"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ol className="space-y-3">
-            {recipe.instructions.map((instruction, index) => (
-              <li key={`${instruction}-${index}`} className="flex items-start gap-3">
-                <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                  {index + 1}
-                </span>
-                <p className="pt-0.5 text-foreground/90">{instruction}</p>
-              </li>
-            ))}
-          </ol>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
 export default async function RecipeDetailPage({ params }: RecipePageProps) {
   const { recipeId } = await params;
@@ -151,11 +79,16 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
           title={recipe.title || "Untitled recipe"}
           contentClassName="max-w-5xl"
         >
-          <MetadataBadges recipe={recipe} />
+          <RecipeMetadataBadges
+            servings={recipe.servings}
+            totalTime={recipe.total_time}
+            sourceUrl={recipe.source_url}
+            showSourceUrl
+          />
 
           <Card className="border-border/80 bg-background/82 shadow-none">
             <CardContent className="space-y-5 pt-6 text-sm text-muted-foreground">
-              <div className="flex flex-wrap gap-x-5 gap-y-1">
+              <div className="flex flex-wrap gap-x-5 gap-y-1 break-words">
                 {recipe.created_at ? <span>Created: {recipe.created_at}</span> : null}
                 {recipe.updated_at ? <span>Updated: {recipe.updated_at}</span> : null}
               </div>
@@ -184,7 +117,10 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
           <RecipeBookMembership recipeId={recipe.id} />
         </section>
 
-        <RecipeBody recipe={recipe} />
+        <RecipeContentColumns
+          ingredients={recipe.ingredients}
+          instructions={recipe.instructions}
+        />
       </PageMain>
     </PageShell>
   );

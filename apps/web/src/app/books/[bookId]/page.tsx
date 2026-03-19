@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Clock3, Users2 } from "lucide-react";
 import { notFound } from "next/navigation";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
+import { RecipeMetadataBadges } from "@/components/recipe-metadata-badges";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -190,28 +190,21 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
                   {availableRecipes.map(({ id, recipe }) => (
                     <Card key={id} className="border-border/80 bg-background/80 shadow-none">
                       <CardHeader className="space-y-3">
-                        <CardTitle className="font-display text-3xl leading-tight">
+                        <CardTitle
+                          className="line-clamp-2 break-words font-display text-3xl leading-tight"
+                          title={recipe.title || "Untitled recipe"}
+                        >
                           {recipe.title || "Untitled recipe"}
                         </CardTitle>
-                        <div className="flex flex-wrap gap-2 text-sm">
-                          {recipe.total_time ? (
-                            <Badge variant="secondary" className="gap-1.5">
-                              <Clock3 className="size-3.5" />
-                              {recipe.total_time}
-                            </Badge>
-                          ) : null}
-                          {recipe.servings ? (
-                            <Badge variant="secondary" className="gap-1.5">
-                              <Users2 className="size-3.5" />
-                              {recipe.servings}
-                            </Badge>
-                          ) : null}
-                        </div>
+                        <RecipeMetadataBadges
+                          servings={recipe.servings}
+                          totalTime={recipe.total_time}
+                        />
                       </CardHeader>
                       <CardContent className="space-y-4">
-                        <p className="line-clamp-3 text-sm text-muted-foreground">
+                        <p className="line-clamp-3 break-words text-sm text-muted-foreground">
                           {recipe.ingredients.slice(0, 3).join(" • ") ||
-                            "No ingredient preview available."}
+                            "No ingredient preview is available yet."}
                         </p>
                         <Button asChild variant="outline" size="sm">
                           <Link href={`/recipes/${recipe.id}`}>Open Recipe</Link>
