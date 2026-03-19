@@ -136,6 +136,4 @@ def test_process_and_store_returns_test_recipe_when_requested() -> None:
     assert body["recipe_id"] == RECIPE_ID
     assert body["recipe"]["id"] == RECIPE_ID
     assert processing_service.calls[0]["is_test"] is True
-    assert recipe_manager.calls == [
-        {"recipe_id": RECIPE_ID, "include_test_data": True}
-    ]
+    assert recipe_manager.calls == [{"recipe_id": RECIPE_ID, "include_test_data": True}]
