@@ -30,6 +30,8 @@ export default function BrowsePage() {
     showNoResults,
     showLoadMore,
     isLoadingMore,
+    retrySearch,
+    retrySelectedRecipe,
     handleSearchSubmit,
     handleQueryInputChange,
     handleLoadRelated,
@@ -49,7 +51,7 @@ export default function BrowsePage() {
           <PageHero
             badge="Browse Recipes"
             title="Find anything instantly"
-            description="Browse your latest recipes or search by dish, ingredient, or cuisine."
+            description="Search by dish, ingredient, cuisine, or dietary goal, then pull in related semantic matches when needed."
             contentClassName="max-w-4xl"
           >
             <BrowseSearchForm
@@ -76,6 +78,7 @@ export default function BrowsePage() {
             recipeById={recipeById}
             recipeLoadingById={recipeLoadingById}
             onLoadMore={handleLoadMore}
+            onRetrySearch={retrySearch}
             onCardOpen={openRecipeModal}
           />
         </PageMain>
@@ -87,6 +90,7 @@ export default function BrowsePage() {
           recipe={selectedRecipe}
           isLoading={selectedRecipeLoading && !selectedRecipe}
           error={selectedRecipeError}
+          onRetry={retrySelectedRecipe}
           onClose={closeRecipeModal}
         />
       ) : null}

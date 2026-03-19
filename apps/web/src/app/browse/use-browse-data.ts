@@ -138,9 +138,12 @@ export function useBrowseData() {
   const recipeCacheRef = useRef<Record<string, RecipeRecord>>({});
   const inFlightRecipeRef = useRef<Record<string, Promise<RecipeRecord>>>({});
   const searchRequestIdRef = useRef(0);
+  const retrySelectedRecipeRequestIdRef = useRef(0);
+  const activeRecipeIdRef = useRef(recipeIdFromUrl);
   const isBrowseModeRef = useRef(!queryFromUrl);
 
   isBrowseModeRef.current = !queryFromUrl;
+  activeRecipeIdRef.current = recipeIdFromUrl;
 
   const setBrowseUrl = useCallback(
     (nextQuery: string, nextRecipeId?: string, navigation: NavigationMode = "push") => {
@@ -464,6 +467,11 @@ export function useBrowseData() {
     };
   }, [recipeIdFromUrl, loadRecipeDetails]);
 
+  useEffect(() => {
+    // Invalidate pending retry callbacks whenever the selected modal recipe changes.
+    retrySelectedRecipeRequestIdRef.current += 1;
+  }, [recipeIdFromUrl]);
+
   const selectedRecipe = useMemo(() => {
     if (!recipeIdFromUrl) {
       return null;
@@ -480,6 +488,51 @@ export function useBrowseData() {
   const showNoResults =
     !searchError && !isSearching && !results.length && !isLoadingRelated && !showLoadRelated;
   const showLoadMore = !hasQuery && !searchError && results.length > 0 && defaultListHasMore;
+  const retrySearch = useCallback(() => {
+    void runSearch(queryFromUrl);
+  }, [queryFromUrl, runSearch]);
+
+  const retrySelectedRecipe = useCallback(() => {
+    if (!recipeIdFromUrl) {
+      return;
+    }
+
+    const requestId = retrySelectedRecipeRequestIdRef.current + 1;
+    retrySelectedRecipeRequestIdRef.current = requestId;
+    const targetRecipeId = recipeIdFromUrl;
+
+    setSelectedRecipeLoading(true);
+    setSelectedRecipeError(null);
+
+    void loadRecipeDetails(targetRecipeId)
+      .then(() => {
+        if (
+          retrySelectedRecipeRequestIdRef.current !== requestId ||
+          activeRecipeIdRef.current !== targetRecipeId
+        ) {
+          return;
+        }
+        setSelectedRecipeError(null);
+      })
+      .catch((error) => {
+        if (
+          retrySelectedRecipeRequestIdRef.current !== requestId ||
+          activeRecipeIdRef.current !== targetRecipeId
+        ) {
+          return;
+        }
+        setSelectedRecipeError(getErrorMessage(error, "Failed to load recipe details."));
+      })
+      .finally(() => {
+        if (
+          retrySelectedRecipeRequestIdRef.current !== requestId ||
+          activeRecipeIdRef.current !== targetRecipeId
+        ) {
+          return;
+        }
+        setSelectedRecipeLoading(false);
+      });
+  }, [recipeIdFromUrl, loadRecipeDetails]);
 
   function handleSearchSubmit() {
     const normalizedQuery = queryInput.trim();
@@ -577,6 +630,8 @@ export function useBrowseData() {
     showNoResults,
     showLoadMore,
     isLoadingMore,
+    retrySearch,
+    retrySelectedRecipe,
     handleSearchSubmit,
     handleQueryInputChange,
     handleLoadRelated,
