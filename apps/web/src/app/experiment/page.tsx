@@ -1,7 +1,7 @@
 "use client";
 
 import { History, Loader2, Paperclip, Plus, Send, Sparkles, X } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { Badge } from "@/components/ui/badge";
@@ -244,9 +244,7 @@ function toThreadSummary(thread: ExperimentThreadRecord): ExperimentThreadSummar
   return {
     id: thread.id,
     mode: thread.mode,
-    status: thread.status,
     title: thread.title,
-    memory_summary: thread.memory_summary,
     metadata: thread.metadata ?? {},
     created_at: thread.created_at,
     updated_at: thread.updated_at,
@@ -319,6 +317,9 @@ export default function ExperimentPage() {
   const [attachSearchResults, setAttachSearchResults] = useState<RecipeSearchResult[]>([]);
   const [isSearchingAttachments, setIsSearchingAttachments] = useState(false);
   const [attachSearchError, setAttachSearchError] = useState<string | null>(null);
+  const messageListEndRef = useRef<HTMLDivElement | null>(null);
+  const activeThreadId = thread?.id ?? null;
+  const activeThreadMessageCount = thread?.messages.length ?? 0;
 
   const canSendMessage =
     !isSendingMessage &&
@@ -390,6 +391,17 @@ export default function ExperimentPage() {
       controller.abort();
     };
   }, [attachSearchInput, isAttachDialogOpen]);
+
+  useEffect(() => {
+    if (!activeThreadMessageCount) {
+      return;
+    }
+    const messageListEnd = messageListEndRef.current;
+    if (!messageListEnd || typeof messageListEnd.scrollIntoView !== "function") {
+      return;
+    }
+    messageListEnd.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [activeThreadId, activeThreadMessageCount]);
 
   async function handleNewThread() {
     setErrorMessage(null);
@@ -519,12 +531,6 @@ export default function ExperimentPage() {
       ...activeThread,
       messages: [...activeThread.messages, optimisticUserMessage, optimisticAssistantMessage],
     });
-    const previousAssistantSequence = activeThread.messages.reduce((maxValue, message) => {
-      if (message.role !== "assistant") {
-        return maxValue;
-      }
-      return Math.max(maxValue, message.sequence_no);
-    }, -1);
 
     try {
       const response = await streamMessageClient(activeThread.id, {
@@ -544,9 +550,13 @@ export default function ExperimentPage() {
       const streamState: {
         finalPayload: CreateExperimentMessageResponse | null;
         streamError: string | null;
+        receivedDelta: boolean;
+        assistantText: string;
       } = {
         finalPayload: null,
         streamError: null,
+        receivedDelta: false,
+        assistantText: "",
       };
 
       const applyStreamEvent = (parsed: ParsedSseEvent) => {
@@ -559,8 +569,12 @@ export default function ExperimentPage() {
         }
 
         if (parsed.event === "delta") {
-          const data = parsed.data as { text?: string };
-          if (typeof data?.text === "string") {
+          const data = parsed.data as { text?: string } | string;
+          const deltaText =
+            typeof data === "string" ? data : typeof data?.text === "string" ? data.text : null;
+          if (deltaText) {
+            streamState.receivedDelta = true;
+            streamState.assistantText += deltaText;
             setThread((currentThread) => {
               if (!currentThread || currentThread.id !== activeThread.id) {
                 return currentThread;
@@ -569,7 +583,7 @@ export default function ExperimentPage() {
                 ...currentThread,
                 messages: currentThread.messages.map((message) =>
                   message.id === optimisticAssistantMessageId
-                    ? { ...message, content: `${message.content}${data.text}` }
+                    ? { ...message, content: `${message.content}${deltaText}` }
                     : message,
                 ),
               };
@@ -638,29 +652,68 @@ export default function ExperimentPage() {
       if (streamState.streamError) {
         throw new BrowserApiError(streamState.streamError, 500, streamState.streamError);
       }
-      let nextThread: ExperimentThreadRecord | null = null;
-      if (streamState.finalPayload) {
-        nextThread = normalizeThread(streamState.finalPayload.thread);
-      } else {
-        try {
-          const fallbackResponse = await getThreadClient(activeThread.id);
-          const recoveredThread = normalizeThread(fallbackResponse.thread);
-          const hasRecoveredAssistant = recoveredThread.messages.some(
-            (message) =>
-              message.role === "assistant" && message.sequence_no > previousAssistantSequence,
-          );
-          if (hasRecoveredAssistant) {
-            nextThread = recoveredThread;
-          }
-        } catch {
-          nextThread = null;
-        }
-      }
-      if (!nextThread) {
-        throw new BrowserApiError("Stream ended before final payload.", 500);
+      if (!streamState.finalPayload && !streamState.receivedDelta) {
+        throw new BrowserApiError("Stream ended without assistant content.", 500);
       }
 
-      setThread(nextThread);
+      let nextThreadSummary: ExperimentThreadRecord;
+      if (streamState.finalPayload) {
+        const finalThread = normalizeThread(streamState.finalPayload.thread);
+        const finalUserMessage = streamState.finalPayload.user_message;
+        const finalAssistantMessage = streamState.finalPayload.assistant_message;
+        const finalAttachmentMessage = streamState.finalPayload.attachment_message;
+        setThread((currentThread) => {
+          if (!currentThread || currentThread.id !== finalThread.id) {
+            return currentThread;
+          }
+          const mergedMessages = currentThread.messages
+            .map((message) => {
+              if (message.id === optimisticUserMessage.id) {
+                return finalUserMessage;
+              }
+              if (message.id === optimisticAssistantMessageId) {
+                return {
+                  ...finalAssistantMessage,
+                  content: message.content || finalAssistantMessage.content,
+                };
+              }
+              return message;
+            })
+            .concat(
+              finalAttachmentMessage &&
+                !currentThread.messages.some(
+                  (message) => message.id === finalAttachmentMessage.id,
+                )
+                ? [finalAttachmentMessage]
+                : [],
+            )
+            .sort((left, right) => left.sequence_no - right.sequence_no);
+          return {
+            ...currentThread,
+            mode: finalThread.mode,
+            title: finalThread.title,
+            metadata: finalThread.metadata,
+            created_at: finalThread.created_at,
+            updated_at: finalThread.updated_at,
+            context_recipe_ids: finalThread.context_recipe_ids,
+            messages: mergedMessages,
+          };
+        });
+        nextThreadSummary = finalThread;
+      } else {
+        nextThreadSummary = {
+          ...activeThread,
+          title: activeThread.title ?? normalizedMessage.slice(0, 80),
+          messages: [
+            ...activeThread.messages,
+            optimisticUserMessage,
+            {
+              ...optimisticAssistantMessage,
+              content: streamState.assistantText || optimisticAssistantMessage.content,
+            },
+          ],
+        };
+      }
       setMessageInput("");
       setPendingAttachments([]);
       setAttachSearchInput("");
@@ -673,8 +726,7 @@ export default function ExperimentPage() {
           setAttachmentFeedback(finalAttachmentText);
         }
       }
-      upsertThreadHistory(nextThread);
-      void refreshHistory();
+      upsertThreadHistory(nextThreadSummary);
     } catch (error) {
       setThread(previousThreadSnapshot);
       setErrorMessage(getErrorMessage(error, "Failed to send message."));
@@ -881,6 +933,7 @@ export default function ExperimentPage() {
                         </p>
                       </article>
                     ))}
+                    <div ref={messageListEndRef} aria-hidden="true" />
                   </div>
                 )}
               </div>

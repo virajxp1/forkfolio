@@ -244,9 +244,7 @@ export type ExperimentMessageRecord = {
 export type ExperimentThreadRecord = {
   id: string;
   mode: ExperimentMode;
-  status: string;
   title: string | null;
-  memory_summary: string | null;
   metadata: Record<string, unknown>;
   context_recipe_ids: string[];
   messages: ExperimentMessageRecord[];
@@ -258,6 +256,8 @@ export type CreateExperimentThreadRequest = {
   mode: ExperimentMode;
   title?: string;
   context_recipe_ids?: string[];
+  is_test?: boolean;
+  isTest?: boolean;
 };
 
 export type CreateExperimentThreadResponse = {
@@ -280,9 +280,7 @@ export type CreateExperimentMessageRequest = {
 export type ExperimentThreadSummary = {
   id: string;
   mode: ExperimentMode;
-  status: string;
   title: string | null;
-  memory_summary: string | null;
   metadata: Record<string, unknown>;
   created_at: string | null;
   updated_at: string | null;

@@ -8,6 +8,10 @@ from app.tests.clients.api_client import APIClient
 from app.tests.utils.constants import HTTP_OK
 from app.tests.utils.helpers import maybe_throttle
 
+EXPERIMENT_SCOPE_REFUSAL_SUBSTRING = (
+    "recipe ideation and recipe modifications only"
+)
+
 
 def _build_recipe_input(title: str, run_id: str, variant: str) -> str:
     return (
@@ -95,7 +99,10 @@ def test_experiment_thread_crud_lifecycle(api_client: APIClient) -> None:
         assert thread_id
         assert context_recipe_id in (thread.get("context_recipe_ids") or [])
 
-        list_threads_response = api_client.experiments.list_threads(limit=50)
+        list_threads_response = api_client.experiments.list_threads(
+            limit=50,
+            include_test=True,
+        )
         assert list_threads_response["status_code"] == HTTP_OK
         list_data = list_threads_response["data"]
         assert list_data.get("success") is True
@@ -234,3 +241,26 @@ def test_experiment_attach_ids_uses_exact_recipe(api_client: APIClient) -> None:
             api_client.recipes.delete_recipe(recipe_id_a)
         if recipe_id_b:
             api_client.recipes.delete_recipe(recipe_id_b)
+
+
+def test_experiment_blocks_non_recipe_prompt(api_client: APIClient) -> None:
+    run_id = uuid.uuid4().hex[:8]
+    create_thread_response = api_client.experiments.create_thread(
+        mode="invent_new",
+        title=f"Guardrail E2E {run_id}",
+    )
+    assert create_thread_response["status_code"] == HTTP_OK
+    thread_id = create_thread_response["data"].get("thread", {}).get("id")
+    assert thread_id
+
+    create_message_response = api_client.experiments.create_message(
+        thread_id=thread_id,
+        content="Write python code to invert a linked list.",
+    )
+    assert create_message_response["status_code"] == HTTP_OK
+    body = create_message_response["data"]
+    assert body.get("success") is True
+    assistant_content = str(
+        body.get("assistant_message", {}).get("content") or ""
+    ).lower()
+    assert EXPERIMENT_SCOPE_REFUSAL_SUBSTRING in assistant_content

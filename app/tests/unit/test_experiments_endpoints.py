@@ -14,21 +14,31 @@ MESSAGE_ID = "33333333-3333-3333-3333-333333333333"
 
 
 class StubExperimentService:
-    def list_threads(self, limit: int = 20) -> list[dict]:
+    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
+        test_thread = {
+            "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+            "mode": "invent_new",
+            "title": "Experiment E2E seed",
+            "metadata": {"orchestration": "langgraph-ready", "is_test": True},
+            "created_at": "2026-03-16T00:00:00+00:00",
+            "updated_at": "2026-03-16T00:01:00+00:00",
+            "last_message_role": "assistant",
+            "last_message_content": "E2E assistant response.",
+            "last_message_created_at": "2026-03-16T00:01:00+00:00",
+        }
         return [
             {
                 "id": THREAD_ID,
                 "mode": "modify_existing",
-                "status": "active",
                 "title": "Veganize tikka masala",
-                "memory_summary": None,
                 "metadata": {"orchestration": "langgraph-ready"},
                 "created_at": "2026-03-16T00:00:00+00:00",
                 "updated_at": "2026-03-16T00:01:00+00:00",
                 "last_message_role": "assistant",
                 "last_message_content": "Use tofu and coconut yogurt.",
                 "last_message_created_at": "2026-03-16T00:01:00+00:00",
-            }
+            },
+            *([test_thread] if include_test else []),
         ][:limit]
 
     def create_thread(
@@ -36,6 +46,7 @@ class StubExperimentService:
         mode: str,
         title: str | None = None,
         context_recipe_ids: list[str] | None = None,
+        is_test: bool = False,
     ) -> dict:
         if context_recipe_ids and RECIPE_ID not in context_recipe_ids:
             raise ExperimentValidationError(
@@ -45,10 +56,11 @@ class StubExperimentService:
         return {
             "id": THREAD_ID,
             "mode": mode,
-            "status": "active",
             "title": title,
-            "memory_summary": None,
-            "metadata": {"orchestration": "langgraph-ready"},
+            "metadata": {
+                "orchestration": "langgraph-ready",
+                **({"is_test": True} if is_test else {}),
+            },
             "context_recipe_ids": context_recipe_ids or [],
             "messages": [],
             "created_at": "2026-03-16T00:00:00+00:00",
@@ -61,9 +73,7 @@ class StubExperimentService:
         return {
             "id": THREAD_ID,
             "mode": "modify_existing",
-            "status": "active",
             "title": "Veganize tikka masala",
-            "memory_summary": None,
             "metadata": {"orchestration": "langgraph-ready"},
             "context_recipe_ids": [RECIPE_ID],
             "messages": [
@@ -234,6 +244,17 @@ def test_list_experiment_threads_success() -> None:
     assert body["success"] is True
     assert body["count"] == 1
     assert body["threads"][0]["id"] == THREAD_ID
+
+
+def test_list_experiment_threads_with_include_test_param() -> None:
+    client = TestClient(build_experiments_app())
+
+    response = client.get("/api/v1/experiments/threads?include_test=true")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["success"] is True
+    assert body["count"] == 2
 
 
 def test_get_experiment_thread_not_found_returns_404() -> None:
