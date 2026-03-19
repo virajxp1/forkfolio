@@ -297,6 +297,107 @@ describe("/experiment page", () => {
     );
   });
 
+  it("renders assistant markdown in the conversation thread", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = toUrl(input);
+      if (url.startsWith("/api/experiments/threads?")) {
+        return jsonResponse({ success: true, count: 0, threads: [] });
+      }
+      if (url === "/api/experiments/threads" && init?.method === "POST") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-markdown",
+            mode: "invent_new",
+            title: null,
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [],
+            created_at: null,
+            updated_at: null,
+          },
+        });
+      }
+      if (
+        url === "/api/experiments/threads/thread-markdown/messages/stream" &&
+        init?.method === "POST"
+      ) {
+        const markdownContent = "### Dinner Plan\n- Turkey chili\n- Zucchini noodles";
+        const finalPayload = {
+          thread_id: "thread-markdown",
+          thread: {
+            id: "thread-markdown",
+            mode: "invent_new",
+            title: "Markdown test",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-user",
+                thread_id: "thread-markdown",
+                sequence_no: 1,
+                role: "user",
+                content: "Give me a plan",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+              {
+                id: "msg-assistant",
+                thread_id: "thread-markdown",
+                sequence_no: 2,
+                role: "assistant",
+                content: markdownContent,
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+          user_message: {
+            id: "msg-user",
+            thread_id: "thread-markdown",
+            sequence_no: 1,
+            role: "user",
+            content: "Give me a plan",
+            tool_name: null,
+            tool_call: null,
+            created_at: null,
+          },
+          assistant_message: {
+            id: "msg-assistant",
+            thread_id: "thread-markdown",
+            sequence_no: 2,
+            role: "assistant",
+            content: markdownContent,
+            tool_name: null,
+            tool_call: null,
+            created_at: null,
+          },
+          attachment_message: null,
+          attached_recipes: [],
+          unresolved_recipe_names: [],
+          success: true,
+        };
+        return sseResponse(`event: final\ndata: ${JSON.stringify(finalPayload)}\n\n`);
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    const user = userEvent.setup();
+    render(<ExperimentPage />);
+
+    await user.type(screen.getByLabelText("Your message"), "Give me a plan");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByRole("heading", { level: 3, name: "Dinner Plan" })).toBeInTheDocument();
+    expect(screen.getByRole("list")).toBeInTheDocument();
+    expect(screen.queryByText("### Dinner Plan")).not.toBeInTheDocument();
+  });
+
   it("attaches from picker, streams assistant output, and clears chips on send", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockImplementation(async (input, init) => {

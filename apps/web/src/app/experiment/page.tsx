@@ -1,7 +1,9 @@
 "use client";
 
 import { History, Loader2, Paperclip, Plus, Send, Sparkles, X } from "lucide-react";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { Badge } from "@/components/ui/badge";
@@ -296,6 +298,32 @@ function attachmentFeedbackText(payload: {
 
 function normalizeSseNewlines(text: string): string {
   return text.replaceAll("\r\n", "\n").replaceAll("\r", "\n");
+}
+
+function renderMessageContent(
+  message: ExperimentMessageRecord,
+  isStreamingAssistantPlaceholder: boolean,
+): ReactNode {
+  const content = isStreamingAssistantPlaceholder ? "Working on your recipe..." : message.content;
+  if (message.role === "user") {
+    return <p className="whitespace-pre-wrap text-sm leading-relaxed">{content}</p>;
+  }
+
+  return (
+    <div className="text-sm leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_a]:underline [&_a]:decoration-primary/40 [&_a]:underline-offset-4 [&_a:hover]:decoration-primary [&_blockquote]:my-2 [&_blockquote]:border-l-2 [&_blockquote]:border-border/70 [&_blockquote]:pl-3 [&_code]:rounded [&_code]:bg-muted/60 [&_code]:px-1 [&_h1]:my-2 [&_h1]:text-base [&_h1]:font-semibold [&_h2]:my-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:text-sm [&_h3]:font-semibold [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_p]:my-2 [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-muted/40 [&_pre]:p-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ node, ...props }) => {
+            void node;
+            return <a {...props} target="_blank" rel="noreferrer noopener" />;
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
 }
 
 export default function ExperimentPage() {
@@ -924,13 +952,12 @@ export default function ExperimentPage() {
                             </span>
                           )}
                         </div>
-                        <p className="whitespace-pre-wrap text-sm leading-relaxed">
-                          {isSendingMessage &&
-                          streamingMessageId === message.id &&
-                          !message.content.trim()
-                            ? "Working on your recipe..."
-                            : message.content}
-                        </p>
+                        {renderMessageContent(
+                          message,
+                          isSendingMessage &&
+                            streamingMessageId === message.id &&
+                            !message.content.trim(),
+                        )}
                       </article>
                     ))}
                     <div ref={messageListEndRef} aria-hidden="true" />
