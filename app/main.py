@@ -12,7 +12,9 @@ from app.core.middleware import (
     RateLimitMiddleware,
     RequestSizeLimitMiddleware,
     RequestTimeoutMiddleware,
+    TraceContextMiddleware,
 )
+from app.core.tracing import flush_braintrust, setup_braintrust
 from app.routers import api
 from app.services.data.supabase_client import (
     close_connection_pool,
@@ -190,10 +192,14 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("API auth token: disabled")
 
+    setup_braintrust()
+
     # Initialize database connection pool
     init_connection_pool()
 
     yield
+
+    flush_braintrust()
 
     # Cleanup on shutdown
     close_connection_pool()
@@ -244,6 +250,10 @@ def create_application() -> FastAPI:
     application.add_middleware(
         RequestSizeLimitMiddleware,
         max_body_size_bytes=settings.MAX_REQUEST_SIZE_MB * 1024 * 1024,
+    )
+    application.add_middleware(
+        TraceContextMiddleware,
+        api_base_path=api_root_path,
     )
 
     return application

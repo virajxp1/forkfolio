@@ -92,6 +92,9 @@ Backend (optional behavior controls):
 
 - `RECIPE_UNIT_SYSTEM` (`us`, `metric`, or `both`; default from `config/app.config.ini`)
 - `SEARCH_KEYWORDS_FILE` (path to search heuristic keyword JSON; defaults to `config/search_keywords.json`)
+- `BRAINTRUST_PROJECT_ID` (Braintrust project ID override; defaults to config `observability.braintrust_project_id`)
+- `BRAINTRUST_APP_URL` (Braintrust app URL override; defaults to config `observability.braintrust_app_url`)
+- `BRAINTRUST_API_KEY` (required when Braintrust tracing is enabled)
 
 Frontend runtime vars:
 
