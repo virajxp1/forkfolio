@@ -86,6 +86,34 @@ class Settings:
             "api", "semantic_search_heuristics_enabled", fallback=True
         )
 
+        # Observability
+        self.BRAINTRUST_TRACING_ENABLED = self._cfg.getboolean(
+            "observability",
+            "braintrust_enabled",
+            fallback=False,
+        )
+        configured_project_id = self._cfg.get(
+            "observability",
+            "braintrust_project_id",
+            fallback=self._cfg.get(
+                "observability",
+                "braintrust_project",
+                fallback="4e61341a-cc9a-4ce4-a107-4f9980e76b1a",
+            ),
+        )
+        self.BRAINTRUST_PROJECT_ID: str = os.getenv(
+            "BRAINTRUST_PROJECT_ID",
+            configured_project_id,
+        ).strip()
+        self.BRAINTRUST_APP_URL: str = os.getenv(
+            "BRAINTRUST_APP_URL",
+            self._cfg.get(
+                "observability",
+                "braintrust_app_url",
+                fallback="https://www.braintrust.dev",
+            ),
+        ).strip()
+
         # DB settings
         self.DB_HOST: str = self._cfg.get("database", "host")
         self.DB_PORT: int = self._cfg.getint("database", "port", fallback=5432)
@@ -160,6 +188,7 @@ class Settings:
         # Secrets: environment-only.
         self.OPEN_ROUTER_API_KEY: str = os.getenv("OPEN_ROUTER_API_KEY", "").strip()
         self.SUPABASE_PASSWORD: str = os.getenv("SUPABASE_PASSWORD", "").strip()
+        self.BRAINTRUST_API_KEY: str = os.getenv("BRAINTRUST_API_KEY", "").strip()
 
     @staticmethod
     def _load_config(config_path: Path) -> configparser.ConfigParser:

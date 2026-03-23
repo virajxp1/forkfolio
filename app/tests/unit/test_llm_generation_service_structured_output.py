@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -176,3 +177,49 @@ def test_structured_output_returns_error_after_retry_exhaustion(monkeypatch) -> 
     assert error is not None
     assert "Failed to parse JSON response" in error
     assert fake_completions.calls == 2
+
+
+def test_structured_output_logs_assistant_message_payload(monkeypatch) -> None:
+    fake_completions = _SequenceStructuredCompletions(
+        responses=[{"content": '{"ingredients":["1 tomato"]}', "finish_reason": "stop"}]
+    )
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+    cache = TTLCache[dict](ttl_seconds=60, max_items=10)
+
+    span_calls: list[dict] = []
+    log_events: list[dict] = []
+
+    @contextmanager
+    def _fake_span(**kwargs):
+        span_calls.append(kwargs)
+        yield object()
+
+    monkeypatch.setattr(llm_generation_service, "_get_chat_model_name", lambda: "test")
+    monkeypatch.setattr(
+        llm_generation_service, "_get_openai_client", lambda: fake_client
+    )
+    monkeypatch.setattr(llm_generation_service, "llm_structured_cache", cache)
+    monkeypatch.setattr(llm_generation_service, "start_trace_span", _fake_span)
+    monkeypatch.setattr(
+        llm_generation_service,
+        "log_span",
+        lambda _span, **event: log_events.append(event),
+    )
+
+    suffix = uuid4().hex
+    result, error = llm_generation_service.make_llm_call_structured_output_generic(
+        user_prompt=f"user-prompt-{suffix}",
+        system_prompt=f"system-prompt-{suffix}",
+        model_class=_StructuredResponseModel,
+        schema_name="structured_output_trace_message_format_test",
+    )
+
+    assert error is None
+    assert result is not None
+    assert span_calls
+    assert span_calls[0]["input_data"]["messages"][0]["role"] == "system"
+    assert span_calls[0]["input_data"]["messages"][1]["role"] == "user"
+    assert log_events
+    final_output = log_events[-1]["output"]
+    assert final_output["messages"][0]["role"] == "assistant"
+    assert final_output["messages"][0]["content"] == '{"ingredients":["1 tomato"]}'

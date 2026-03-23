@@ -5,6 +5,7 @@ import time
 from collections.abc import Iterable
 from collections import deque
 from typing import Deque
+from uuid import UUID
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
@@ -16,9 +17,62 @@ from starlette.status import (
     HTTP_504_GATEWAY_TIMEOUT,
 )
 
+from app.core.tracing import (
+    bind_trace_context,
+    create_request_trace_id,
+    reset_trace_context,
+)
+
 HTTP_413_REQUEST_TOO_LARGE = getattr(
     status, "HTTP_413_CONTENT_TOO_LARGE", status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
 )
+
+
+class TraceContextMiddleware:
+    def __init__(self, app, api_base_path: str = "/api/v1") -> None:
+        self.app = app
+        normalized_base_path = _normalize_path(api_base_path)
+        self._experiment_thread_prefix = f"{normalized_base_path}/experiments/threads/"
+
+    def _resolve_trace(self, request_path: str) -> tuple[str, str]:
+        thread_trace_id = self._extract_experiment_thread_id(request_path)
+        if thread_trace_id:
+            return thread_trace_id, "thread"
+        return create_request_trace_id(), "request"
+
+    def _extract_experiment_thread_id(self, request_path: str) -> str | None:
+        if not request_path.startswith(self._experiment_thread_prefix):
+            return None
+
+        suffix = request_path[len(self._experiment_thread_prefix) :]
+        candidate = suffix.split("/", maxsplit=1)[0].strip()
+        if not candidate:
+            return None
+
+        try:
+            return str(UUID(candidate))
+        except ValueError:
+            return None
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        request_path = str(scope.get("path") or "/")
+        request_method = str(scope.get("method") or "GET").upper()
+        trace_id, trace_source = self._resolve_trace(request_path)
+
+        tokens = bind_trace_context(
+            trace_id=trace_id,
+            source=trace_source,
+            request_method=request_method,
+            request_path=request_path,
+        )
+        try:
+            await self.app(scope, receive, send)
+        finally:
+            reset_trace_context(tokens)
 
 
 class AuthTokenMiddleware(BaseHTTPMiddleware):

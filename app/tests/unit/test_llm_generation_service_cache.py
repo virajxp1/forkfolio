@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -41,3 +42,119 @@ def test_make_llm_call_text_generation_caches_empty_string(monkeypatch) -> None:
     assert first == ""
     assert second == ""
     assert fake_completions.calls == 1
+
+
+def test_stream_llm_call_text_generation_logs_output_on_completion(
+    monkeypatch,
+) -> None:
+    class _FakeCompletionsStream:
+        def create(self, **_kwargs):
+            return iter(
+                [
+                    SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content="hello "))
+                        ]
+                    ),
+                    SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content="world"))
+                        ]
+                    ),
+                ]
+            )
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=_FakeCompletionsStream())
+    )
+    cache = TTLCache[str](ttl_seconds=60, max_items=10)
+    captured_logs: list[dict] = []
+
+    @contextmanager
+    def _fake_span(*_args, **_kwargs):
+        yield object()
+
+    monkeypatch.setattr(llm_generation_service, "_get_chat_model_name", lambda: "test")
+    monkeypatch.setattr(
+        llm_generation_service, "_get_openai_client", lambda: fake_client
+    )
+    monkeypatch.setattr(llm_generation_service, "llm_text_cache", cache)
+    monkeypatch.setattr(llm_generation_service, "start_trace_span", _fake_span)
+    monkeypatch.setattr(
+        llm_generation_service,
+        "log_span",
+        lambda _span, **event: captured_logs.append(event),
+    )
+
+    chunks = list(
+        llm_generation_service.stream_llm_call_text_generation(
+            user_prompt="u", system_prompt="s"
+        )
+    )
+
+    assert chunks == ["hello ", "world"]
+    assert captured_logs
+    final_log = captured_logs[-1]
+    assert final_log["output"]["content"] == "hello world"
+    assert final_log["output"]["messages"][0]["role"] == "assistant"
+    assert final_log["output"]["messages"][0]["content"] == "hello world"
+    assert final_log["metadata"]["stream_completed"] is True
+    assert "stream_interrupted" not in final_log["metadata"]
+
+
+def test_stream_llm_call_text_generation_logs_output_when_closed_early(
+    monkeypatch,
+) -> None:
+    class _FakeCompletionsStream:
+        def create(self, **_kwargs):
+            return iter(
+                [
+                    SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content="hello "))
+                        ]
+                    ),
+                    SimpleNamespace(
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content="world"))
+                        ]
+                    ),
+                ]
+            )
+
+    fake_client = SimpleNamespace(
+        chat=SimpleNamespace(completions=_FakeCompletionsStream())
+    )
+    cache = TTLCache[str](ttl_seconds=60, max_items=10)
+    captured_logs: list[dict] = []
+
+    @contextmanager
+    def _fake_span(*_args, **_kwargs):
+        yield object()
+
+    monkeypatch.setattr(llm_generation_service, "_get_chat_model_name", lambda: "test")
+    monkeypatch.setattr(
+        llm_generation_service, "_get_openai_client", lambda: fake_client
+    )
+    monkeypatch.setattr(llm_generation_service, "llm_text_cache", cache)
+    monkeypatch.setattr(llm_generation_service, "start_trace_span", _fake_span)
+    monkeypatch.setattr(
+        llm_generation_service,
+        "log_span",
+        lambda _span, **event: captured_logs.append(event),
+    )
+
+    stream = llm_generation_service.stream_llm_call_text_generation(
+        user_prompt="u",
+        system_prompt="s",
+    )
+    assert next(stream) == "hello "
+    stream.close()
+
+    assert captured_logs
+    final_log = captured_logs[-1]
+    assert final_log["output"]["content"] == "hello "
+    assert final_log["output"]["messages"][0]["role"] == "assistant"
+    assert final_log["output"]["messages"][0]["content"] == "hello "
+    assert final_log["metadata"]["stream_completed"] is False
+    assert final_log["metadata"]["stream_interrupted"] is True

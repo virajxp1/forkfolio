@@ -9,6 +9,7 @@ pytest-cov
 ruff
 pre-commit
 openai~=1.78.1
+braintrust~=0.9.0
 langgraph
 requests~=2.32.3
 httpx~=0.28.1
