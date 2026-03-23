@@ -1,8 +1,9 @@
-import { Clock3, ExternalLink, Users2, X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
 import Link from "next/link";
 
 import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
-import { Badge } from "@/components/ui/badge";
+import { RecipeContentColumns } from "@/components/recipe-content-columns";
+import { RecipeMetadataBadges } from "@/components/recipe-metadata-badges";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -14,6 +15,7 @@ type RecipeModalProps = {
   recipe: RecipeRecord | null;
   isLoading: boolean;
   error: string | null;
+  onRetry?: () => void;
   onClose: () => void;
 };
 
@@ -22,6 +24,7 @@ export function RecipeModal({
   recipe,
   isLoading,
   error,
+  onRetry,
   onClose,
 }: RecipeModalProps) {
   const title = recipe?.title || "Recipe";
@@ -43,9 +46,12 @@ export function RecipeModal({
         <DialogTitle className="sr-only">{title}</DialogTitle>
 
         <div className="flex items-start justify-between gap-4 border-b border-border/70 bg-card/45 px-6 py-5">
-          <div className="space-y-2">
+          <div className="min-w-0 space-y-2">
             {recipe ? (
-              <h3 className="font-display text-4xl leading-tight tracking-tight text-primary sm:text-5xl">
+              <h3
+                className="break-words font-display text-4xl leading-tight tracking-tight text-primary sm:text-5xl"
+                title={title}
+              >
                 {title}
               </h3>
             ) : isLoading ? (
@@ -57,20 +63,7 @@ export function RecipeModal({
             )}
 
             {recipe ? (
-              <div className="flex flex-wrap gap-2">
-                {recipe.total_time ? (
-                  <Badge variant="secondary" className="gap-1.5">
-                    <Clock3 className="size-3.5" />
-                    {recipe.total_time}
-                  </Badge>
-                ) : null}
-                {recipe.servings ? (
-                  <Badge variant="secondary" className="gap-1.5">
-                    <Users2 className="size-3.5" />
-                    {recipe.servings}
-                  </Badge>
-                ) : null}
-              </div>
+              <RecipeMetadataBadges servings={recipe.servings} totalTime={recipe.total_time} />
             ) : null}
           </div>
 
@@ -86,12 +79,15 @@ export function RecipeModal({
                 size="sm"
               />
             ) : null}
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/recipes/${recipeId}`}>
-                Open Full Page
-                <ExternalLink className="size-4" />
-              </Link>
-            </Button>
+
+            {recipeId ? (
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/recipes/${recipeId}`}>
+                  Open Full Page
+                  <ExternalLink className="size-4" />
+                </Link>
+              </Button>
+            ) : null}
 
             <Button
               type="button"
@@ -113,6 +109,13 @@ export function RecipeModal({
                 <CardTitle>Unable to load recipe</CardTitle>
                 <CardDescription>{error}</CardDescription>
               </CardHeader>
+              {onRetry ? (
+                <CardContent>
+                  <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+                    Try loading again
+                  </Button>
+                </CardContent>
+              ) : null}
             </Card>
           ) : null}
 
@@ -147,48 +150,10 @@ export function RecipeModal({
           ) : null}
 
           {recipe ? (
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_1.3fr]">
-              <Card className="border-border/80 bg-background/80 shadow-none">
-                <CardHeader>
-                  <CardTitle className="font-display text-3xl">Ingredients</CardTitle>
-                  <CardDescription>
-                    {recipe.ingredients.length} item
-                    {recipe.ingredients.length === 1 ? "" : "s"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {recipe.ingredients.map((ingredient, index) => (
-                      <li key={`${ingredient}-${index}`} className="text-foreground/90">
-                        • {ingredient}
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/80 bg-background/80 shadow-none">
-                <CardHeader>
-                  <CardTitle className="font-display text-3xl">Instructions</CardTitle>
-                  <CardDescription>
-                    {recipe.instructions.length} step
-                    {recipe.instructions.length === 1 ? "" : "s"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ol className="space-y-3">
-                    {recipe.instructions.map((instruction, index) => (
-                      <li key={`${instruction}-${index}`} className="flex items-start gap-3">
-                        <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-                          {index + 1}
-                        </span>
-                        <p className="pt-0.5 text-foreground/90">{instruction}</p>
-                      </li>
-                    ))}
-                  </ol>
-                </CardContent>
-              </Card>
-            </div>
+            <RecipeContentColumns
+              ingredients={recipe.ingredients}
+              instructions={recipe.instructions}
+            />
           ) : null}
         </div>
       </DialogContent>

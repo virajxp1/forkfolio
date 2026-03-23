@@ -40,9 +40,7 @@ describe("GET /api/experiments/threads/[threadId]", () => {
       thread: {
         id: "thread-1",
         mode: "invent_new",
-        status: "active",
         title: null,
-        memory_summary: null,
         metadata: {},
         context_recipe_ids: [],
         messages: [],

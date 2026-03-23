@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from psycopg2.extras import Json
@@ -18,9 +19,7 @@ VALUES (%s, %s, %s)
 RETURNING
     id,
     mode,
-    status,
     title,
-    memory_summary,
     metadata,
     created_at,
     updated_at
@@ -30,9 +29,7 @@ THREAD_GET_SQL = """
 SELECT
     id,
     mode,
-    status,
     title,
-    memory_summary,
     metadata,
     created_at,
     updated_at
@@ -43,10 +40,12 @@ WHERE id = %s
 THREAD_EXISTS_SQL = "SELECT 1 FROM experiment_threads WHERE id = %s"
 
 THREAD_CONTEXT_GET_SQL = """
-SELECT recipe_id
-FROM experiment_context_recipes
-WHERE thread_id = %s
-ORDER BY added_at, recipe_id
+SELECT ecr.recipe_id
+FROM experiment_context_recipes ecr
+JOIN recipes r ON r.id = ecr.recipe_id
+WHERE ecr.thread_id = %s
+  AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+ORDER BY ecr.added_at, ecr.recipe_id
 """
 
 THREAD_CONTEXT_INSERT_SQL = """
@@ -103,19 +102,11 @@ ORDER BY sequence_no DESC
 LIMIT %s
 """
 
-THREAD_MEMORY_SUMMARY_UPDATE_SQL = """
-UPDATE experiment_threads
-SET memory_summary = %s
-WHERE id = %s
-"""
-
 THREADS_LIST_SQL = """
 SELECT
     t.id,
     t.mode,
-    t.status,
     t.title,
-    t.memory_summary,
     t.metadata,
     t.created_at,
     t.updated_at,
@@ -147,6 +138,43 @@ SET updated_at = NOW()
 WHERE id = %s
 """
 
+TEST_THREAD_TITLE_PATTERN = re.compile(
+    r"\b("
+    r"e2e|pytest|playwright|cypress|"
+    r"integration[-_\s]?test|smoke[-_\s]?test"
+    r")\b",
+    re.IGNORECASE,
+)
+TEST_METADATA_FLAG_KEYS = (
+    "is_test",
+    "isTest",
+    "test",
+    "is_e2e",
+    "e2e",
+)
+TEST_METADATA_SOURCE_KEYS = (
+    "source",
+    "origin",
+    "env",
+    "environment",
+    "category",
+    "tag",
+    "type",
+)
+TEST_METADATA_SOURCE_VALUES = {
+    "test",
+    "e2e",
+    "pytest",
+    "playwright",
+    "cypress",
+    "integration-test",
+    "integration_test",
+    "smoke-test",
+    "smoke_test",
+    "ci",
+}
+TRUTHY_FLAG_VALUES = {"1", "true", "yes", "y", "on"}
+
 
 class ExperimentManager(BaseManager):
     @staticmethod
@@ -154,9 +182,7 @@ class ExperimentManager(BaseManager):
         return {
             "id": str(row["id"]),
             "mode": row["mode"],
-            "status": row["status"],
             "title": row["title"],
-            "memory_summary": row.get("memory_summary"),
             "metadata": row.get("metadata") or {},
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
@@ -187,6 +213,34 @@ class ExperimentManager(BaseManager):
             ordered_ids.append(normalized)
         return ordered_ids
 
+    @staticmethod
+    def _is_truthy_flag(value: Any) -> bool:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, int):
+            return value == 1
+        if isinstance(value, str):
+            return value.strip().lower() in TRUTHY_FLAG_VALUES
+        return False
+
+    @classmethod
+    def _is_test_thread(cls, thread: dict) -> bool:
+        metadata = thread.get("metadata")
+        if isinstance(metadata, dict):
+            for key in TEST_METADATA_FLAG_KEYS:
+                if cls._is_truthy_flag(metadata.get(key)):
+                    return True
+            for key in TEST_METADATA_SOURCE_KEYS:
+                value = metadata.get(key)
+                if (
+                    isinstance(value, str)
+                    and value.strip().lower() in TEST_METADATA_SOURCE_VALUES
+                ):
+                    return True
+
+        title = thread.get("title")
+        return isinstance(title, str) and bool(TEST_THREAD_TITLE_PATTERN.search(title))
+
     def _thread_exists(self, cursor, thread_id: str) -> bool:
         cursor.execute(THREAD_EXISTS_SQL, (thread_id,))
         return cursor.fetchone() is not None
@@ -200,10 +254,14 @@ class ExperimentManager(BaseManager):
             cursor.execute(THREAD_CONTEXT_INSERT_SQL, (thread_id, recipe_id))
         return normalized_ids
 
-    def get_context_recipe_ids(self, thread_id: str) -> list[str]:
+    def get_context_recipe_ids(
+        self,
+        thread_id: str,
+        include_test_data: bool = False,
+    ) -> list[str]:
         try:
             with self.get_db_context() as (_conn, cursor):
-                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id,))
+                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id, include_test_data))
                 rows = cursor.fetchall()
                 return [str(row["recipe_id"]) for row in rows]
         except Exception as e:
@@ -240,7 +298,12 @@ class ExperimentManager(BaseManager):
         except Exception as e:
             raise DatabaseError(f"Failed to create experiment thread: {e!s}") from e
 
-    def get_thread(self, thread_id: str, message_limit: int = 100) -> dict | None:
+    def get_thread(
+        self,
+        thread_id: str,
+        message_limit: int = 100,
+        include_test_data: bool = False,
+    ) -> dict | None:
         query_limit = max(1, min(int(message_limit), 500))
         try:
             with self.get_db_context() as (_conn, cursor):
@@ -250,7 +313,7 @@ class ExperimentManager(BaseManager):
                     return None
 
                 thread = self._serialize_thread(dict(row))
-                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id,))
+                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id, include_test_data))
                 context_rows = cursor.fetchall()
                 thread["context_recipe_ids"] = [
                     str(context_row["recipe_id"]) for context_row in context_rows
@@ -337,17 +400,6 @@ class ExperimentManager(BaseManager):
         except Exception as e:
             raise DatabaseError(f"Failed to create experiment message: {e!s}") from e
 
-    def update_memory_summary(self, thread_id: str, memory_summary: str | None) -> bool:
-        try:
-            with self.get_db_context() as (_conn, cursor):
-                cursor.execute(
-                    THREAD_MEMORY_SUMMARY_UPDATE_SQL,
-                    (memory_summary, thread_id),
-                )
-                return cursor.rowcount > 0
-        except Exception as e:
-            raise DatabaseError(f"Failed to update thread memory summary: {e!s}") from e
-
     def set_thread_title_if_empty(self, thread_id: str, title: str) -> bool:
         normalized_title = title.strip()
         if not normalized_title:
@@ -362,11 +414,12 @@ class ExperimentManager(BaseManager):
         except Exception as e:
             raise DatabaseError(f"Failed to update thread title: {e!s}") from e
 
-    def list_threads(self, limit: int = 20) -> list[dict]:
+    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
         query_limit = max(1, min(int(limit), 100))
+        fetch_limit = query_limit if include_test else 500
         try:
             with self.get_db_context() as (_conn, cursor):
-                cursor.execute(THREADS_LIST_SQL, (query_limit,))
+                cursor.execute(THREADS_LIST_SQL, (fetch_limit,))
                 rows = cursor.fetchall()
                 threads: list[dict] = []
                 for row in rows:
@@ -377,6 +430,12 @@ class ExperimentManager(BaseManager):
                         "last_message_created_at"
                     )
                     threads.append(thread)
-                return threads
+                if include_test:
+                    return threads[:query_limit]
+
+                filtered_threads = [
+                    thread for thread in threads if not self._is_test_thread(thread)
+                ]
+                return filtered_threads[:query_limit]
         except Exception as e:
             raise DatabaseError(f"Failed to list experiment threads: {e!s}") from e

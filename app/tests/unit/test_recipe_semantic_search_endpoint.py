@@ -54,6 +54,7 @@ class FakeRecipeManager:
         embedding_type: str,
         limit: int = 10,
         max_distance: float = 0.35,
+        include_test_data: bool = False,
     ) -> list[dict]:
         self.calls.append(
             {
@@ -61,6 +62,7 @@ class FakeRecipeManager:
                 "embedding_type": embedding_type,
                 "limit": limit,
                 "max_distance": max_distance,
+                "include_test_data": include_test_data,
             }
         )
         if self.error:
@@ -71,11 +73,13 @@ class FakeRecipeManager:
         self,
         recipe_ids: list[str],
         max_ingredients: int = 8,
+        include_test_data: bool = False,
     ) -> dict[str, list[str]]:
         self.preview_calls.append(
             {
                 "recipe_ids": recipe_ids,
                 "max_ingredients": max_ingredients,
+                "include_test_data": include_test_data,
             }
         )
         return {
@@ -87,8 +91,15 @@ class FakeRecipeManager:
         self,
         title_query: str,
         limit: int = 5,
+        include_test_data: bool = False,
     ) -> list[dict]:
-        self.title_calls.append({"title_query": title_query, "limit": limit})
+        self.title_calls.append(
+            {
+                "title_query": title_query,
+                "limit": limit,
+                "include_test_data": include_test_data,
+            }
+        )
         if self.title_error:
             raise self.title_error
         return self.title_results
@@ -179,7 +190,13 @@ def test_name_search_returns_results() -> None:
             "distance": None,
         },
     ]
-    assert fake_manager.title_calls == [{"title_query": "chi", "limit": 10}]
+    assert fake_manager.title_calls == [
+        {
+            "title_query": "chi",
+            "limit": 10,
+            "include_test_data": False,
+        }
+    ]
 
 
 def test_name_search_rejects_short_queries() -> None:
@@ -271,6 +288,7 @@ def test_semantic_search_returns_results() -> None:
             "embedding_type": "title_ingredients",
             "limit": expected_limit,
             "max_distance": settings.SEMANTIC_SEARCH_MAX_DISTANCE,
+            "include_test_data": False,
         }
     ]
 
@@ -403,7 +421,11 @@ def test_semantic_search_applies_rerank_when_enabled(monkeypatch) -> None:
     assert payload["results"][1]["rerank_score"] == 0.76
     assert len(fake_reranker.calls) == 1
     assert fake_manager.preview_calls == [
-        {"recipe_ids": [recipe_one, recipe_two], "max_ingredients": 8}
+        {
+            "recipe_ids": [recipe_one, recipe_two],
+            "max_ingredients": 8,
+            "include_test_data": False,
+        }
     ]
 
 

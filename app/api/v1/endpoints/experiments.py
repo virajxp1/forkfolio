@@ -46,6 +46,8 @@ def create_experiment_thread(
             mode=payload.mode,
             title=payload.title,
             context_recipe_ids=_to_string_ids(payload.context_recipe_ids),
+            include_test_data=payload.include_test_data,
+            is_test=payload.is_test,
         )
         return {"thread": thread, "success": True}
     except ExperimentValidationError as e:
@@ -73,10 +75,17 @@ def list_experiment_threads(
         le=100,
         description="Maximum number of experiment threads to return.",
     ),
+    include_test: bool = Query(
+        default=False,
+        description="Include threads flagged as test/e2e data.",
+    ),
     experiment_service=experiment_service_dep,
 ) -> dict:
     try:
-        threads = experiment_service.list_threads(limit=limit)
+        threads = experiment_service.list_threads(
+            limit=limit,
+            include_test=include_test,
+        )
         return {"threads": threads, "count": len(threads), "success": True}
     except Exception as e:
         logger.exception("Error listing experiment threads: %s", e)
@@ -94,6 +103,10 @@ def get_experiment_thread(
         le=500,
         description="Maximum number of messages to include with the thread payload.",
     ),
+    include_test_data: bool = Query(
+        default=False,
+        description="Include recipes marked as test data in thread context.",
+    ),
     experiment_service=experiment_service_dep,
 ) -> dict:
     thread_id_str = str(thread_id)
@@ -101,6 +114,7 @@ def get_experiment_thread(
         thread = experiment_service.get_thread(
             thread_id=thread_id_str,
             message_limit=message_limit,
+            include_test_data=include_test_data,
         )
         return {"thread": thread, "success": True}
     except ExperimentThreadNotFoundError as e:
@@ -137,6 +151,7 @@ def create_experiment_message(
             context_recipe_ids=context_recipe_ids,
             attach_recipe_ids=attach_recipe_ids,
             attach_recipe_names=attach_recipe_names,
+            include_test_data=payload.include_test_data,
         )
         return {"thread_id": thread_id_str, **response_payload, "success": True}
     except ExperimentThreadNotFoundError as e:
@@ -187,6 +202,7 @@ def stream_experiment_message(
                 context_recipe_ids=context_recipe_ids,
                 attach_recipe_ids=attach_recipe_ids,
                 attach_recipe_names=attach_recipe_names,
+                include_test_data=payload.include_test_data,
             )
             for event_payload in event_iterator:
                 event_name = str(event_payload.get("event", "message"))

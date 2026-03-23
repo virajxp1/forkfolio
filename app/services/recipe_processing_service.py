@@ -184,7 +184,10 @@ class RecipeProcessingService:
             embedding: Optional[list[float]] = None
             if enforce_deduplication:
                 is_duplicate, existing_id, embedding = (
-                    self.dedupe_service.find_duplicate(recipe)
+                    self.dedupe_service.find_duplicate(
+                        recipe,
+                        include_test_data=is_test,
+                    )
                 )
                 if is_duplicate and existing_id:
                     logger.info(f"Duplicate recipe detected: {existing_id}")

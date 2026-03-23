@@ -36,11 +36,16 @@ recipe_search_reranker_service_dep = Depends(get_recipe_search_reranker_service)
 grocery_list_aggregation_service_dep = Depends(get_grocery_list_aggregation_service)
 
 
-def _semantic_search_cache_key(normalized_query: str, limit: int) -> str:
+def _semantic_search_cache_key(
+    normalized_query: str,
+    limit: int,
+    include_test_data: bool,
+) -> str:
     return hash_cache_key(
         "semantic_search",
         normalized_query,
         str(limit),
+        str(include_test_data),
         str(settings.SEMANTIC_SEARCH_MAX_DISTANCE),
         str(settings.SEMANTIC_SEARCH_RERANK_ENABLED),
         str(settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT),
@@ -89,7 +94,10 @@ def process_and_store_recipe(
                 "error": "Duplicate recipe detected but no recipe_id was returned",
                 "success": False,
             }
-        recipe_data = recipe_manager.get_full_recipe(recipe_id)
+        recipe_data = recipe_manager.get_full_recipe(
+            recipe_id,
+            include_test_data=ingestion_request.is_test,
+        )
         if not recipe_data:
             logger.error(f"Duplicate recipe found but not retrieved: {recipe_id}")
             raise HTTPException(
@@ -105,7 +113,10 @@ def process_and_store_recipe(
             "message": "Duplicate recipe found; returning existing recipe.",
         }
 
-    recipe_data = recipe_manager.get_full_recipe(recipe_id)
+    recipe_data = recipe_manager.get_full_recipe(
+        recipe_id,
+        include_test_data=ingestion_request.is_test,
+    )
     if not recipe_data:
         logger.error(f"Recipe stored but not found: {recipe_id}")
         raise HTTPException(
@@ -180,6 +191,10 @@ def list_recipes(
             "Opaque cursor token from the previous response for paginated listing."
         ),
     ),
+    include_test_data: bool = Query(
+        default=False,
+        description="Include recipes marked as test data.",
+    ),
     recipe_manager=recipe_manager_dep,
 ) -> dict:
     """
@@ -199,6 +214,7 @@ def list_recipes(
             limit=limit + 1,
             cursor_created_at=cursor_created_at,
             cursor_id=cursor_id,
+            include_test_data=include_test_data,
         )
         has_more = len(page_with_sentinel) > limit
         recipes_page = page_with_sentinel[:limit]
@@ -240,6 +256,10 @@ def semantic_search_recipes(
         le=50,
         description="Maximum number of similar recipes to return.",
     ),
+    include_test_data: bool = Query(
+        default=False,
+        description="Include recipes marked as test data.",
+    ),
     recipe_manager=recipe_manager_dep,
     embeddings_service=recipe_embeddings_service_dep,
     reranker_service=recipe_search_reranker_service_dep,
@@ -256,7 +276,11 @@ def semantic_search_recipes(
             status_code=422,
             detail="Query must contain at least 2 non-whitespace characters.",
         )
-    cache_key = _semantic_search_cache_key(normalized_query, limit)
+    cache_key = _semantic_search_cache_key(
+        normalized_query=normalized_query,
+        limit=limit,
+        include_test_data=include_test_data,
+    )
     cached_response = semantic_search_cache.get(cache_key)
     if cached_response is not None:
         logger.info(
@@ -284,11 +308,16 @@ def semantic_search_recipes(
             embedding_type="title_ingredients",
             limit=candidate_limit,
             max_distance=settings.SEMANTIC_SEARCH_MAX_DISTANCE,
+            include_test_data=include_test_data,
         )
         if settings.SEMANTIC_SEARCH_RERANK_ENABLED and len(matches) > 1:
             ranked_items = []
             try:
-                rerank_candidates = build_rerank_candidates(matches, recipe_manager)
+                rerank_candidates = build_rerank_candidates(
+                    matches,
+                    recipe_manager,
+                    include_test_data=include_test_data,
+                )
                 ranked_items = reranker_service.rerank(
                     query=normalized_query,
                     candidates=rerank_candidates,
@@ -343,6 +372,10 @@ def search_recipes_by_name(
         le=10,
         description="Maximum number of title matches to return.",
     ),
+    include_test_data: bool = Query(
+        default=False,
+        description="Include recipes marked as test data.",
+    ),
     recipe_manager=recipe_manager_dep,
 ) -> dict:
     normalized_query = normalize_search_query(query)
@@ -356,6 +389,7 @@ def search_recipes_by_name(
         matches = recipe_manager.find_recipes_by_title_query(
             title_query=normalized_query,
             limit=limit,
+            include_test_data=include_test_data,
         )
         results = [
             {
@@ -382,6 +416,10 @@ def search_recipes_by_name(
 @router.post("/grocery-list")
 def create_grocery_list(
     grocery_list_request: GroceryListCreateRequest = GROCERY_LIST_BODY,
+    include_test_data: bool = Query(
+        default=False,
+        description="Include recipes marked as test data.",
+    ),
     recipe_manager=recipe_manager_dep,
     grocery_list_aggregation_service=grocery_list_aggregation_service_dep,
 ) -> dict:
@@ -392,7 +430,10 @@ def create_grocery_list(
         dict.fromkeys(str(recipe_id) for recipe_id in grocery_list_request.recipe_ids)
     )
     try:
-        ingredients_by_recipe = recipe_manager.get_ingredients_for_recipes(recipe_ids)
+        ingredients_by_recipe = recipe_manager.get_ingredients_for_recipes(
+            recipe_ids,
+            include_test_data=include_test_data,
+        )
         missing_recipe_ids = [
             recipe_id
             for recipe_id in recipe_ids
@@ -437,7 +478,14 @@ def create_grocery_list(
 
 
 @router.get("/{recipe_id}")
-def get_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
+def get_recipe(
+    recipe_id: str,
+    include_test_data: bool = Query(
+        default=False,
+        description="Include recipes marked as test data.",
+    ),
+    recipe_manager=recipe_manager_dep,
+) -> dict:
     """
     Get a complete recipe by its UUID.
 
@@ -447,7 +495,10 @@ def get_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
     logger.info(f"Retrieving recipe with ID: {recipe_id}")
 
     try:
-        recipe_data = recipe_manager.get_full_recipe(recipe_id)
+        recipe_data = recipe_manager.get_full_recipe(
+            recipe_id,
+            include_test_data=include_test_data,
+        )
 
         if not recipe_data:
             logger.warning(f"Recipe not found: {recipe_id}")
@@ -466,7 +517,14 @@ def get_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
 
 
 @router.get("/{recipe_id}/all")
-def get_recipe_all(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
+def get_recipe_all(
+    recipe_id: str,
+    include_test_data: bool = Query(
+        default=False,
+        description="Include recipes marked as test data.",
+    ),
+    recipe_manager=recipe_manager_dep,
+) -> dict:
     """
     Get a complete recipe by its UUID, including embeddings.
 
@@ -476,7 +534,10 @@ def get_recipe_all(recipe_id: str, recipe_manager=recipe_manager_dep) -> dict:
     logger.info(f"Retrieving full recipe with embeddings for ID: {recipe_id}")
 
     try:
-        recipe_data = recipe_manager.get_full_recipe_with_embeddings(recipe_id)
+        recipe_data = recipe_manager.get_full_recipe_with_embeddings(
+            recipe_id,
+            include_test_data=include_test_data,
+        )
 
         if not recipe_data:
             logger.warning(f"Recipe not found: {recipe_id}")

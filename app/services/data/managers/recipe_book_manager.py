@@ -7,45 +7,60 @@ from .base import BaseManager
 
 RECIPE_BOOK_WITH_COUNT_BY_ID_SQL = """
 SELECT rb.*,
-    COUNT(rbr.recipe_id)::int AS recipe_count
+    COUNT(r.id)::int AS recipe_count
 FROM recipe_books rb
 LEFT JOIN recipe_book_recipes rbr ON rbr.recipe_book_id = rb.id
+LEFT JOIN recipes r
+    ON r.id = rbr.recipe_id
+    AND COALESCE(r.is_test_data, FALSE) = FALSE
 WHERE rb.id = %s
 GROUP BY rb.id
 """
 RECIPE_BOOK_WITH_COUNT_BY_NAME_SQL = """
 SELECT rb.*,
-    COUNT(rbr.recipe_id)::int AS recipe_count
+    COUNT(r.id)::int AS recipe_count
 FROM recipe_books rb
 LEFT JOIN recipe_book_recipes rbr ON rbr.recipe_book_id = rb.id
+LEFT JOIN recipes r
+    ON r.id = rbr.recipe_id
+    AND COALESCE(r.is_test_data, FALSE) = FALSE
 WHERE rb.normalized_name = %s
 GROUP BY rb.id
 """
 RECIPE_BOOKS_LIST_SQL = """
 SELECT rb.*,
-    COUNT(rbr.recipe_id)::int AS recipe_count
+    COUNT(r.id)::int AS recipe_count
 FROM recipe_books rb
 LEFT JOIN recipe_book_recipes rbr ON rbr.recipe_book_id = rb.id
+LEFT JOIN recipes r
+    ON r.id = rbr.recipe_id
+    AND COALESCE(r.is_test_data, FALSE) = FALSE
 GROUP BY rb.id
 ORDER BY rb.created_at DESC
 LIMIT %s
 """
 RECIPE_IDS_FOR_BOOK_SQL = """
-SELECT recipe_id
-FROM recipe_book_recipes
-WHERE recipe_book_id = %s
-ORDER BY added_at ASC
+SELECT rbr.recipe_id
+FROM recipe_book_recipes rbr
+JOIN recipes r ON r.id = rbr.recipe_id
+WHERE rbr.recipe_book_id = %s
+  AND COALESCE(r.is_test_data, FALSE) = FALSE
+ORDER BY rbr.added_at ASC
 """
 RECIPE_BOOKS_FOR_RECIPE_SQL = """
 SELECT rb.*,
     (
         SELECT COUNT(*)::int
         FROM recipe_book_recipes rbr2
+        JOIN recipes r2 ON r2.id = rbr2.recipe_id
         WHERE rbr2.recipe_book_id = rb.id
+          AND COALESCE(r2.is_test_data, FALSE) = FALSE
     ) AS recipe_count
 FROM recipe_books rb
 JOIN recipe_book_recipes rbr ON rbr.recipe_book_id = rb.id
+JOIN recipes r ON r.id = rbr.recipe_id
 WHERE rbr.recipe_id = %s
+  AND COALESCE(r.is_test_data, FALSE) = FALSE
 ORDER BY rb.name ASC
 """
 INSERT_RECIPE_BOOK_SQL = """
@@ -64,14 +79,26 @@ DELETE FROM recipe_book_recipes
 WHERE recipe_book_id = %s AND recipe_id = %s
 """
 RECIPE_BOOK_EXISTS_SQL = "SELECT 1 FROM recipe_books WHERE id = %s"
-RECIPE_EXISTS_SQL = "SELECT 1 FROM recipes WHERE id = %s"
+RECIPE_EXISTS_SQL = """
+SELECT 1
+FROM recipes
+WHERE id = %s
+  AND COALESCE(is_test_data, FALSE) = FALSE
+"""
 RECIPE_BOOK_STATS_SQL = """
 SELECT
     (SELECT COUNT(*)::int FROM recipe_books) AS total_recipe_books,
-    (SELECT COUNT(*)::int FROM recipe_book_recipes) AS total_recipe_book_links,
     (
-        SELECT COUNT(DISTINCT recipe_id)::int
-        FROM recipe_book_recipes
+        SELECT COUNT(*)::int
+        FROM recipe_book_recipes rbr
+        JOIN recipes r ON r.id = rbr.recipe_id
+        WHERE COALESCE(r.is_test_data, FALSE) = FALSE
+    ) AS total_recipe_book_links,
+    (
+        SELECT COUNT(DISTINCT rbr.recipe_id)::int
+        FROM recipe_book_recipes rbr
+        JOIN recipes r ON r.id = rbr.recipe_id
+        WHERE COALESCE(r.is_test_data, FALSE) = FALSE
     ) AS unique_recipes_in_books
 """
 

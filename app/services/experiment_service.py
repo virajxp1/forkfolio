@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import json
 from typing import Callable, Iterator
 
 from app.core.prompts import EXPERIMENT_AGENT_SYSTEM_PROMPT
 from app.services.data.managers.experiment_manager import ExperimentManager
 from app.services.data.managers.recipe_manager import RecipeManager
+from app.services.experiment_agent_graph import (
+    DEFAULT_EXPERIMENT_FALLBACK,
+    ExperimentAgentGraph,
+)
 from app.services.llm_generation_service import (
     make_llm_call_text_generation,
     stream_llm_call_text_generation,
@@ -38,12 +41,16 @@ class ExperimentService:
         recipe_manager: RecipeManager | None = None,
         text_generation_fn: Callable[[str, str], str] | None = None,
         stream_generation_fn: Callable[[str, str], Iterator[str]] | None = None,
+        agent_graph: ExperimentAgentGraph | None = None,
     ):
         self.experiment_manager = experiment_manager or ExperimentManager()
         self.recipe_manager = recipe_manager or RecipeManager()
         self._text_generation_fn = text_generation_fn or make_llm_call_text_generation
         self._stream_generation_fn = (
             stream_generation_fn or stream_llm_call_text_generation
+        )
+        self._agent_graph = agent_graph or ExperimentAgentGraph(
+            text_generation_fn=self._text_generation_fn
         )
 
     @staticmethod
@@ -86,14 +93,21 @@ class ExperimentService:
     def _normalize_attach_recipe_ids(recipe_ids: list[str] | None) -> list[str]:
         return ExperimentService._normalize_context_recipe_ids(recipe_ids or [])
 
-    def _validate_recipe_ids(self, recipe_ids: list[str]) -> list[str]:
+    def _validate_recipe_ids(
+        self,
+        recipe_ids: list[str],
+        include_test_data: bool = False,
+    ) -> list[str]:
         normalized_ids = self._normalize_context_recipe_ids(recipe_ids)
         if not normalized_ids:
             return []
 
         missing_ids: list[str] = []
         for recipe_id in normalized_ids:
-            if not self.recipe_manager.get_full_recipe(recipe_id):
+            if not self.recipe_manager.get_full_recipe(
+                recipe_id,
+                include_test_data=include_test_data,
+            ):
                 missing_ids.append(recipe_id)
 
         if missing_ids:
@@ -108,32 +122,47 @@ class ExperimentService:
         mode: str | None = None,
         title: str | None = None,
         context_recipe_ids: list[str] | None = None,
+        include_test_data: bool = False,
+        is_test: bool = False,
     ) -> dict:
         normalized_mode = self._normalize_mode(mode)
         normalized_title = (
             title.strip() if isinstance(title, str) and title.strip() else None
         )
-        validated_context_ids = self._validate_recipe_ids(context_recipe_ids or [])
+        validated_context_ids = self._validate_recipe_ids(
+            context_recipe_ids or [],
+            include_test_data=include_test_data,
+        )
+        metadata: dict[str, object] = {"orchestration": "langgraph-ready"}
+        if is_test:
+            metadata["is_test"] = True
 
         return self.experiment_manager.create_thread(
             mode=normalized_mode,
             title=normalized_title,
-            metadata={"orchestration": "langgraph-ready"},
+            metadata=metadata,
             context_recipe_ids=validated_context_ids,
         )
 
-    def list_threads(self, limit: int = 20) -> list[dict]:
-        return self.experiment_manager.list_threads(limit=limit)
+    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
+        return self.experiment_manager.list_threads(
+            limit=limit,
+            include_test=include_test,
+        )
 
     def _resolve_attach_recipe_names(
-        self, recipe_names: list[str]
+        self,
+        recipe_names: list[str],
+        include_test_data: bool = False,
     ) -> tuple[list[dict], list[str]]:
         attached_recipes: list[dict] = []
         unresolved_names: list[str] = []
 
         for recipe_name in self._normalize_attach_recipe_names(recipe_names):
             matches = self.recipe_manager.find_recipes_by_title_query(
-                recipe_name, limit=1
+                recipe_name,
+                limit=1,
+                include_test_data=include_test_data,
             )
             if not matches:
                 unresolved_names.append(recipe_name)
@@ -142,13 +171,18 @@ class ExperimentService:
         return attached_recipes, unresolved_names
 
     def _resolve_attach_recipe_ids(
-        self, recipe_ids: list[str]
+        self,
+        recipe_ids: list[str],
+        include_test_data: bool = False,
     ) -> tuple[list[dict], list[str]]:
         attached_recipes: list[dict] = []
         unresolved_ids: list[str] = []
 
         for recipe_id in self._normalize_attach_recipe_ids(recipe_ids):
-            recipe = self.recipe_manager.get_full_recipe(recipe_id)
+            recipe = self.recipe_manager.get_full_recipe(
+                recipe_id,
+                include_test_data=include_test_data,
+            )
             if not recipe:
                 unresolved_ids.append(recipe_id)
                 continue
@@ -165,24 +199,44 @@ class ExperimentService:
         self,
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
+        include_test_data: bool = False,
     ) -> tuple[list[dict], list[str]]:
         if attach_recipe_ids:
-            return self._resolve_attach_recipe_ids(attach_recipe_ids)
-        return self._resolve_attach_recipe_names(attach_recipe_names or [])
+            return self._resolve_attach_recipe_ids(
+                attach_recipe_ids,
+                include_test_data=include_test_data,
+            )
+        return self._resolve_attach_recipe_names(
+            attach_recipe_names or [],
+            include_test_data=include_test_data,
+        )
 
-    def get_thread(self, thread_id: str, message_limit: int = 100) -> dict:
+    def get_thread(
+        self,
+        thread_id: str,
+        message_limit: int = 100,
+        include_test_data: bool = False,
+    ) -> dict:
         thread = self.experiment_manager.get_thread(
             thread_id=thread_id,
             message_limit=message_limit,
+            include_test_data=include_test_data,
         )
         if not thread:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
         return thread
 
-    def _build_context_payload(self, context_recipe_ids: list[str]) -> list[dict]:
+    def _build_context_payload(
+        self,
+        context_recipe_ids: list[str],
+        include_test_data: bool = False,
+    ) -> list[dict]:
         context_payload: list[dict] = []
         for recipe_id in context_recipe_ids:
-            recipe = self.recipe_manager.get_full_recipe(recipe_id)
+            recipe = self.recipe_manager.get_full_recipe(
+                recipe_id,
+                include_test_data=include_test_data,
+            )
             if not recipe:
                 continue
 
@@ -212,24 +266,26 @@ class ExperimentService:
             )
         return history_items
 
-    def _build_agent_user_prompt(
+    def _build_agent_plan(
         self,
         mode: str,
         user_message: str,
         context_recipe_ids: list[str],
         prior_messages: list[dict],
-    ) -> str:
-        context_payload = self._build_context_payload(context_recipe_ids)
+        stream_requested: bool,
+        include_test_data: bool = False,
+    ) -> dict:
+        context_payload = self._build_context_payload(
+            context_recipe_ids,
+            include_test_data=include_test_data,
+        )
         history_payload = self._build_history_payload(prior_messages)
-        return json.dumps(
-            {
-                "mode": mode,
-                "user_request": user_message,
-                "thread_context_recipes": context_payload,
-                "recent_history": history_payload,
-            },
-            ensure_ascii=True,
-            sort_keys=True,
+        return self._agent_graph.execute(
+            mode=mode,
+            user_message=user_message,
+            context_payload=context_payload,
+            history_payload=history_payload,
+            stream_requested=stream_requested,
         )
 
     @staticmethod
@@ -266,29 +322,20 @@ class ExperimentService:
         user_message: str,
         context_recipe_ids: list[str],
         prior_messages: list[dict],
+        include_test_data: bool = False,
     ) -> str:
-        user_prompt = self._build_agent_user_prompt(
+        plan = self._build_agent_plan(
             mode=mode,
             user_message=user_message,
             context_recipe_ids=context_recipe_ids,
             prior_messages=prior_messages,
+            stream_requested=False,
+            include_test_data=include_test_data,
         )
-
-        try:
-            response_text = self._text_generation_fn(
-                user_prompt=user_prompt,
-                system_prompt=EXPERIMENT_AGENT_SYSTEM_PROMPT,
-            )
-            normalized_response = (response_text or "").strip()
-            if normalized_response:
-                return normalized_response
-        except Exception:
-            pass
-
-        return (
-            "I can help iterate this recipe. Share dietary goals, flavor direction, "
-            "and any must-use ingredients, and I will propose a concrete draft."
-        )
+        assistant_content = str(plan.get("assistant_content") or "").strip()
+        if assistant_content:
+            return assistant_content
+        return DEFAULT_EXPERIMENT_FALLBACK
 
     def send_user_message(
         self,
@@ -297,17 +344,25 @@ class ExperimentService:
         context_recipe_ids: list[str] | None = None,
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
+        include_test_data: bool = False,
     ) -> dict:
         normalized_content = content.strip()
         if not normalized_content:
             raise ExperimentValidationError("Message content cannot be empty.")
 
-        thread = self.experiment_manager.get_thread(thread_id, message_limit=40)
+        thread = self.experiment_manager.get_thread(
+            thread_id,
+            message_limit=40,
+            include_test_data=include_test_data,
+        )
         if not thread:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
 
         if context_recipe_ids is not None:
-            validated_context_ids = self._validate_recipe_ids(context_recipe_ids)
+            validated_context_ids = self._validate_recipe_ids(
+                context_recipe_ids,
+                include_test_data=include_test_data,
+            )
             self.experiment_manager.set_context_recipe_ids(
                 thread_id=thread_id,
                 context_recipe_ids=validated_context_ids,
@@ -317,6 +372,7 @@ class ExperimentService:
         attached_recipes, unresolved_recipe_names = self._resolve_attach_recipes(
             attach_recipe_ids=attach_recipe_ids,
             attach_recipe_names=attach_recipe_names,
+            include_test_data=include_test_data,
         )
         attachment_message = None
         if attached_recipes:
@@ -361,13 +417,15 @@ class ExperimentService:
             thread_id=thread_id, limit=40
         )
         thread_context_recipe_ids = self.experiment_manager.get_context_recipe_ids(
-            thread_id
+            thread_id,
+            include_test_data=include_test_data,
         )
         assistant_content = self._run_agent_turn(
             mode=thread["mode"],
             user_message=normalized_content,
             context_recipe_ids=thread_context_recipe_ids,
             prior_messages=thread_messages,
+            include_test_data=include_test_data,
         )
 
         assistant_message = self.experiment_manager.create_message(
@@ -378,7 +436,11 @@ class ExperimentService:
         if not assistant_message:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
 
-        updated_thread = self.get_thread(thread_id=thread_id, message_limit=120)
+        updated_thread = self.get_thread(
+            thread_id=thread_id,
+            message_limit=120,
+            include_test_data=include_test_data,
+        )
         return {
             "thread": updated_thread,
             "user_message": user_message,
@@ -395,17 +457,25 @@ class ExperimentService:
         context_recipe_ids: list[str] | None = None,
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
+        include_test_data: bool = False,
     ) -> Iterator[dict]:
         normalized_content = content.strip()
         if not normalized_content:
             raise ExperimentValidationError("Message content cannot be empty.")
 
-        thread = self.experiment_manager.get_thread(thread_id, message_limit=40)
+        thread = self.experiment_manager.get_thread(
+            thread_id,
+            message_limit=40,
+            include_test_data=include_test_data,
+        )
         if not thread:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
 
         if context_recipe_ids is not None:
-            validated_context_ids = self._validate_recipe_ids(context_recipe_ids)
+            validated_context_ids = self._validate_recipe_ids(
+                context_recipe_ids,
+                include_test_data=include_test_data,
+            )
             self.experiment_manager.set_context_recipe_ids(
                 thread_id=thread_id,
                 context_recipe_ids=validated_context_ids,
@@ -415,6 +485,7 @@ class ExperimentService:
         attached_recipes, unresolved_recipe_names = self._resolve_attach_recipes(
             attach_recipe_ids=attach_recipe_ids,
             attach_recipe_names=attach_recipe_names,
+            include_test_data=include_test_data,
         )
         attachment_message = None
         if attached_recipes:
@@ -470,43 +541,58 @@ class ExperimentService:
             thread_id=thread_id, limit=40
         )
         thread_context_recipe_ids = self.experiment_manager.get_context_recipe_ids(
-            thread_id
+            thread_id,
+            include_test_data=include_test_data,
         )
-        user_prompt = self._build_agent_user_prompt(
+        plan = self._build_agent_plan(
             mode=thread["mode"],
             user_message=normalized_content,
             context_recipe_ids=thread_context_recipe_ids,
             prior_messages=thread_messages,
+            stream_requested=True,
+            include_test_data=include_test_data,
         )
 
         assistant_parts: list[str] = []
-        try:
-            for chunk in self._stream_generation_fn(
-                user_prompt,
-                EXPERIMENT_AGENT_SYSTEM_PROMPT,
-            ):
-                text_chunk = chunk or ""
-                if not text_chunk.strip():
-                    continue
-                assistant_parts.append(text_chunk)
-                yield {"event": "delta", "data": {"text": text_chunk}}
-        except Exception:
-            fallback = self._run_agent_turn(
-                mode=thread["mode"],
-                user_message=normalized_content,
-                context_recipe_ids=thread_context_recipe_ids,
-                prior_messages=thread_messages,
-            )
-            for fallback_chunk in self._chunk_text(fallback):
-                assistant_parts.append(fallback_chunk)
-                yield {"event": "delta", "data": {"text": fallback_chunk}}
+        if plan.get("blocked"):
+            blocked_text = str(plan.get("assistant_content") or "").strip()
+            if not blocked_text:
+                blocked_text = DEFAULT_EXPERIMENT_FALLBACK
+            for blocked_chunk in self._chunk_text(blocked_text):
+                assistant_parts.append(blocked_chunk)
+                yield {"event": "delta", "data": {"text": blocked_chunk}}
+        else:
+            user_prompt = str(plan.get("user_prompt") or "").strip()
+            if not user_prompt:
+                for fallback_chunk in self._chunk_text(DEFAULT_EXPERIMENT_FALLBACK):
+                    assistant_parts.append(fallback_chunk)
+                    yield {"event": "delta", "data": {"text": fallback_chunk}}
+            else:
+                try:
+                    for chunk in self._stream_generation_fn(
+                        user_prompt,
+                        EXPERIMENT_AGENT_SYSTEM_PROMPT,
+                    ):
+                        text_chunk = chunk or ""
+                        if not text_chunk.strip():
+                            continue
+                        assistant_parts.append(text_chunk)
+                        yield {"event": "delta", "data": {"text": text_chunk}}
+                except Exception:
+                    fallback = self._run_agent_turn(
+                        mode=thread["mode"],
+                        user_message=normalized_content,
+                        context_recipe_ids=thread_context_recipe_ids,
+                        prior_messages=thread_messages,
+                        include_test_data=include_test_data,
+                    )
+                    for fallback_chunk in self._chunk_text(fallback):
+                        assistant_parts.append(fallback_chunk)
+                        yield {"event": "delta", "data": {"text": fallback_chunk}}
 
         assistant_content = "".join(assistant_parts).strip()
         if not assistant_content:
-            assistant_content = (
-                "I can help iterate this recipe. Share dietary goals, flavor direction, "
-                "and any must-use ingredients, and I will propose a concrete draft."
-            )
+            assistant_content = DEFAULT_EXPERIMENT_FALLBACK
             yield {"event": "delta", "data": {"text": assistant_content}}
 
         assistant_message = self.experiment_manager.create_message(
@@ -517,7 +603,11 @@ class ExperimentService:
         if not assistant_message:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
 
-        updated_thread = self.get_thread(thread_id=thread_id, message_limit=120)
+        updated_thread = self.get_thread(
+            thread_id=thread_id,
+            message_limit=120,
+            include_test_data=include_test_data,
+        )
         yield {
             "event": "final",
             "data": {
