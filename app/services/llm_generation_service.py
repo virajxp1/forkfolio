@@ -595,7 +595,9 @@ def make_llm_call_structured_output_generic(
                             "success": False,
                             "attempt": attempt,
                             **_assistant_output_payload(
-                                json.dumps(response_data, default=str, ensure_ascii=True)
+                                json.dumps(
+                                    response_data, default=str, ensure_ascii=True
+                                )
                             ),
                             "response": response_data,
                         },

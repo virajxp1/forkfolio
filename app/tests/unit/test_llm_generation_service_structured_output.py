@@ -201,7 +201,9 @@ def test_structured_output_logs_assistant_message_payload(monkeypatch) -> None:
     monkeypatch.setattr(llm_generation_service, "llm_structured_cache", cache)
     monkeypatch.setattr(llm_generation_service, "start_trace_span", _fake_span)
     monkeypatch.setattr(
-        llm_generation_service, "log_span", lambda _span, **event: log_events.append(event)
+        llm_generation_service,
+        "log_span",
+        lambda _span, **event: log_events.append(event),
     )
 
     suffix = uuid4().hex

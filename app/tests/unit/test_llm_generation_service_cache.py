@@ -52,10 +52,14 @@ def test_stream_llm_call_text_generation_logs_output_on_completion(
             return iter(
                 [
                     SimpleNamespace(
-                        choices=[SimpleNamespace(delta=SimpleNamespace(content="hello "))]
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content="hello "))
+                        ]
                     ),
                     SimpleNamespace(
-                        choices=[SimpleNamespace(delta=SimpleNamespace(content="world"))]
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content="world"))
+                        ]
                     ),
                 ]
             )
@@ -106,10 +110,14 @@ def test_stream_llm_call_text_generation_logs_output_when_closed_early(
             return iter(
                 [
                     SimpleNamespace(
-                        choices=[SimpleNamespace(delta=SimpleNamespace(content="hello "))]
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content="hello "))
+                        ]
                     ),
                     SimpleNamespace(
-                        choices=[SimpleNamespace(delta=SimpleNamespace(content="world"))]
+                        choices=[
+                            SimpleNamespace(delta=SimpleNamespace(content="world"))
+                        ]
                     ),
                 ]
             )
