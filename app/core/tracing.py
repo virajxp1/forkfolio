@@ -117,14 +117,21 @@ def setup_braintrust() -> None:
         logger.warning("Braintrust tracing enabled but no project ID is configured.")
         return
 
+    api_key = settings.BRAINTRUST_API_KEY.strip()
+    if not api_key:
+        logger.warning(
+            "Braintrust tracing enabled but BRAINTRUST_API_KEY is missing. "
+            "Tracing will remain disabled."
+        )
+        return
+
     init_kwargs: dict[str, Any] = {
         "project_id": project_id,
         "set_current": True,
+        "api_key": api_key,
     }
     if settings.BRAINTRUST_APP_URL:
         init_kwargs["app_url"] = settings.BRAINTRUST_APP_URL
-    if settings.BRAINTRUST_API_KEY:
-        init_kwargs["api_key"] = settings.BRAINTRUST_API_KEY
 
     try:
         _braintrust_init_logger(**init_kwargs)
@@ -166,21 +173,35 @@ def start_trace_span(
     if span_type:
         span_kwargs["type"] = span_type
 
-    resolved_trace_id = root_trace_id or current_trace_id()
     span_depth = _SPAN_DEPTH.get()
     parent_export = _ACTIVE_PARENT_EXPORT.get()
     if parent_export:
         span_kwargs["parent"] = parent_export
-    elif resolved_trace_id and span_depth == 0:
-        span_kwargs["root_span_id"] = resolved_trace_id
+    elif root_trace_id and span_depth == 0:
+        span_kwargs["root_span_id"] = root_trace_id
 
     event_kwargs: dict[str, Any] = {}
     if input_data is not None:
         event_kwargs["input"] = input_data
     if output_data is not None:
         event_kwargs["output"] = output_data
-    if metadata:
-        event_kwargs["metadata"] = metadata
+
+    resolved_metadata = dict(metadata or {})
+    trace_id = current_trace_id()
+    if trace_id:
+        resolved_metadata.setdefault("request_trace_id", trace_id)
+    request_method = current_request_method()
+    if request_method:
+        resolved_metadata.setdefault("request_method", request_method)
+    request_path = current_request_path()
+    if request_path:
+        resolved_metadata.setdefault("request_path", request_path)
+    trace_source = current_trace_source()
+    if trace_source:
+        resolved_metadata.setdefault("trace_source", trace_source)
+    if resolved_metadata:
+        event_kwargs["metadata"] = resolved_metadata
+
     if metrics:
         event_kwargs["metrics"] = metrics
 
