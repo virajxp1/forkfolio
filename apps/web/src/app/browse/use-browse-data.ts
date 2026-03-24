@@ -411,6 +411,9 @@ export function useBrowseData() {
               rerankedResponse.results ?? [],
               "semantic",
             );
+            if (rerankedSemanticResults.length === 0) {
+              return;
+            }
             if (areBrowseResultsEqual(semanticResults, rerankedSemanticResults)) {
               return;
             }
