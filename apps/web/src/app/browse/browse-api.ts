@@ -69,8 +69,13 @@ async function browserFetch<T>(pathWithQuery: string): Promise<T> {
 export async function searchRecipesClient(
   query: string,
   limit = SEARCH_LIMIT,
+  rerank = false,
 ): Promise<SearchRecipesResponse> {
-  const params = new URLSearchParams({ query, limit: String(limit) });
+  const params = new URLSearchParams({
+    query,
+    limit: String(limit),
+    rerank: String(rerank),
+  });
   return browserFetch<SearchRecipesResponse>(`/api/search?${params.toString()}`);
 }
 

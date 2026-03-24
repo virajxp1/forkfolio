@@ -127,10 +127,12 @@ async function forkfolioFetch<T>(
 export async function searchRecipes(
   query: string,
   limit = 12,
+  rerank = false,
 ): Promise<SearchRecipesResponse> {
   const params = new URLSearchParams({
     query: query.trim(),
     limit: String(limit),
+    rerank: String(rerank),
   });
 
   return forkfolioFetch<SearchRecipesResponse>(

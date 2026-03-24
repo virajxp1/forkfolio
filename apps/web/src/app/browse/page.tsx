@@ -17,6 +17,7 @@ export default function BrowsePage() {
     searchError,
     isSearching,
     isLoadingRelated,
+    isRefiningResults,
     showLoadRelated,
     recipeById,
     recipeLoadingById,
@@ -68,6 +69,7 @@ export default function BrowsePage() {
             relatedResultCount={relatedResultCount}
             searchError={searchError}
             isLoadingRelated={isLoadingRelated}
+            isRefiningResults={isRefiningResults}
             showLoadRelated={showLoadRelated}
             showInitialPrompt={showInitialPrompt}
             showLoadingGrid={showLoadingGrid}

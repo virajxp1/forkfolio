@@ -77,6 +77,8 @@ def hash_cache_key(*parts: str) -> str:
 
 LLM_CACHE_TTL_SECONDS = float(os.getenv("LLM_CACHE_TTL_SECONDS", "3600"))
 LLM_CACHE_MAX_ITEMS = int(os.getenv("LLM_CACHE_MAX_ITEMS", "1024"))
+EMBEDDING_CACHE_TTL_SECONDS = float(os.getenv("EMBEDDING_CACHE_TTL_SECONDS", "3600"))
+EMBEDDING_CACHE_MAX_ITEMS = int(os.getenv("EMBEDDING_CACHE_MAX_ITEMS", "2048"))
 SEMANTIC_SEARCH_CACHE_TTL_SECONDS = float(
     os.getenv("SEMANTIC_SEARCH_CACHE_TTL_SECONDS", "30")
 )
@@ -89,6 +91,10 @@ llm_text_cache: TTLCache[str] = TTLCache(
 )
 llm_structured_cache: TTLCache[dict] = TTLCache(
     ttl_seconds=LLM_CACHE_TTL_SECONDS, max_items=LLM_CACHE_MAX_ITEMS
+)
+embedding_cache: TTLCache[list[float]] = TTLCache(
+    ttl_seconds=EMBEDDING_CACHE_TTL_SECONDS,
+    max_items=EMBEDDING_CACHE_MAX_ITEMS,
 )
 semantic_search_cache: TTLCache[dict] = TTLCache(
     ttl_seconds=SEMANTIC_SEARCH_CACHE_TTL_SECONDS,

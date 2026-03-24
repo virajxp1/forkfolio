@@ -17,9 +17,19 @@ function parseLimit(rawLimit: string | null): number {
   return Math.min(parsed, 50);
 }
 
+function parseRerank(rawRerank: string | null): boolean {
+  if (!rawRerank) {
+    return false;
+  }
+
+  const normalized = rawRerank.trim().toLowerCase();
+  return normalized === "1" || normalized === "true";
+}
+
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("query")?.trim() ?? "";
   const limit = parseLimit(request.nextUrl.searchParams.get("limit"));
+  const rerank = parseRerank(request.nextUrl.searchParams.get("rerank"));
 
   if (!query) {
     return NextResponse.json(
@@ -29,7 +39,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await searchRecipes(query, limit);
+    const response = await searchRecipes(query, limit, rerank);
     return NextResponse.json(response, {
       status: 200,
       headers: {
