@@ -17,6 +17,18 @@ class _FakeCompletions:
         )
 
 
+class _FakeEmbeddings:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def create(self, **_kwargs):
+        self.calls += 1
+        return SimpleNamespace(
+            data=[SimpleNamespace(embedding=[0.12, 0.34, 0.56])],
+            usage=None,
+        )
+
+
 def test_make_llm_call_text_generation_caches_empty_string(monkeypatch) -> None:
     fake_completions = _FakeCompletions()
     fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
@@ -158,3 +170,24 @@ def test_stream_llm_call_text_generation_logs_output_when_closed_early(
     assert final_log["output"]["messages"][0]["content"] == "hello "
     assert final_log["metadata"]["stream_completed"] is False
     assert final_log["metadata"]["stream_interrupted"] is True
+
+
+def test_make_embedding_uses_cache_and_returns_copy(monkeypatch) -> None:
+    fake_embeddings = _FakeEmbeddings()
+    fake_client = SimpleNamespace(embeddings=fake_embeddings)
+    cache = TTLCache[list[float]](ttl_seconds=60, max_items=10)
+
+    monkeypatch.setattr(
+        llm_generation_service, "_get_embeddings_model_name", lambda: "test-embedding"
+    )
+    monkeypatch.setattr(
+        llm_generation_service, "_get_openai_client", lambda: fake_client
+    )
+    monkeypatch.setattr(llm_generation_service, "embedding_cache", cache)
+
+    first = llm_generation_service.make_embedding("cache me")
+    first[0] = 9.99
+    second = llm_generation_service.make_embedding("cache me")
+
+    assert second == [0.12, 0.34, 0.56]
+    assert fake_embeddings.calls == 1

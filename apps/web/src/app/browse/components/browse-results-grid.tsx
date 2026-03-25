@@ -166,6 +166,7 @@ type BrowseResultsGridProps = {
   relatedResultCount: number;
   searchError: string | null;
   isLoadingRelated: boolean;
+  isRefiningResults: boolean;
   showLoadRelated: boolean;
   showInitialPrompt: boolean;
   showLoadingGrid: boolean;
@@ -186,6 +187,7 @@ export function BrowseResultsGrid({
   relatedResultCount,
   searchError,
   isLoadingRelated,
+  isRefiningResults,
   showLoadRelated,
   showInitialPrompt,
   showLoadingGrid,
@@ -206,6 +208,9 @@ export function BrowseResultsGrid({
       <h2 className="font-display text-[clamp(1.8rem,3vw,2.4rem)] tracking-tight">
         {queryFromUrl ? `Results for "${queryFromUrl}"` : "Browse Recipes"}
       </h2>
+      {isQueryMode && isRefiningResults ? (
+        <p className="text-sm text-muted-foreground">Refining results...</p>
+      ) : null}
 
       {searchError ? (
         <Card className="border-destructive/35 bg-destructive/5 shadow-none">

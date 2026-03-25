@@ -50,7 +50,7 @@ describe("GET /api/search", () => {
     expect(response.headers.get("Cache-Control")).toBe(
       "public, max-age=60, stale-while-revalidate=300",
     );
-    expect(searchRecipesMock).toHaveBeenCalledWith("pasta", 50);
+    expect(searchRecipesMock).toHaveBeenCalledWith("pasta", 50, false);
   });
 
   it("uses default limit when limit is invalid", async () => {
@@ -67,7 +67,24 @@ describe("GET /api/search", () => {
 
     await GET(request);
 
-    expect(searchRecipesMock).toHaveBeenCalledWith("soup", 12);
+    expect(searchRecipesMock).toHaveBeenCalledWith("soup", 12, false);
+  });
+
+  it("passes rerank flag through when explicitly enabled", async () => {
+    searchRecipesMock.mockResolvedValue({
+      query: "salad",
+      count: 0,
+      results: [],
+      success: true,
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/search?query=salad&rerank=true",
+    );
+
+    await GET(request);
+
+    expect(searchRecipesMock).toHaveBeenCalledWith("salad", 12, true);
   });
 
   it("maps Forkfolio API errors", async () => {

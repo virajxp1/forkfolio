@@ -40,6 +40,7 @@ def _semantic_search_cache_key(
     normalized_query: str,
     limit: int,
     include_test_data: bool,
+    rerank_enabled: bool,
 ) -> str:
     return hash_cache_key(
         "semantic_search",
@@ -47,7 +48,7 @@ def _semantic_search_cache_key(
         str(limit),
         str(include_test_data),
         str(settings.SEMANTIC_SEARCH_MAX_DISTANCE),
-        str(settings.SEMANTIC_SEARCH_RERANK_ENABLED),
+        str(rerank_enabled),
         str(settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT),
         str(settings.SEMANTIC_SEARCH_RERANK_MIN_SCORE),
         str(settings.SEMANTIC_SEARCH_RERANK_FALLBACK_MIN_SCORE),
@@ -260,6 +261,13 @@ def semantic_search_recipes(
         default=False,
         description="Include recipes marked as test data.",
     ),
+    rerank: bool | None = Query(
+        default=None,
+        description=(
+            "Override reranking for this request. Set false for the fastest path, "
+            "or true to force LLM reranking."
+        ),
+    ),
     recipe_manager=recipe_manager_dep,
     embeddings_service=recipe_embeddings_service_dep,
     reranker_service=recipe_search_reranker_service_dep,
@@ -276,30 +284,36 @@ def semantic_search_recipes(
             status_code=422,
             detail="Query must contain at least 2 non-whitespace characters.",
         )
+    rerank_enabled = (
+        settings.SEMANTIC_SEARCH_RERANK_ENABLED if rerank is None else rerank
+    )
     cache_key = _semantic_search_cache_key(
         normalized_query=normalized_query,
         limit=limit,
         include_test_data=include_test_data,
+        rerank_enabled=rerank_enabled,
     )
     cached_response = semantic_search_cache.get(cache_key)
     if cached_response is not None:
         logger.info(
-            "Semantic recipe search cache hit query='%s' limit=%s",
+            "Semantic recipe search cache hit query='%s' limit=%s rerank=%s",
             normalized_query,
             limit,
+            rerank_enabled,
         )
         return cached_response
 
     logger.info(
-        "Semantic recipe search query='%s' limit=%s max_distance=%.3f",
+        "Semantic recipe search query='%s' limit=%s rerank=%s max_distance=%.3f",
         normalized_query,
         limit,
+        rerank_enabled,
         settings.SEMANTIC_SEARCH_MAX_DISTANCE,
     )
     try:
         query_embedding = embeddings_service.embed_search_query(normalized_query)
         candidate_limit = limit
-        if settings.SEMANTIC_SEARCH_RERANK_ENABLED:
+        if rerank_enabled:
             candidate_limit = max(
                 limit, settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT
             )
@@ -310,7 +324,7 @@ def semantic_search_recipes(
             max_distance=settings.SEMANTIC_SEARCH_MAX_DISTANCE,
             include_test_data=include_test_data,
         )
-        if settings.SEMANTIC_SEARCH_RERANK_ENABLED and len(matches) > 1:
+        if rerank_enabled and len(matches) > 1:
             ranked_items = []
             try:
                 rerank_candidates = build_rerank_candidates(

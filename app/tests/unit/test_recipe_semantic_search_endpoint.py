@@ -429,6 +429,40 @@ def test_semantic_search_applies_rerank_when_enabled(monkeypatch) -> None:
     ]
 
 
+def test_semantic_search_skips_rerank_when_request_disables_it(monkeypatch) -> None:
+    recipe_one = str(uuid.uuid4())
+    recipe_two = str(uuid.uuid4())
+    expected_results = [
+        {"id": recipe_one, "name": "Herby Pasta", "distance": 0.09},
+        {"id": recipe_two, "name": "Carbonara", "distance": 0.11},
+    ]
+    fake_manager = FakeRecipeManager(results=expected_results)
+    fake_embeddings = FakeEmbeddingsService(embedding=[0.4, 0.5, 0.6])
+    fake_reranker = FakeRerankerService(
+        ranked=[
+            {"id": recipe_two, "score": 0.97},
+            {"id": recipe_one, "score": 0.76},
+        ]
+    )
+    client = build_client(fake_manager, fake_embeddings, fake_reranker)
+
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_ENABLED", True)
+    monkeypatch.setattr(settings, "SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT", 5)
+
+    response = client.get(
+        SEMANTIC_SEARCH_PATH,
+        params={"query": "pasta", "limit": 2, "rerank": "false"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["results"][0]["id"] == recipe_one
+    assert payload["results"][1]["id"] == recipe_two
+    assert len(fake_reranker.calls) == 0
+    assert fake_manager.preview_calls == []
+    assert fake_manager.calls[0]["limit"] == 2
+
+
 def test_semantic_search_falls_back_when_reranker_returns_unknown_ids(
     monkeypatch,
 ) -> None:

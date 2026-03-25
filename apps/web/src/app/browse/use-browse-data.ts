@@ -105,6 +105,33 @@ function getRelatedSemanticResults(
   return semanticResults.filter((result) => !baseKeys.has(getSearchResultKey(result)));
 }
 
+function areBrowseResultsEqual(
+  left: BrowseSearchResult[],
+  right: BrowseSearchResult[],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    const leftItem = left[index];
+    const rightItem = right[index];
+    if (!rightItem) {
+      return false;
+    }
+    if (
+      leftItem.id !== rightItem.id ||
+      leftItem.name !== rightItem.name ||
+      leftItem.distance !== rightItem.distance ||
+      leftItem.matchSource !== rightItem.matchSource
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function useBrowseData() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -118,6 +145,7 @@ export function useBrowseData() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingRelated, setIsLoadingRelated] = useState(false);
+  const [isRefiningResults, setIsRefiningResults] = useState(false);
   const [hasLoadedRelated, setHasLoadedRelated] = useState(false);
   const [defaultListNextCursor, setDefaultListNextCursor] = useState<string | null>(
     null,
@@ -240,6 +268,7 @@ export function useBrowseData() {
     async (query: string) => {
       const requestId = searchRequestIdRef.current + 1;
       searchRequestIdRef.current = requestId;
+      setIsRefiningResults(false);
 
       if (!query) {
         const cachedDefault = defaultListCacheRef.current;
@@ -363,8 +392,52 @@ export function useBrowseData() {
         setIsLoadingRelated(true);
       }
 
+      const runSemanticRerankInBackground = (
+        semanticResults: BrowseSearchResult[],
+      ): void => {
+        if (query.length < MIN_TEXT_MATCH_QUERY_LENGTH || semanticResults.length < 2) {
+          return;
+        }
+
+        setIsRefiningResults(true);
+        void (async () => {
+          try {
+            const rerankedResponse = await searchRecipesClient(query, SEARCH_LIMIT, true);
+            if (searchRequestIdRef.current !== requestId) {
+              return;
+            }
+
+            const rerankedSemanticResults = toMatchSourceResults(
+              rerankedResponse.results ?? [],
+              "semantic",
+            );
+            if (rerankedSemanticResults.length === 0) {
+              return;
+            }
+            if (areBrowseResultsEqual(semanticResults, rerankedSemanticResults)) {
+              return;
+            }
+
+            searchCacheRef.current[query] = {
+              baseResults: rerankedSemanticResults,
+              relatedResults: [],
+            };
+
+            setResults(rerankedSemanticResults);
+            setRelatedResults([]);
+            prefetchResultDetails(rerankedSemanticResults);
+          } catch {
+            // Best-effort refinement; keep fast semantic ordering on any rerank failure.
+          } finally {
+            if (searchRequestIdRef.current === requestId) {
+              setIsRefiningResults(false);
+            }
+          }
+        })();
+      };
+
       try {
-        const semanticResponse = await searchRecipesClient(query, SEARCH_LIMIT);
+        const semanticResponse = await searchRecipesClient(query, SEARCH_LIMIT, false);
         if (searchRequestIdRef.current !== requestId) {
           return;
         }
@@ -385,6 +458,7 @@ export function useBrowseData() {
           setIsSearching(false);
           setIsLoadingRelated(false);
           prefetchResultDetails(semanticResults);
+          runSemanticRerankInBackground(semanticResults);
           return;
         }
 
@@ -617,6 +691,7 @@ export function useBrowseData() {
     searchError,
     isSearching,
     isLoadingRelated,
+    isRefiningResults,
     showLoadRelated,
     recipeById,
     recipeLoadingById,

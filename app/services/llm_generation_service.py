@@ -4,7 +4,12 @@ import time
 from collections.abc import Iterator
 from typing import Any, Callable, Optional, TypeVar, Union
 
-from app.core.cache import hash_cache_key, llm_structured_cache, llm_text_cache
+from app.core.cache import (
+    embedding_cache,
+    hash_cache_key,
+    llm_structured_cache,
+    llm_text_cache,
+)
 from openai import OpenAI
 from openai.types.chat import (
     ChatCompletionSystemMessageParam,
@@ -630,21 +635,38 @@ def make_embedding(text: str) -> list[float]:
     if not model_name:
         raise ValueError("Embeddings model name is not set.")
 
+    cache_key = hash_cache_key("llm_embedding", model_name, text)
     with start_trace_span(
         name="llm.embedding",
         span_type="llm",
         input_data={"text": text},
-        metadata={"model": model_name, "input_chars": len(text)},
+        metadata={
+            "model": model_name,
+            "input_chars": len(text),
+            "cache_key": cache_key,
+        },
     ) as span:
+        cached_embedding = embedding_cache.get(cache_key)
+        if cached_embedding is not None:
+            cached_copy = list(cached_embedding)
+            log_span(
+                span,
+                output={"embedding_dimensions": len(cached_copy)},
+                metadata={"cache_hit": True},
+            )
+            return cached_copy
+
         client = _get_openai_client()
         response = _with_retries(
             lambda: client.embeddings.create(model=model_name, input=text)
         )
-        embedding = response.data[0].embedding
+        embedding = list(response.data[0].embedding)
+        embedding_cache.set(cache_key, list(embedding))
         usage_metrics = _usage_to_metrics(getattr(response, "usage", None))
         log_span(
             span,
-            output={"embedding": embedding, "embedding_dimensions": len(embedding)},
+            output={"embedding_dimensions": len(embedding)},
+            metadata={"cache_hit": False},
             metrics=usage_metrics,
         )
         return embedding
