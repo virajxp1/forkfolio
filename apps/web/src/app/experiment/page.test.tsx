@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY } from "@/lib/experiment-recipe-draft";
+
 import ExperimentPage from "./page";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -38,6 +40,7 @@ function toUrl(input: RequestInfo | URL): string {
 describe("/experiment page", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    window.sessionStorage.clear();
   });
 
   it("starts a new thread from sidebar and renders active conversation", async () => {
@@ -596,5 +599,130 @@ describe("/experiment page", () => {
       toUrl(input).startsWith("/api/experiments/threads/thread-1?"),
     );
     expect(reloadCalls).toHaveLength(0);
+  });
+
+  it("stores latest assistant output before opening Add Recipe flow", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = toUrl(input);
+      if (url.startsWith("/api/experiments/threads?")) {
+        return jsonResponse({ success: true, count: 0, threads: [] });
+      }
+      if (url === "/api/experiments/threads" && init?.method === "POST") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-draft",
+            mode: "invent_new",
+            title: null,
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [],
+            created_at: null,
+            updated_at: null,
+          },
+        });
+      }
+      if (
+        url === "/api/experiments/threads/thread-draft/messages/stream" &&
+        init?.method === "POST"
+      ) {
+        const assistantContent = [
+          "Lemon Garlic Chicken",
+          "",
+          "Ingredients:",
+          "- 1 lb chicken thighs",
+          "- 2 tbsp olive oil",
+          "",
+          "Instructions:",
+          "1. Season the chicken.",
+          "2. Sear and finish in the oven.",
+        ].join("\n");
+        const finalPayload = {
+          thread_id: "thread-draft",
+          thread: {
+            id: "thread-draft",
+            mode: "invent_new",
+            title: "Recipe draft",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-user",
+                thread_id: "thread-draft",
+                sequence_no: 1,
+                role: "user",
+                content: "Give me a complete recipe draft",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+              {
+                id: "msg-assistant",
+                thread_id: "thread-draft",
+                sequence_no: 2,
+                role: "assistant",
+                content: assistantContent,
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+          user_message: {
+            id: "msg-user",
+            thread_id: "thread-draft",
+            sequence_no: 1,
+            role: "user",
+            content: "Give me a complete recipe draft",
+            tool_name: null,
+            tool_call: null,
+            created_at: null,
+          },
+          assistant_message: {
+            id: "msg-assistant",
+            thread_id: "thread-draft",
+            sequence_no: 2,
+            role: "assistant",
+            content: assistantContent,
+            tool_name: null,
+            tool_call: null,
+            created_at: null,
+          },
+          attachment_message: null,
+          attached_recipes: [],
+          unresolved_recipe_names: [],
+          success: true,
+        };
+        return sseResponse(`event: final\ndata: ${JSON.stringify(finalPayload)}\n\n`);
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    const user = userEvent.setup();
+    render(<ExperimentPage />);
+
+    await user.type(screen.getByLabelText("Your message"), "Give me a complete recipe draft");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const addAsRecipeLink = await screen.findByRole("link", { name: "Add As Recipe" });
+    addAsRecipeLink.addEventListener("click", (event) => event.preventDefault());
+    await user.click(addAsRecipeLink);
+
+    expect(window.sessionStorage.getItem(EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY)).toBe(
+      [
+        "Lemon Garlic Chicken",
+        "",
+        "Ingredients:",
+        "- 1 lb chicken thighs",
+        "- 2 tbsp olive oil",
+        "",
+        "Instructions:",
+        "1. Season the chicken.",
+        "2. Sear and finish in the oven.",
+      ].join("\n"),
+    );
   });
 });

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, Loader2, Sparkles } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { PageBackLink, PageHero, PageMain, PageShell } from "@/components/page-shell";
@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { consumeExperimentRecipeDraft } from "@/lib/experiment-recipe-draft";
 import {
   MIN_RECIPE_INPUT_LENGTH,
   type PreviewRecipeFromUrlResponse,
@@ -211,6 +212,20 @@ export default function NewRecipePage() {
     null,
   );
   const [result, setResult] = useState<ProcessRecipeResponse | null>(null);
+
+  useEffect(() => {
+    const experimentDraft = consumeExperimentRecipeDraft();
+    if (!experimentDraft) {
+      return;
+    }
+    setRawInput(experimentDraft);
+    setInputMode("text");
+    setSourceUrl("");
+    setTextModeSourceUrl(null);
+    setPreviewResult(null);
+    setPreviewErrorMessage(null);
+    setErrorMessage(null);
+  }, []);
 
   const trimmedLength = useMemo(() => rawInput.trim().length, [rawInput]);
   const normalizedSourceUrl = useMemo(() => sourceUrl.trim(), [sourceUrl]);

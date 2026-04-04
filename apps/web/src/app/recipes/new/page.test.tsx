@@ -2,11 +2,50 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY } from "@/lib/experiment-recipe-draft";
+
 import NewRecipePage from "./page";
 
 describe("/recipes/new page", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
+    window.sessionStorage.clear();
+  });
+
+  it("hydrates raw recipe text from experiment draft storage", async () => {
+    window.sessionStorage.setItem(
+      EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY,
+      [
+        "Skillet Lemon Rice",
+        "",
+        "Ingredients:",
+        "- 1 cup rice",
+        "- 2 cups broth",
+        "",
+        "Instructions:",
+        "1. Toast rice.",
+        "2. Simmer until tender.",
+      ].join("\n"),
+    );
+
+    render(<NewRecipePage />);
+
+    const textTab = await screen.findByRole("tab", { name: /Paste Text/i });
+    expect(textTab).toHaveAttribute("data-state", "active");
+    expect(screen.getByLabelText("Raw recipe text")).toHaveValue(
+      [
+        "Skillet Lemon Rice",
+        "",
+        "Ingredients:",
+        "- 1 cup rice",
+        "- 2 cups broth",
+        "",
+        "Instructions:",
+        "1. Toast rice.",
+        "2. Simmer until tender.",
+      ].join("\n"),
+    );
+    expect(window.sessionStorage.getItem(EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY)).toBeNull();
   });
 
   it("disables submit while input is too short", async () => {
