@@ -4,6 +4,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY } from "@/lib/experiment-recipe-draft";
 
+const { mockRouterPush } = vi.hoisted(() => ({
+  mockRouterPush: vi.fn(),
+}));
+
+vi.mock("next/navigation", async () => {
+  const actual =
+    await vi.importActual<typeof import("next/navigation")>("next/navigation");
+  return {
+    ...actual,
+    usePathname: () => "/",
+    useRouter: () => ({
+      push: mockRouterPush,
+      replace: vi.fn(),
+      refresh: vi.fn(),
+      prefetch: vi.fn(),
+      back: vi.fn(),
+      forward: vi.fn(),
+    }),
+  };
+});
+
 import ExperimentPage from "./page";
 
 function jsonResponse(body: unknown, status = 200): Response {
@@ -41,6 +62,7 @@ describe("/experiment page", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
     window.sessionStorage.clear();
+    mockRouterPush.mockReset();
   });
 
   it("starts a new thread from sidebar and renders active conversation", async () => {
@@ -707,9 +729,8 @@ describe("/experiment page", () => {
     await user.type(screen.getByLabelText("Your message"), "Give me a complete recipe draft");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    const addAsRecipeLink = await screen.findByRole("link", { name: "Add As Recipe" });
-    addAsRecipeLink.addEventListener("click", (event) => event.preventDefault());
-    await user.click(addAsRecipeLink);
+    const addAsRecipeButton = await screen.findByRole("button", { name: "Add As Recipe" });
+    await user.click(addAsRecipeButton);
 
     expect(window.sessionStorage.getItem(EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY)).toBe(
       [
@@ -724,5 +745,171 @@ describe("/experiment page", () => {
         "2. Sear and finish in the oven.",
       ].join("\n"),
     );
+    expect(mockRouterPush).toHaveBeenCalledWith("/recipes/new");
+  });
+
+  it("keeps Add As Recipe disabled while a message is sending", async () => {
+    const fetchMock = vi.mocked(fetch);
+    let releaseStream: (() => void) | null = null;
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = toUrl(input);
+      if (url.startsWith("/api/experiments/threads?")) {
+        return jsonResponse({
+          success: true,
+          count: 1,
+          threads: [
+            {
+              id: "thread-existing",
+              mode: "invent_new",
+              title: "Existing draft",
+              metadata: {},
+              created_at: null,
+              updated_at: null,
+              last_message_role: "assistant",
+              last_message_content: "Current draft from history.",
+              last_message_created_at: null,
+            },
+          ],
+        });
+      }
+      if (url === "/api/experiments/threads/thread-existing?message_limit=120") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-existing",
+            mode: "invent_new",
+            title: "Existing draft",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-assistant-existing",
+                thread_id: "thread-existing",
+                sequence_no: 1,
+                role: "assistant",
+                content: "Current draft from history.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+        });
+      }
+      if (
+        url === "/api/experiments/threads/thread-existing/messages/stream" &&
+        init?.method === "POST"
+      ) {
+        const finalPayload = {
+          thread_id: "thread-existing",
+          thread: {
+            id: "thread-existing",
+            mode: "invent_new",
+            title: "Existing draft",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-assistant-existing",
+                thread_id: "thread-existing",
+                sequence_no: 1,
+                role: "assistant",
+                content: "Current draft from history.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+              {
+                id: "msg-user-new",
+                thread_id: "thread-existing",
+                sequence_no: 2,
+                role: "user",
+                content: "Keep working this draft",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+              {
+                id: "msg-assistant-new",
+                thread_id: "thread-existing",
+                sequence_no: 3,
+                role: "assistant",
+                content: "Updated draft after send.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+          user_message: {
+            id: "msg-user-new",
+            thread_id: "thread-existing",
+            sequence_no: 2,
+            role: "user",
+            content: "Keep working this draft",
+            tool_name: null,
+            tool_call: null,
+            created_at: null,
+          },
+          assistant_message: {
+            id: "msg-assistant-new",
+            thread_id: "thread-existing",
+            sequence_no: 3,
+            role: "assistant",
+            content: "Updated draft after send.",
+            tool_name: null,
+            tool_call: null,
+            created_at: null,
+          },
+          attachment_message: null,
+          attached_recipes: [],
+          unresolved_recipe_names: [],
+          success: true,
+        };
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode('event: status\ndata: {"step":"drafting"}\n\n'));
+            releaseStream = () => {
+              controller.enqueue(
+                encoder.encode(`event: final\ndata: ${JSON.stringify(finalPayload)}\n\n`),
+              );
+              controller.close();
+            };
+          },
+        });
+        return new Response(stream, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    const user = userEvent.setup();
+    render(<ExperimentPage />);
+
+    await user.click(await screen.findByRole("button", { name: /Existing draft/i }));
+    const historyDraftMatches = await screen.findAllByText("Current draft from history.");
+    expect(historyDraftMatches.length).toBeGreaterThan(1);
+
+    await user.type(screen.getByLabelText("Your message"), "Keep working this draft");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    const addAsRecipeButton = await screen.findByRole("button", { name: "Add As Recipe" });
+    expect(addAsRecipeButton).toBeDisabled();
+    await user.click(addAsRecipeButton);
+
+    expect(window.sessionStorage.getItem(EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY)).toBeNull();
+    expect(mockRouterPush).not.toHaveBeenCalled();
+
+    expect(releaseStream).not.toBeNull();
+    releaseStream?.();
+    const updatedDraftMatches = await screen.findAllByText("Updated draft after send.");
+    expect(updatedDraftMatches.length).toBeGreaterThan(1);
   });
 });

@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { History, Loader2, Paperclip, Plus, Send, Sparkles, X } from "lucide-react";
-import { type FormEvent, type MouseEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -329,6 +329,7 @@ function renderMessageContent(
 }
 
 export default function ExperimentPage() {
+  const router = useRouter();
   const [messageInput, setMessageInput] = useState("");
   const [thread, setThread] = useState<ExperimentThreadRecord | null>(null);
   const [threadHistory, setThreadHistory] = useState<ExperimentThreadSummary[]>([]);
@@ -775,13 +776,16 @@ export default function ExperimentPage() {
       .find((message) => message.role === "assistant" && message.content.trim().length > 0) ??
     null;
 
-  function handleOpenAddRecipeFlow(event: MouseEvent<HTMLAnchorElement>) {
+  function handleOpenAddRecipeFlow() {
+    if (isBusy) {
+      return;
+    }
     if (!latestAssistantMessage || !saveExperimentRecipeDraft(latestAssistantMessage.content)) {
-      event.preventDefault();
       setErrorMessage("Unable to transfer the latest assistant draft to Add Recipe.");
       return;
     }
     setErrorMessage(null);
+    router.push("/recipes/new");
   }
 
   return (
@@ -1153,11 +1157,14 @@ export default function ExperimentPage() {
 
                   <div className="flex items-center gap-2">
                     {latestAssistantMessage ? (
-                      <Button asChild type="button" variant="secondary" disabled={isBusy}>
-                        <Link href="/recipes/new" onClick={handleOpenAddRecipeFlow}>
-                          <Sparkles className="size-4" />
-                          Add As Recipe
-                        </Link>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={isBusy}
+                        onClick={handleOpenAddRecipeFlow}
+                      >
+                        <Sparkles className="size-4" />
+                        Add As Recipe
                       </Button>
                     ) : null}
 
