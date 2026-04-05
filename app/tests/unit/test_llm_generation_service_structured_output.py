@@ -269,7 +269,9 @@ def test_structured_output_accepts_function_arguments_when_content_missing(
         responses=[
             {
                 "content": None,
-                "function_call": SimpleNamespace(arguments='{"ingredients":["1 tomato"]}'),
+                "function_call": SimpleNamespace(
+                    arguments='{"ingredients":["1 tomato"]}'
+                ),
             }
         ]
     )
