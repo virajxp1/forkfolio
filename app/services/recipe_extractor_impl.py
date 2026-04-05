@@ -100,6 +100,24 @@ def _fallback_ingredients(raw_text: str) -> list[str]:
     return fallback_items
 
 
+def _fallback_recipe(raw_text: str) -> Optional[Recipe]:
+    title = _fallback_title(raw_text)
+    ingredients = _fallback_ingredients(raw_text)
+    instructions = _fallback_instructions(raw_text)
+
+    # Only accept deterministic fallback when we can recover core recipe sections.
+    if not title or not ingredients or not instructions:
+        return None
+
+    return Recipe(
+        title=title,
+        ingredients=ingredients,
+        instructions=instructions,
+        servings="",
+        total_time="",
+    )
+
+
 class RecipeExtractorImpl:
     """
     LLM-backed extractor for structured recipe data from raw text input.
@@ -131,6 +149,13 @@ class RecipeExtractorImpl:
         )
 
         if error or not result:
+            fallback_recipe = _fallback_recipe(raw_text)
+            if fallback_recipe:
+                logger.warning(
+                    "LLM extraction failed; using deterministic fallback parser. error=%s",
+                    error,
+                )
+                return fallback_recipe, None
             return result, error
 
         title = result.title.strip()
