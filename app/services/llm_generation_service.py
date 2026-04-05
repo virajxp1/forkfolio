@@ -510,7 +510,6 @@ def make_llm_call_structured_output_generic(
 
                 choice = completion.choices[0]
                 message = choice.message
-                content = message.content
                 content_text = _extract_structured_content_text(message)
                 logger.info(
                     "Structured output response (attempt %s/%s): %r",
