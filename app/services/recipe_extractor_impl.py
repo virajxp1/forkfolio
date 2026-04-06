@@ -100,6 +100,16 @@ def _fallback_ingredients(raw_text: str) -> list[str]:
     return fallback_items
 
 
+def _fallback_scalar_field(raw_text: str, label: str) -> str:
+    match = re.search(
+        rf"(?im)^\s*{re.escape(label)}\s*:\s*(.+?)\s*$",
+        raw_text,
+    )
+    if not match:
+        return ""
+    return match.group(1).strip()
+
+
 def _fallback_recipe(raw_text: str) -> Optional[Recipe]:
     title = _fallback_title(raw_text)
     ingredients = _fallback_ingredients(raw_text)
@@ -113,8 +123,8 @@ def _fallback_recipe(raw_text: str) -> Optional[Recipe]:
         title=title,
         ingredients=ingredients,
         instructions=instructions,
-        servings="",
-        total_time="",
+        servings=_fallback_scalar_field(raw_text, "servings"),
+        total_time=_fallback_scalar_field(raw_text, "total time"),
     )
 
 
@@ -139,6 +149,13 @@ class RecipeExtractorImpl:
         """
         if not raw_text or not raw_text.strip():
             return None, "Input text is empty or contains only whitespace"
+
+        fallback_recipe = _fallback_recipe(raw_text)
+        if fallback_recipe:
+            logger.info(
+                "Using deterministic parser for structured recipe input; skipping LLM extraction."
+            )
+            return fallback_recipe, None
 
         # Use the LLM to extract structured recipe data
         result, error = make_llm_call_structured_output_generic(

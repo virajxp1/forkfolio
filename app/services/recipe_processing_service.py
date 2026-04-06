@@ -1,6 +1,7 @@
 from html.parser import HTMLParser
 import ipaddress
 import os
+import re
 import socket
 from typing import Optional
 from urllib.parse import urljoin, urlsplit
@@ -35,6 +36,13 @@ URL_FETCH_DOMAIN_ALLOWLIST = tuple(
 )
 URL_FETCH_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
 MAX_EXTRACTED_TEXT_CHARS = 25000
+RECIPE_SECTION_LINE_RE = re.compile(
+    r"(?im)^\s*ingredients\s*:.*^\s*(instructions|directions|method|steps)\s*:",
+    re.MULTILINE | re.DOTALL,
+)
+RECIPE_BULLET_LINE_RE = re.compile(r"(?m)^\s*[-*]\s+\S")
+RECIPE_NUMBERED_STEP_RE = re.compile(r"(?m)^\s*\d+[.)]\s+\S")
+HTML_TAG_RE = re.compile(r"<[^>]+>")
 HTML_IGNORED_TAGS = {
     "script",
     "style",
@@ -451,16 +459,36 @@ class RecipeProcessingService:
         Returns:
             Cleaned text or None if cleanup failed
         """
+        normalized_input = (raw_input or "").strip()
+        if not normalized_input:
+            return None
+        if self._looks_like_structured_recipe_text(normalized_input):
+            logger.info("Skipping LLM cleanup for structured recipe-style input.")
+            return normalized_input
+
         try:
-            cleaned_text = self.cleanup_service.cleanup_input(raw_input)
+            cleaned_text = self.cleanup_service.cleanup_input(normalized_input)
             logger.info(
-                f"Input cleanup completed. Original length: {len(raw_input)}, "
+                f"Input cleanup completed. Original length: {len(normalized_input)}, "
                 f"Cleaned length: {len(cleaned_text)}"
             )
             return cleaned_text
         except Exception as e:
             logger.error(f"Input cleanup failed: {e}")
             return None
+
+    @staticmethod
+    def _looks_like_structured_recipe_text(raw_input: str) -> bool:
+        # Avoid skipping cleanup for raw HTML payloads.
+        if HTML_TAG_RE.search(raw_input):
+            return False
+
+        if RECIPE_SECTION_LINE_RE.search(raw_input):
+            return True
+
+        bullet_matches = RECIPE_BULLET_LINE_RE.findall(raw_input)
+        numbered_step_matches = RECIPE_NUMBERED_STEP_RE.findall(raw_input)
+        return len(bullet_matches) >= 2 and len(numbered_step_matches) >= 2
 
     def _extract_recipe(
         self, cleaned_text: str
