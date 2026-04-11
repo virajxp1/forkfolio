@@ -47,6 +47,10 @@ class _SequenceStructuredCompletions:
         response = self._responses[index]
 
         message = SimpleNamespace(content=response.get("content"))
+        parsed = response.get("parsed")
+        if parsed is not None:
+            message.parsed = parsed
+
         refusal = response.get("refusal")
         if refusal is not None:
             message.refusal = refusal
@@ -54,6 +58,10 @@ class _SequenceStructuredCompletions:
         tool_calls = response.get("tool_calls")
         if tool_calls is not None:
             message.tool_calls = tool_calls
+
+        function_call = response.get("function_call")
+        if function_call is not None:
+            message.function_call = function_call
 
         finish_reason = response.get("finish_reason", "stop")
         choice = SimpleNamespace(message=message, finish_reason=finish_reason)
@@ -223,3 +231,68 @@ def test_structured_output_logs_assistant_message_payload(monkeypatch) -> None:
     final_output = log_events[-1]["output"]
     assert final_output["messages"][0]["role"] == "assistant"
     assert final_output["messages"][0]["content"] == '{"ingredients":["1 tomato"]}'
+
+
+def test_structured_output_accepts_parsed_payload_when_content_missing(
+    monkeypatch,
+) -> None:
+    fake_completions = _SequenceStructuredCompletions(
+        responses=[{"content": None, "parsed": {"ingredients": ["1 tomato"]}}]
+    )
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+    cache = TTLCache[dict](ttl_seconds=60, max_items=10)
+
+    monkeypatch.setattr(llm_generation_service, "_get_chat_model_name", lambda: "test")
+    monkeypatch.setattr(
+        llm_generation_service, "_get_openai_client", lambda: fake_client
+    )
+    monkeypatch.setattr(llm_generation_service, "llm_structured_cache", cache)
+
+    suffix = uuid4().hex
+    result, error = llm_generation_service.make_llm_call_structured_output_generic(
+        user_prompt=f"user-prompt-{suffix}",
+        system_prompt=f"system-prompt-{suffix}",
+        model_class=_StructuredResponseModel,
+        schema_name="structured_output_parsed_payload_test",
+    )
+
+    assert error is None
+    assert result is not None
+    assert result.ingredients == ["1 tomato"]
+    assert fake_completions.calls == 1
+
+
+def test_structured_output_accepts_function_arguments_when_content_missing(
+    monkeypatch,
+) -> None:
+    fake_completions = _SequenceStructuredCompletions(
+        responses=[
+            {
+                "content": None,
+                "function_call": SimpleNamespace(
+                    arguments='{"ingredients":["1 tomato"]}'
+                ),
+            }
+        ]
+    )
+    fake_client = SimpleNamespace(chat=SimpleNamespace(completions=fake_completions))
+    cache = TTLCache[dict](ttl_seconds=60, max_items=10)
+
+    monkeypatch.setattr(llm_generation_service, "_get_chat_model_name", lambda: "test")
+    monkeypatch.setattr(
+        llm_generation_service, "_get_openai_client", lambda: fake_client
+    )
+    monkeypatch.setattr(llm_generation_service, "llm_structured_cache", cache)
+
+    suffix = uuid4().hex
+    result, error = llm_generation_service.make_llm_call_structured_output_generic(
+        user_prompt=f"user-prompt-{suffix}",
+        system_prompt=f"system-prompt-{suffix}",
+        model_class=_StructuredResponseModel,
+        schema_name="structured_output_function_arguments_test",
+    )
+
+    assert error is None
+    assert result is not None
+    assert result.ingredients == ["1 tomato"]
+    assert fake_completions.calls == 1

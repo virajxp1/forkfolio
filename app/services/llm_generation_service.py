@@ -134,6 +134,73 @@ def _assistant_output_payload(content: str | None) -> dict[str, list[dict[str, s
     }
 
 
+def _coerce_content_text(content: Any) -> str | None:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, (bytes, bytearray)):
+        return content.decode("utf-8", errors="replace")
+    if not isinstance(content, list):
+        return None
+
+    parts: list[str] = []
+    for part in content:
+        if isinstance(part, str):
+            text = part
+        elif isinstance(part, dict):
+            text = part.get("text")
+            if not isinstance(text, str) and isinstance(text, dict):
+                value = text.get("value")
+                text = value if isinstance(value, str) else None
+        else:
+            text = getattr(part, "text", None)
+            if not isinstance(text, str):
+                value = getattr(text, "value", None)
+                text = value if isinstance(value, str) else None
+
+        if isinstance(text, str) and text:
+            parts.append(text)
+
+    if not parts:
+        return None
+    return "".join(parts)
+
+
+def _extract_structured_content_text(message: Any) -> str | None:
+    content_text = _coerce_content_text(getattr(message, "content", None))
+    if content_text is not None:
+        return content_text
+
+    parsed_payload = getattr(message, "parsed", None)
+    if parsed_payload is not None:
+        if isinstance(parsed_payload, BaseModel):
+            parsed_payload = parsed_payload.model_dump()
+        try:
+            return json.dumps(parsed_payload, ensure_ascii=True)
+        except TypeError:
+            return str(parsed_payload)
+
+    function_call = getattr(message, "function_call", None)
+    function_args = getattr(function_call, "arguments", None)
+    if isinstance(function_args, str) and function_args.strip():
+        return function_args
+
+    tool_calls = getattr(message, "tool_calls", None)
+    if isinstance(tool_calls, list):
+        for tool_call in tool_calls:
+            function = getattr(tool_call, "function", None)
+            if function is None and isinstance(tool_call, dict):
+                function = tool_call.get("function")
+
+            arguments = getattr(function, "arguments", None)
+            if arguments is None and isinstance(function, dict):
+                arguments = function.get("arguments")
+
+            if isinstance(arguments, str) and arguments.strip():
+                return arguments
+
+    return None
+
+
 def make_llm_call_text_generation(user_prompt: str, system_prompt: str) -> str:
     model_name = _get_chat_model_name()
     if not model_name:
@@ -448,18 +515,21 @@ def make_llm_call_structured_output_generic(
 
                 choice = completion.choices[0]
                 message = choice.message
-                content = message.content
+                content_text = _extract_structured_content_text(message)
                 logger.info(
                     "Structured output response (attempt %s/%s): %r",
                     attempt,
                     max_attempts,
-                    content,
+                    content_text,
                 )
 
-                if content is None:
+                if content_text is None:
                     refusal = getattr(message, "refusal", None)
                     finish_reason = getattr(choice, "finish_reason", None)
-                    has_tool_calls = bool(getattr(message, "tool_calls", None))
+                    has_tool_calls = bool(
+                        getattr(message, "tool_calls", None)
+                        or getattr(message, "function_call", None)
+                    )
                     error_parts = ["Model returned no JSON content."]
                     if refusal:
                         error_parts.append(f"Refusal: {refusal}")
@@ -506,40 +576,6 @@ def make_llm_call_structured_output_generic(
                         metrics=usage_metrics,
                     )
                     return None, error_msg
-
-                if not isinstance(content, (str, bytes, bytearray)):
-                    error_msg = (
-                        "Model returned unsupported content type for JSON parsing: "
-                        f"{type(content).__name__}"
-                    )
-                    logger.error(error_msg)
-                    last_error_msg = error_msg
-                    if attempt < max_attempts:
-                        logger.warning(
-                            "Retrying structured output after unsupported content type "
-                            "(attempt %s/%s).",
-                            attempt + 1,
-                            max_attempts,
-                        )
-                        continue
-                    log_span(
-                        span,
-                        output={
-                            "success": False,
-                            "attempt": attempt,
-                            **_assistant_output_payload(str(content)),
-                            "response": str(content),
-                        },
-                        metadata={"cache_hit": False, "error": error_msg},
-                        metrics=usage_metrics,
-                    )
-                    return None, error_msg
-
-                content_text = (
-                    content
-                    if isinstance(content, str)
-                    else content.decode("utf-8", errors="replace")
-                )
 
                 try:
                     response_data = json.loads(content_text)

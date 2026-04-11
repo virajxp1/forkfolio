@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { History, Loader2, Paperclip, Plus, Send, Sparkles, X } from "lucide-react";
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
@@ -21,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { saveExperimentRecipeDraft } from "@/lib/experiment-recipe-draft";
 import type {
   CreateExperimentMessageResponse,
   CreateExperimentThreadResponse,
@@ -327,6 +329,7 @@ function renderMessageContent(
 }
 
 export default function ExperimentPage() {
+  const router = useRouter();
   const [messageInput, setMessageInput] = useState("");
   const [thread, setThread] = useState<ExperimentThreadRecord | null>(null);
   const [threadHistory, setThreadHistory] = useState<ExperimentThreadSummary[]>([]);
@@ -767,12 +770,29 @@ export default function ExperimentPage() {
 
   const isBusy = isCreatingThread || isLoadingThread || isSendingMessage;
   const normalizedAttachQuery = attachSearchInput.trim();
+  const latestAssistantMessage =
+    [...(thread?.messages ?? [])]
+      .reverse()
+      .find((message) => message.role === "assistant" && message.content.trim().length > 0) ??
+    null;
+
+  function handleOpenAddRecipeFlow() {
+    if (isBusy) {
+      return;
+    }
+    if (!latestAssistantMessage || !saveExperimentRecipeDraft(latestAssistantMessage.content)) {
+      setErrorMessage("Unable to transfer the latest assistant draft to Add Recipe.");
+      return;
+    }
+    setErrorMessage(null);
+    router.push("/recipes/new");
+  }
 
   return (
     <div className="min-h-screen">
       <ForkfolioHeader />
 
-      <main className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 sm:py-10">
+      <main className="mx-auto w-full max-w-[1500px] space-y-6 px-4 py-8 sm:px-6 sm:py-10">
         <section className="space-y-2">
           <Badge className="rounded-full px-3 py-0.5">Experiment</Badge>
           <h1 className="font-display text-4xl leading-tight sm:text-5xl">
@@ -783,8 +803,8 @@ export default function ExperimentPage() {
           </p>
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-[280px_1fr]">
-          <Card className="h-[75vh]">
+        <section className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)] xl:grid-cols-[260px_minmax(0,1fr)]">
+          <Card className="h-[82vh]">
             <CardHeader className="space-y-3">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <History className="size-4 text-primary" />
@@ -804,7 +824,7 @@ export default function ExperimentPage() {
                 )}
               </Button>
             </CardHeader>
-            <CardContent className="h-[calc(75vh-8rem)] space-y-2 overflow-y-auto">
+            <CardContent className="h-[calc(82vh-8rem)] space-y-2 overflow-y-auto">
               {isLoadingHistory ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : threadHistory.length === 0 ? (
@@ -834,7 +854,7 @@ export default function ExperimentPage() {
             </CardContent>
           </Card>
 
-          <Card className="h-[75vh] overflow-hidden">
+          <Card className="h-[82vh] overflow-hidden">
             <CardHeader>
               <CardTitle>
                 {thread
@@ -847,7 +867,7 @@ export default function ExperimentPage() {
                   : "Type a message to start instantly, or use New Thread."}
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex h-[calc(75vh-7.5rem)] min-h-0 flex-col gap-4">
+            <CardContent className="flex h-[calc(82vh-7.5rem)] min-h-0 flex-col gap-4">
               {errorMessage ? (
                 <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {errorMessage}
@@ -1135,19 +1155,33 @@ export default function ExperimentPage() {
                     </DialogContent>
                   </Dialog>
 
-                  <Button type="submit" disabled={!canSendMessage}>
-                    {isSendingMessage ? (
-                      <>
-                        <Loader2 className="size-4 animate-spin" />
-                        Sending…
-                      </>
-                    ) : (
-                      <>
-                        <Send className="size-4" />
-                        Send
-                      </>
-                    )}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {latestAssistantMessage ? (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={isBusy}
+                        onClick={handleOpenAddRecipeFlow}
+                      >
+                        <Sparkles className="size-4" />
+                        Add As Recipe
+                      </Button>
+                    ) : null}
+
+                    <Button type="submit" disabled={!canSendMessage}>
+                      {isSendingMessage ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          Sending…
+                        </>
+                      ) : (
+                        <>
+                          <Send className="size-4" />
+                          Send
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </form>
             </CardContent>
