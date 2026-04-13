@@ -10,6 +10,8 @@ Search-first frontend for ForkFolio, built with Next.js + `shadcn/ui`.
    - `FORKFOLIO_API_BASE_URL` (default: `http://localhost:8000`)
    - `FORKFOLIO_API_BASE_PATH` (default: `/api/v1`)
    - `FORKFOLIO_API_TOKEN` (optional, required when backend token middleware is enabled)
+   - `NEXT_PUBLIC_SUPABASE_URL` (required for Google sign-in)
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (required for Google sign-in)
 
 ## Run
 
@@ -20,6 +22,20 @@ npm run dev
 
 `npm run dev/build/start` automatically loads env from repo-root `.env`.
 Open `http://localhost:3000`.
+
+## Supabase Auth
+
+Google sign-in is wired through Supabase Auth using the callback route at
+`/auth/callback`.
+
+In Supabase:
+
+1. Enable the Google provider and paste your Google client ID + secret.
+2. Add your app URL to the Supabase site URL / redirect allow list.
+3. Add the Supabase Google callback URL from the provider screen to the Google
+   OAuth client redirect URIs.
+4. Run [docs/supabase-auth-profile-schema.sql](/Users/vparikh/conductor/workspaces/forkfolio/montreal-v1/docs/supabase-auth-profile-schema.sql)
+   in the Supabase SQL editor to create `public.profiles`.
 
 ## Current Pages
 
@@ -65,6 +81,8 @@ npm run start
    - `FORKFOLIO_API_BASE_URL=https://api.your-domain.com`
    - `FORKFOLIO_API_BASE_PATH=/api/v1`
    - `FORKFOLIO_API_TOKEN=<token>` (required only if backend auth middleware is enabled)
+   - `NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<publishable-key-or-anon-key>`
 
 Notes:
 - Do not add `apps/web/.env*` files for deployment.
