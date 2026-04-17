@@ -10,6 +10,9 @@ ForkFolio is a FastAPI service with three main concerns:
 - AI-powered recipe ingestion and semantic retrieval.
 - PostgreSQL-backed persistence (Supabase) with connection pooling.
 
+The web frontend (`apps/web`) consumes these APIs and includes Supabase Google
+OAuth session handling for profile-aware UI state.
+
 ## Request Lifecycle
 
 1. Request enters FastAPI app (`app/main.py`).

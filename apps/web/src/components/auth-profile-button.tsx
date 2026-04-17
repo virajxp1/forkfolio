@@ -155,18 +155,25 @@ export function AuthProfileButton() {
 
   if (!currentUser) {
     return (
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        onClick={() => {
-          void handleGoogleSignIn();
-        }}
-        className="h-9 rounded-full px-3.5 shadow-[0_10px_24px_-20px_color-mix(in_oklab,var(--primary)_80%,transparent)] transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-px hover:shadow-[0_14px_30px_-20px_color-mix(in_oklab,var(--primary)_90%,transparent)] sm:w-auto"
-      >
-        <LogIn className="size-4" />
-        Sign In
-      </Button>
+      <div className="space-y-2">
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            void handleGoogleSignIn();
+          }}
+          className="h-9 rounded-full px-3.5 shadow-[0_10px_24px_-20px_color-mix(in_oklab,var(--primary)_80%,transparent)] transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-px hover:shadow-[0_14px_30px_-20px_color-mix(in_oklab,var(--primary)_90%,transparent)] sm:w-auto"
+        >
+          <LogIn className="size-4" />
+          Sign In
+        </Button>
+        {errorMessage ? (
+          <p className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {errorMessage}
+          </p>
+        ) : null}
+      </div>
     );
   }
 

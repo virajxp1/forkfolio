@@ -3,8 +3,23 @@ import { NextResponse } from "next/server";
 import { hasSupabaseAuthConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
+function resolveRedirectOrigin(requestUrl: URL): string {
+  const configuredAppOrigin = process.env.FORKFOLIO_APP_ORIGIN?.trim();
+  if (!configuredAppOrigin) {
+    return requestUrl.origin;
+  }
+
+  try {
+    return new URL(configuredAppOrigin).origin;
+  } catch {
+    return requestUrl.origin;
+  }
+}
+
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const requestUrl = new URL(request.url);
+  const { searchParams } = requestUrl;
+  const origin = resolveRedirectOrigin(requestUrl);
   const code = searchParams.get("code");
   let next = searchParams.get("next") ?? "/";
 
@@ -21,17 +36,6 @@ export async function GET(request: Request) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      const forwardedHost = request.headers.get("x-forwarded-host");
-      const isLocalEnv = process.env.NODE_ENV === "development";
-
-      if (isLocalEnv) {
-        return NextResponse.redirect(`${origin}${next}`);
-      }
-
-      if (forwardedHost) {
-        return NextResponse.redirect(`https://${forwardedHost}${next}`);
-      }
-
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

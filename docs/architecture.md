@@ -13,7 +13,7 @@ ForkFolio is split into:
 - FastAPI backend (`app/`) for ingestion, extraction, storage, search, books,
   and grocery-list aggregation.
 - Next.js frontend (`apps/web`) for search, browse, recipe detail, book views,
-  and add-recipe flows.
+  add-recipe flows, and Supabase-based Google sign-in.
 - PostgreSQL (Supabase) persistence with connection pooling and pgvector.
 
 ## Runtime Layers

@@ -44,68 +44,62 @@ palette utilities as optional overrides only.
 | `input` | `#E8D8C8` | Input borders |
 | `ring` | `#E8856F` | Focus ring |
 
-## `:root` CSS Variables (HSL)
+## Current Theme Implementation (Tailwind v4)
 
-Add this in `apps/web/app/globals.css` (or equivalent global stylesheet):
+Theme tokens are defined in `apps/web/src/app/globals.css` using CSS custom
+properties and mapped into Tailwind via `@theme inline`.
 
 ```css
 :root {
-  --background: 35 55% 96%;
-  --foreground: 20 33% 27%;
-  --card: 40 44% 89%;
-  --card-foreground: 20 33% 27%;
-  --popover: 35 55% 96%;
-  --popover-foreground: 20 33% 27%;
-  --primary: 11 49% 52%;
-  --primary-foreground: 35 55% 96%;
-  --secondary: 40 44% 89%;
-  --secondary-foreground: 20 33% 27%;
-  --muted: 40 44% 89%;
-  --muted-foreground: 26 9% 50%;
-  --accent: 75 33% 36%;
-  --accent-foreground: 35 55% 96%;
-  --destructive: 9 50% 42%;
-  --destructive-foreground: 35 55% 96%;
-  --border: 30 41% 85%;
-  --input: 30 41% 85%;
-  --ring: 11 73% 67%;
+  --background: #faf5ee;
+  --foreground: #5c3d2e;
+  --card: #f0e8d8;
+  --card-foreground: #5c3d2e;
+  --popover: #faf5ee;
+  --popover-foreground: #5c3d2e;
+  --primary: #c1604a;
+  --primary-foreground: #faf5ee;
+  --secondary: #f0e8d8;
+  --secondary-foreground: #5c3d2e;
+  --muted: #f0e8d8;
+  --muted-foreground: #8b7e74;
+  --accent: #6b7a3d;
+  --accent-foreground: #faf5ee;
+  --destructive: #a04535;
+  --destructive-foreground: #faf5ee;
+  --border: #e8d8c8;
+  --input: #e8d8c8;
+  --ring: #e8856f;
   --radius: 0.75rem;
-
-  --chart-1: 11 49% 52%;
-  --chart-2: 75 33% 36%;
-  --chart-3: 11 73% 67%;
-  --chart-4: 74 32% 46%;
-  --chart-5: 20 33% 27%;
 }
 ```
 
-## Tailwind Palette Aliases
+## Token Mapping and Aliases
 
 Keep semantic token classes (`bg-background`, `text-foreground`, `bg-primary`,
-etc.) as defaults. Add raw palette aliases for edge cases.
+etc.) as defaults. In Tailwind v4, token mapping is done in `globals.css`
+instead of `tailwind.config.ts`.
 
-```ts
-// apps/web/tailwind.config.ts
-import type { Config } from "tailwindcss";
-
-const config: Config = {
-  theme: {
-    extend: {
-      colors: {
-        terracotta: "#C1604A",
-        "terracotta-light": "#E8856F",
-        "terracotta-dark": "#A04535",
-        cream: "#FAF5EE",
-        "cream-dark": "#F0E8D8",
-        "warm-brown": "#5C3D2E",
-        olive: "#6B7A3D",
-        "olive-light": "#8A9B50",
-        "warm-gray": "#8B7E74",
-        divider: "#E8D8C8",
-      },
-    },
-  },
-};
-
-export default config;
+```css
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
 ```
+
+If custom one-off palette aliases are needed, add utility classes in
+`globals.css` (or a colocated stylesheet) and keep semantic tokens as the
+default path.
