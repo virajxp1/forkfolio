@@ -13,6 +13,18 @@ client.
   - `X-API-Token: <API_AUTH_TOKEN>`
   - `Authorization: Bearer <API_AUTH_TOKEN>`
 
+## Frontend Session Auth (Supabase)
+
+- Browser sign-in uses Supabase Google OAuth.
+- Next.js callback route: `/auth/callback` exchanges auth code for session.
+- Session refresh is handled in `apps/web/src/proxy.ts` via
+  `apps/web/src/lib/supabase/proxy.ts`.
+- Required frontend env vars:
+  - `NEXT_PUBLIC_SUPABASE_URL`
+  - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- Optional production hardening env var:
+  - `FORKFOLIO_APP_ORIGIN` (canonical app origin used by `/auth/callback` redirects)
+
 ## Request/Response Conventions
 
 - Most successful responses include `success: true`.

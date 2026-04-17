@@ -3,7 +3,7 @@
 ForkFolio is a production-oriented recipe platform with:
 
 - A Python/FastAPI backend (`app/`) for ingestion, extraction, storage, search, books, and grocery-list aggregation.
-- A Next.js frontend (`apps/web`) for browse, recipe detail, books, bag/checkout, and URL/manual recipe import flows.
+- A Next.js frontend (`apps/web`) for browse, recipe detail, books, bag, experiment chat, Google sign-in, and URL/manual recipe import flows.
 
 This README is the release runbook for local setup, quality gates, and deploy.
 
@@ -17,6 +17,7 @@ Core capabilities:
 - Recipe books (create/list/detail/add/remove).
 - Grocery list aggregation from selected recipes.
 - Recipe deletion and custom not-found UX on the frontend.
+- Supabase-backed Google OAuth sign-in with profile-aware session state.
 
 Primary docs:
 
@@ -25,6 +26,7 @@ Primary docs:
 - Frontend design notes: [docs/frontend-design.md](docs/frontend-design.md)
 - Frontend API contract notes: [docs/frontend-api-contract.md](docs/frontend-api-contract.md)
 - Frontend-specific setup/deploy: [apps/web/README.md](apps/web/README.md)
+- Supabase auth profile SQL: [docs/supabase-auth-profile-schema.sql](docs/supabase-auth-profile-schema.sql)
 
 ## Runtime Pinning
 
@@ -101,6 +103,9 @@ Frontend runtime vars:
 - `FORKFOLIO_API_BASE_URL` (example: `https://api.your-domain.com`)
 - `FORKFOLIO_API_BASE_PATH` (usually `/api/v1`)
 - `FORKFOLIO_API_TOKEN` (required when backend token middleware is enabled)
+- `NEXT_PUBLIC_SUPABASE_URL` (required for Google sign-in)
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (required for Google sign-in)
+- `FORKFOLIO_APP_ORIGIN` (optional but recommended in production; canonical web origin for auth callback redirects)
 
 ## Quality Gates (Release Criteria)
 
@@ -165,6 +170,7 @@ Canonical FE deploy steps (commands, env vars, health check) are documented in:
    - Add recipe (manual and URL preview)
    - Books add/remove
    - Bag -> grocery list generation
+   - Google sign-in -> callback -> profile menu -> sign-out
    - Delete recipe -> custom not-found page
 
 ## Auth + Public Endpoints

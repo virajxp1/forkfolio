@@ -11,6 +11,11 @@ The ForkFolio database uses **PostgreSQL** (via Supabase) with a relational sche
 - **Step-by-Step Instructions**: Sequential cooking instructions
 - **Vector Embeddings**: Recipe embeddings for similarity search and recommendations
 
+Related schema extensions:
+
+- `docs/recipe-books-schema.sql` for recipe book tables and relationships
+- `docs/supabase-auth-profile-schema.sql` for `public.profiles` and auth-user sync triggers
+
 ## Table Schemas
 
 ### 1. `recipes` (Main Table)
@@ -153,7 +158,7 @@ Use the following SQL commands to create the tables in your Supabase database. E
 
 1. **Enable UUID Extension** (if not already enabled):
    ```sql
-   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+   CREATE EXTENSION IF NOT EXISTS pgcrypto;
    ```
 
 2. **Enable pgvector Extension** (required for `recipe_embeddings` table):
@@ -282,7 +287,7 @@ Here's a complete script that creates all tables, indexes, and triggers in the c
 -- ============================================
 
 -- Enable required extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ============================================
@@ -379,7 +384,7 @@ CREATE TRIGGER update_recipes_updated_at
 
 ### UUID Generation
 - Supabase uses `gen_random_uuid()` for UUID generation
-- Alternative: `uuid_generate_v4()` if using `uuid-ossp` extension
+- Alternative: `uuid_generate_v4()` if using the `uuid-ossp` extension
 
 ### Timestamps
 - `NOW()` function sets default timestamps
