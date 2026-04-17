@@ -73,7 +73,9 @@ def test_aggregate_ingredients_restores_missing_input_coverage(monkeypatch) -> N
     ]
 
 
-def test_aggregate_ingredients_recognizes_plural_overlap_as_covered(monkeypatch) -> None:
+def test_aggregate_ingredients_recognizes_plural_overlap_as_covered(
+    monkeypatch,
+) -> None:
     service = GroceryListAggregationServiceImpl()
 
     monkeypatch.setattr(

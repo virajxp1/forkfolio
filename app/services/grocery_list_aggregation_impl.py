@@ -109,8 +109,10 @@ class GroceryListAggregationServiceImpl(GroceryListAggregationService):
             normalized = normalized[:-2]
         elif len(normalized) > 4 and normalized.endswith("ies"):
             normalized = f"{normalized[:-3]}y"
-        elif len(normalized) > 3 and normalized.endswith("s") and not normalized.endswith(
-            "ss"
+        elif (
+            len(normalized) > 3
+            and normalized.endswith("s")
+            and not normalized.endswith("ss")
         ):
             normalized = normalized[:-1]
         return normalized
@@ -142,7 +144,10 @@ class GroceryListAggregationServiceImpl(GroceryListAggregationService):
             for ingredient in aggregated_ingredients
         }
         output_tokens = set().union(
-            *(cls._ingredient_tokens(ingredient) for ingredient in aggregated_ingredients)
+            *(
+                cls._ingredient_tokens(ingredient)
+                for ingredient in aggregated_ingredients
+            )
         )
 
         for ingredient in source_ingredients:
