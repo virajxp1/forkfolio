@@ -97,6 +97,28 @@ def test_aggregate_ingredients_recognizes_plural_overlap_as_covered(
     assert ingredients == ["2 tomato", "2 cloves garlic"]
 
 
+def test_aggregate_ingredients_does_not_treat_partial_token_overlap_as_covered(
+    monkeypatch,
+) -> None:
+    service = GroceryListAggregationServiceImpl()
+
+    monkeypatch.setattr(
+        grocery_list_aggregation_impl,
+        "make_llm_call_structured_output_generic",
+        lambda **_kwargs: (
+            GroceryListAggregationResult(
+                ingredients=["1 red pepper"],
+            ),
+            None,
+        ),
+    )
+
+    ingredients, error = service.aggregate_ingredients(["1 red onion"])
+
+    assert error is None
+    assert ingredients == ["1 red pepper", "1 red onion"]
+
+
 def test_aggregate_ingredients_returns_error_when_llm_fails(monkeypatch) -> None:
     service = GroceryListAggregationServiceImpl()
 

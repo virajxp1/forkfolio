@@ -130,6 +130,29 @@ class GroceryListAggregationServiceImpl(GroceryListAggregationService):
         }
 
     @classmethod
+    def _ingredient_is_covered(
+        cls,
+        source_ingredient: str,
+        aggregated_ingredients: list[str],
+        aggregated_token_sets: list[set[str]],
+    ) -> bool:
+        normalized_source = " ".join(source_ingredient.strip().lower().split())
+        source_tokens = cls._ingredient_tokens(source_ingredient)
+
+        for aggregated_ingredient, aggregated_tokens in zip(
+            aggregated_ingredients, aggregated_token_sets, strict=False
+        ):
+            normalized_aggregated = " ".join(
+                aggregated_ingredient.strip().lower().split()
+            )
+            if normalized_source == normalized_aggregated:
+                return True
+            if source_tokens and source_tokens.issubset(aggregated_tokens):
+                return True
+
+        return False
+
+    @classmethod
     def _restore_missing_coverage(
         cls,
         source_ingredients: list[str],
@@ -139,28 +162,15 @@ class GroceryListAggregationServiceImpl(GroceryListAggregationService):
             return aggregated_ingredients
 
         restored = list(aggregated_ingredients)
-        normalized_output = {
-            " ".join(ingredient.strip().lower().split())
-            for ingredient in aggregated_ingredients
-        }
-        output_tokens = set().union(
-            *(
-                cls._ingredient_tokens(ingredient)
-                for ingredient in aggregated_ingredients
-            )
-        )
+        restored_token_sets = [
+            cls._ingredient_tokens(ingredient) for ingredient in aggregated_ingredients
+        ]
 
         for ingredient in source_ingredients:
-            normalized_source = " ".join(ingredient.strip().lower().split())
-            source_tokens = cls._ingredient_tokens(ingredient)
-
-            if normalized_source in normalized_output:
-                continue
-            if source_tokens and output_tokens.intersection(source_tokens):
+            if cls._ingredient_is_covered(ingredient, restored, restored_token_sets):
                 continue
 
             restored.append(ingredient)
-            normalized_output.add(normalized_source)
-            output_tokens.update(source_tokens)
+            restored_token_sets.append(cls._ingredient_tokens(ingredient))
 
         return restored
