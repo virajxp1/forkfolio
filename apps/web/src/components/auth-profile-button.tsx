@@ -42,6 +42,11 @@ function resolveInitial(label: string): string {
   return label.slice(0, 1).toUpperCase() || "P";
 }
 
+function isExpectedSignedOutMessage(message: string | null | undefined): boolean {
+  const normalizedMessage = message?.trim().toLowerCase().replace(/[!.]+$/, "") ?? "";
+  return normalizedMessage === "auth session missing";
+}
+
 export function AuthProfileButton() {
   const pathname = usePathname() ?? "/";
   const [supabase] = useState(() => (
@@ -65,8 +70,15 @@ export function AuthProfileButton() {
         return;
       }
 
-      setCurrentUser(data.user ?? null);
-      setErrorMessage(error?.message ?? null);
+      const user = data.user ?? null;
+      const nextErrorMessage = error?.message ?? null;
+
+      setCurrentUser(user);
+      setErrorMessage(
+        user || isExpectedSignedOutMessage(nextErrorMessage)
+          ? null
+          : nextErrorMessage,
+      );
       setIsLoading(false);
     });
 
@@ -78,6 +90,7 @@ export function AuthProfileButton() {
       }
 
       setCurrentUser(session?.user ?? null);
+      setErrorMessage(null);
       setIsLoading(false);
       if (!session) {
         setIsDialogOpen(false);
