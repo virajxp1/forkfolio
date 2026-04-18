@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Globe, Loader2, Lock, Sparkles } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { ForkfolioHeader } from "@/components/forkfolio-header";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { consumeExperimentRecipeDraft } from "@/lib/experiment-recipe-draft";
@@ -58,6 +59,13 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function getSaveErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof BrowserApiError && error.status === 401) {
+    return "Sign in to create recipes. Use the profile button in the header and try again.";
+  }
+  return getErrorMessage(error, fallback);
+}
+
 async function readErrorPayload(response: Response): Promise<ErrorPayload | null> {
   try {
     return (await response.json()) as ErrorPayload;
@@ -68,6 +76,7 @@ async function readErrorPayload(response: Response): Promise<ErrorPayload | null
 
 async function processRecipeClient(
   rawInput: string,
+  isPublic: boolean,
   sourceUrl?: string,
 ): Promise<ProcessRecipeResponse> {
   const response = await fetch("/api/recipes/process", {
@@ -80,6 +89,7 @@ async function processRecipeClient(
     body: JSON.stringify({
       raw_input: rawInput,
       enforce_deduplication: true,
+      isPublic,
       isTest: false,
       ...(sourceUrl ? { source_url: sourceUrl } : {}),
     }),
@@ -203,6 +213,7 @@ export default function NewRecipePage() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [textModeSourceUrl, setTextModeSourceUrl] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<InputMode>("url");
+  const [isPublic, setIsPublic] = useState(true);
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [isSavingPreview, setIsSavingPreview] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -261,6 +272,7 @@ export default function NewRecipePage() {
     try {
       const response = await processRecipeClient(
         normalizedInput,
+        isPublic,
         textModeSourceUrl ?? undefined,
       );
       setResult(response);
@@ -268,7 +280,7 @@ export default function NewRecipePage() {
         setErrorMessage(response.error || "Recipe processing failed.");
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Recipe processing failed."));
+      setErrorMessage(getSaveErrorMessage(error, "Recipe processing failed."));
     } finally {
       setIsSubmitting(false);
     }
@@ -310,7 +322,11 @@ export default function NewRecipePage() {
     setResult(null);
 
     try {
-      const response = await processRecipeClient(normalizedInput, sourceUrlForSave);
+      const response = await processRecipeClient(
+        normalizedInput,
+        isPublic,
+        sourceUrlForSave,
+      );
       setResult(response);
       if (response.success) {
         setPreviewResult(null);
@@ -320,7 +336,7 @@ export default function NewRecipePage() {
         setErrorMessage(response.error || "Recipe processing failed.");
       }
     } catch (error) {
-      setErrorMessage(getErrorMessage(error, "Recipe processing failed."));
+      setErrorMessage(getSaveErrorMessage(error, "Recipe processing failed."));
     } finally {
       setIsSavingPreview(false);
     }
@@ -337,6 +353,7 @@ export default function NewRecipePage() {
     setRawInput("");
     setSourceUrl("");
     setInputMode("url");
+    setIsPublic(true);
     setTextModeSourceUrl(null);
     setIsPreviewing(false);
     setIsSavingPreview(false);
@@ -385,6 +402,52 @@ export default function NewRecipePage() {
             description="Import from a URL or paste plain text. Use one path at a time for a cleaner save flow."
             contentClassName="max-w-4xl"
           >
+              <Card className="border-border/80 bg-background/82 shadow-none">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        {isPublic ? (
+                          <Globe className="size-4 text-primary" />
+                        ) : (
+                          <Lock className="size-4 text-primary" />
+                        )}
+                        Recipe visibility
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {isPublic
+                          ? "Public recipes are saved with a public visibility marker."
+                          : "Private recipes stay labeled private and linked to your account."}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                        <Badge
+                          variant="outline"
+                          className="rounded-full border-border/70 bg-background/70 px-2.5 py-0.5"
+                        >
+                          Sign-in required to save
+                        </Badge>
+                        <span>Use the profile button in the header before importing.</span>
+                      </div>
+                    </div>
+
+                    <Label
+                      htmlFor="recipe-visibility"
+                      className="min-h-11 cursor-pointer justify-between gap-4 self-start rounded-full border border-border/80 bg-background px-4 py-2.5"
+                    >
+                      <span className="text-sm font-medium">
+                        {isPublic ? "Public" : "Private"}
+                      </span>
+                      <Switch
+                        id="recipe-visibility"
+                        checked={isPublic}
+                        onCheckedChange={setIsPublic}
+                        aria-label="Toggle recipe visibility"
+                      />
+                    </Label>
+                  </div>
+                </CardContent>
+              </Card>
+
               <Tabs
                 value={inputMode}
                 onValueChange={(value) => {

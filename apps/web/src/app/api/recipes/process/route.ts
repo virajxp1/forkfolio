@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { isForkfolioApiError, processRecipe } from "@/lib/forkfolio-api";
+import { hasSupabaseAuthConfig } from "@/lib/supabase/config";
+import { createClient } from "@/lib/supabase/server";
 import {
   MIN_RECIPE_INPUT_LENGTH,
   type ProcessRecipeRequest,
@@ -11,6 +13,8 @@ type ProcessRoutePayload = {
   source_url?: unknown;
   sourceUrl?: unknown;
   enforce_deduplication?: unknown;
+  isPublic?: unknown;
+  is_public?: unknown;
   isTest?: unknown;
   is_test?: unknown;
 };
@@ -77,6 +81,12 @@ function normalizePayload(payload: ProcessRoutePayload): NormalizedPayloadResult
       : typeof payload.is_test === "boolean"
         ? payload.is_test
         : false;
+  const isPublicValue =
+    typeof payload.isPublic === "boolean"
+      ? payload.isPublic
+      : typeof payload.is_public === "boolean"
+        ? payload.is_public
+        : true;
 
   return {
     payload: {
@@ -85,6 +95,7 @@ function normalizePayload(payload: ProcessRoutePayload): NormalizedPayloadResult
         typeof payload.enforce_deduplication === "boolean"
           ? payload.enforce_deduplication
           : true,
+      is_public: isPublicValue,
       isTest: isTestValue,
       ...(normalizedSourceUrl ? { source_url: normalizedSourceUrl } : {}),
     },
@@ -113,8 +124,24 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (!hasSupabaseAuthConfig()) {
+    return NextResponse.json(
+      { detail: "Recipe creation requires Supabase Auth configuration." },
+      { status: 503 },
+    );
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) {
+    return NextResponse.json({ detail: "Sign in to create recipes." }, { status: 401 });
+  }
+
   try {
-    const response = await processRecipe(normalizedPayload.payload);
+    const response = await processRecipe({
+      ...normalizedPayload.payload,
+      created_by_user_id: data.user.id,
+    });
     return NextResponse.json(response, {
       status: 200,
       headers: {

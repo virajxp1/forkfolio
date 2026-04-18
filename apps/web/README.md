@@ -41,6 +41,8 @@ In Supabase:
    OAuth client redirect URIs.
 4. Run [`docs/supabase-auth-profile-schema.sql`](../../docs/supabase-auth-profile-schema.sql)
    in the Supabase SQL editor to create `public.profiles`.
+5. Run [`docs/recipe-ownership-schema.sql`](../../docs/recipe-ownership-schema.sql)
+   in the Supabase SQL editor to add recipe visibility + creator ownership columns.
 
 ## Current Routes
 

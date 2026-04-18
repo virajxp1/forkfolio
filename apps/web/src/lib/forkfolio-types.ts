@@ -33,6 +33,8 @@ export type RecipeListItem = {
   servings: string | null;
   total_time: string | null;
   source_url: string | null;
+  is_public?: boolean;
+  created_by_user_id?: string | null;
   is_test_data?: boolean;
   created_at: string | null;
   updated_at: string | null;
@@ -61,6 +63,8 @@ export type RecipeRecord = {
   servings: string | null;
   total_time: string | null;
   source_url: string | null;
+  is_public?: boolean;
+  created_by_user_id?: string | null;
   is_test_data?: boolean;
   created_at: string | null;
   updated_at: string | null;
@@ -88,6 +92,10 @@ export type ProcessRecipeRequest = {
   source_url?: string;
   sourceUrl?: string;
   enforce_deduplication?: boolean;
+  is_public?: boolean;
+  isPublic?: boolean;
+  created_by_user_id?: string;
+  createdByUserId?: string;
   isTest?: boolean;
   is_test?: boolean;
 };

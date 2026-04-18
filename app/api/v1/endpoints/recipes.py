@@ -78,11 +78,18 @@ def process_and_store_recipe(
     source_url = (
         str(ingestion_request.source_url) if ingestion_request.source_url else None
     )
+    created_by_user_id = (
+        str(ingestion_request.created_by_user_id)
+        if ingestion_request.created_by_user_id
+        else None
+    )
     recipe_id, error, created = processing_service.process_raw_recipe(
         raw_input=ingestion_request.raw_input,
         source_url=source_url,
         enforce_deduplication=ingestion_request.enforce_deduplication,
         is_test=ingestion_request.is_test,
+        is_public=ingestion_request.is_public,
+        created_by_user_id=created_by_user_id,
     )
 
     if error:

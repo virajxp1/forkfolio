@@ -199,6 +199,7 @@ export default async function RecipeBookDetailPage({ params }: RecipeBookDetailP
                         <RecipeMetadataBadges
                           servings={recipe.servings}
                           totalTime={recipe.total_time}
+                          isPublic={recipe.is_public}
                         />
                       </CardHeader>
                       <CardContent className="space-y-4">

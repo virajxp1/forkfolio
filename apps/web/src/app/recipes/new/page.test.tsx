@@ -78,6 +78,8 @@ describe("/recipes/new page", () => {
             servings: null,
             total_time: null,
             source_url: null,
+            is_public: true,
+            created_by_user_id: "user-123",
             created_at: null,
             updated_at: null,
             ingredients: [],
@@ -146,6 +148,8 @@ describe("/recipes/new page", () => {
             servings: "2",
             total_time: "20 minutes",
             source_url: null,
+            is_public: true,
+            created_by_user_id: "user-123",
             created_at: null,
             updated_at: null,
             ingredients: ["200g spaghetti", "2 cloves garlic"],
@@ -180,8 +184,52 @@ describe("/recipes/new page", () => {
     expect(savePayload).toMatchObject({
       source_url: "https://example.com/pasta",
       enforce_deduplication: true,
+      isPublic: true,
       isTest: false,
     });
+  });
+
+  it("sends private visibility when toggled off", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          recipe_id: "recipe-private-123",
+          created: true,
+          message: "Recipe processed and stored successfully",
+          recipe: {
+            id: "recipe-private-123",
+            title: "Private Pasta",
+            servings: null,
+            total_time: null,
+            source_url: null,
+            is_public: false,
+            created_by_user_id: "user-123",
+            created_at: null,
+            updated_at: null,
+            ingredients: [],
+            instructions: [],
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    render(<NewRecipePage />);
+
+    await user.click(screen.getByRole("switch", { name: /toggle recipe visibility/i }));
+    await user.click(screen.getByRole("tab", { name: /Paste Text/i }));
+    await user.type(
+      screen.getByLabelText("Raw recipe text"),
+      "Private Pasta with olive oil, garlic, and noodles.",
+    );
+    await user.click(screen.getByRole("button", { name: /Process & Save Recipe/i }));
+
+    const requestInit = fetchMock.mock.calls[0]?.[1] as RequestInit;
+    const payload = JSON.parse(String(requestInit.body));
+    expect(payload.isPublic).toBe(false);
   });
 
   it("shows error state when API returns failure", async () => {
@@ -205,5 +253,32 @@ describe("/recipes/new page", () => {
 
     expect(await screen.findByText("Unable to process recipe")).toBeInTheDocument();
     expect(await screen.findByText("Backend unavailable")).toBeInTheDocument();
+  });
+
+  it("shows a sign-in recovery message when save is unauthorized", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ detail: "Sign in to create recipes." }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    render(<NewRecipePage />);
+
+    await user.click(screen.getByRole("tab", { name: /Paste Text/i }));
+    await user.type(
+      screen.getByLabelText("Raw recipe text"),
+      "Long enough recipe text for API processing",
+    );
+    await user.click(screen.getByRole("button", { name: /Process & Save Recipe/i }));
+
+    expect(await screen.findByText("Unable to process recipe")).toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Sign in to create recipes. Use the profile button in the header and try again.",
+      ),
+    ).toBeInTheDocument();
   });
 });

@@ -20,6 +20,8 @@ def _build_recipe(recipe_id: str, title: str, created_at: datetime) -> dict:
         "servings": "2",
         "total_time": "20 minutes",
         "source_url": "https://example.com/recipe",
+        "is_public": True,
+        "created_by_user_id": None,
         "is_test_data": False,
         "created_at": created_at,
         "updated_at": created_at,

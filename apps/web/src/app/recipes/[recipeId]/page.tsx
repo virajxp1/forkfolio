@@ -83,6 +83,7 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
             servings={recipe.servings}
             totalTime={recipe.total_time}
             sourceUrl={recipe.source_url}
+            isPublic={recipe.is_public}
             showSourceUrl
           />
 
@@ -92,6 +93,16 @@ export default async function RecipeDetailPage({ params }: RecipePageProps) {
                 {recipe.created_at ? <span>Created: {recipe.created_at}</span> : null}
                 {recipe.updated_at ? <span>Updated: {recipe.updated_at}</span> : null}
               </div>
+              {recipe.created_by_user_id ? (
+                <div className="rounded-2xl border border-border/70 bg-card/55 px-4 py-3">
+                  <p className="text-xs font-semibold tracking-[0.08em] text-foreground/70 uppercase">
+                    Creator ID
+                  </p>
+                  <p className="mt-1 break-all text-sm text-foreground/85">
+                    {recipe.created_by_user_id}
+                  </p>
+                </div>
+              ) : null}
               <div>
                 <RecipeBagToggleButton
                   recipe={{

@@ -73,6 +73,8 @@ SELECT
     servings,
     total_time,
     source_url,
+    is_public,
+    created_by_user_id,
     is_test_data,
     created_at,
     updated_at
@@ -88,6 +90,8 @@ SELECT
     servings,
     total_time,
     source_url,
+    is_public,
+    created_by_user_id,
     is_test_data,
     created_at,
     updated_at
@@ -134,24 +138,34 @@ class RecipeManager(BaseManager):
         total_time: Optional[str],
         is_test_data: bool = False,
         source_url: Optional[str] = None,
+        is_public: bool = True,
+        created_by_user_id: str | None = None,
     ) -> None:
-        if source_url is None:
-            sql = """
-            INSERT INTO recipes (id, title, servings, total_time, is_test_data)
-            VALUES (%s, %s, %s, %s, %s)
-            """
-            cursor.execute(sql, (recipe_id, title, servings, total_time, is_test_data))
-            return
-
         sql = """
         INSERT INTO recipes (
-            id, title, servings, total_time, source_url, is_test_data
+            id,
+            title,
+            servings,
+            total_time,
+            source_url,
+            is_public,
+            created_by_user_id,
+            is_test_data
         )
-        VALUES (%s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(
             sql,
-            (recipe_id, title, servings, total_time, source_url, is_test_data),
+            (
+                recipe_id,
+                title,
+                servings,
+                total_time,
+                source_url,
+                is_public,
+                created_by_user_id,
+                is_test_data,
+            ),
         )
 
     def _insert_ingredients(
@@ -250,6 +264,8 @@ class RecipeManager(BaseManager):
         embedding_type: Optional[str] = None,
         embedding: Optional[list[float]] = None,
         is_test_data: bool = False,
+        is_public: bool = True,
+        created_by_user_id: str | None = None,
     ) -> str:
         """Create recipe from a model with ingredients, instructions, and embeddings."""
         recipe_id = self._generate_id()
@@ -263,6 +279,8 @@ class RecipeManager(BaseManager):
                     servings=recipe.servings,
                     total_time=recipe.total_time,
                     source_url=source_url,
+                    is_public=is_public,
+                    created_by_user_id=created_by_user_id,
                     is_test_data=is_test_data,
                 )
                 self._insert_ingredients(cursor, recipe_id, recipe.ingredients)
