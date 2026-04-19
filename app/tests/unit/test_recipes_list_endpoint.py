@@ -44,6 +44,7 @@ class FakeRecipeManager:
         cursor_created_at: datetime | None = None,
         cursor_id: str | None = None,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[dict]:
         self.calls.append(
             {
@@ -51,6 +52,7 @@ class FakeRecipeManager:
                 "cursor_created_at": cursor_created_at,
                 "cursor_id": cursor_id,
                 "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
             }
         )
         if self.error:
@@ -89,6 +91,7 @@ def test_list_recipes_uses_default_limit() -> None:
             "cursor_created_at": None,
             "cursor_id": None,
             "include_test_data": False,
+            "viewer_user_id": None,
         }
     ]
 
@@ -121,6 +124,7 @@ def test_list_recipes_returns_next_cursor_when_more_results_exist() -> None:
             "cursor_created_at": None,
             "cursor_id": None,
             "include_test_data": False,
+            "viewer_user_id": None,
         }
     ]
 
@@ -143,6 +147,7 @@ def test_list_recipes_passes_decoded_cursor_to_manager() -> None:
             "cursor_created_at": cursor_created_at,
             "cursor_id": RECIPE_ONE,
             "include_test_data": False,
+            "viewer_user_id": None,
         }
     ]
 
@@ -166,3 +171,19 @@ def test_list_recipes_returns_500_when_manager_errors() -> None:
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Error listing recipes"
+
+
+def test_list_recipes_forwards_viewer_user_id_header() -> None:
+    created_at = datetime(2026, 3, 1, 12, 30, 0)
+    manager = FakeRecipeManager(
+        recipes_page=[_build_recipe(RECIPE_ONE, "Tomato Pasta", created_at)]
+    )
+    client = build_client(manager)
+
+    response = client.get(
+        LIST_RECIPES_PATH,
+        headers={"X-Viewer-User-Id": "33333333-3333-3333-3333-333333333333"},
+    )
+
+    assert response.status_code == 200
+    assert manager.calls[0]["viewer_user_id"] == "33333333-3333-3333-3333-333333333333"

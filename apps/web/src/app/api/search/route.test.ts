@@ -3,14 +3,20 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { searchRecipesMock, isForkfolioApiErrorMock } = vi.hoisted(() => ({
-  searchRecipesMock: vi.fn(),
-  isForkfolioApiErrorMock: vi.fn(),
-}));
+const { searchRecipesMock, isForkfolioApiErrorMock, getOptionalViewerUserIdMock } =
+  vi.hoisted(() => ({
+    searchRecipesMock: vi.fn(),
+    isForkfolioApiErrorMock: vi.fn(),
+    getOptionalViewerUserIdMock: vi.fn(),
+  }));
 
 vi.mock("@/lib/forkfolio-api", () => ({
   searchRecipes: searchRecipesMock,
   isForkfolioApiError: isForkfolioApiErrorMock,
+}));
+
+vi.mock("@/lib/supabase/viewer", () => ({
+  getOptionalViewerUserId: getOptionalViewerUserIdMock,
 }));
 
 import { GET } from "./route";
@@ -19,7 +25,9 @@ describe("GET /api/search", () => {
   beforeEach(() => {
     searchRecipesMock.mockReset();
     isForkfolioApiErrorMock.mockReset();
+    getOptionalViewerUserIdMock.mockReset();
     isForkfolioApiErrorMock.mockReturnValue(false);
+    getOptionalViewerUserIdMock.mockResolvedValue(null);
   });
 
   it("returns 400 when query is missing", async () => {
@@ -50,7 +58,7 @@ describe("GET /api/search", () => {
     expect(response.headers.get("Cache-Control")).toBe(
       "public, max-age=60, stale-while-revalidate=300",
     );
-    expect(searchRecipesMock).toHaveBeenCalledWith("pasta", 50, false);
+    expect(searchRecipesMock).toHaveBeenCalledWith("pasta", 50, false, null);
   });
 
   it("uses default limit when limit is invalid", async () => {
@@ -67,7 +75,7 @@ describe("GET /api/search", () => {
 
     await GET(request);
 
-    expect(searchRecipesMock).toHaveBeenCalledWith("soup", 12, false);
+    expect(searchRecipesMock).toHaveBeenCalledWith("soup", 12, false, null);
   });
 
   it("passes rerank flag through when explicitly enabled", async () => {
@@ -84,7 +92,24 @@ describe("GET /api/search", () => {
 
     await GET(request);
 
-    expect(searchRecipesMock).toHaveBeenCalledWith("salad", 12, true);
+    expect(searchRecipesMock).toHaveBeenCalledWith("salad", 12, true, null);
+  });
+
+  it("forwards viewer user id and disables shared caching", async () => {
+    getOptionalViewerUserIdMock.mockResolvedValue("viewer-123");
+    searchRecipesMock.mockResolvedValue({
+      query: "salad",
+      count: 0,
+      results: [],
+      success: true,
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/search?query=salad");
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(searchRecipesMock).toHaveBeenCalledWith("salad", 12, false, "viewer-123");
   });
 
   it("maps Forkfolio API errors", async () => {

@@ -24,6 +24,7 @@ LEFT JOIN LATERAL (
 ) s ON true
 WHERE r.id = %s
   AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+  AND (COALESCE(r.is_public, TRUE) = TRUE OR r.created_by_user_id = %s::uuid)
 """
 EMBEDDINGS_SELECT_SQL = """
 SELECT id, embedding_type, embedding, created_at
@@ -40,6 +41,7 @@ FROM recipe_embeddings e
 JOIN recipes r ON r.id = e.recipe_id
 WHERE e.embedding_type = %s
   AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+  AND (COALESCE(r.is_public, TRUE) = TRUE OR r.created_by_user_id = %s::uuid)
   AND e.embedding <=> %s::vector <= %s
 ORDER BY distance
 LIMIT %s
@@ -50,6 +52,7 @@ FROM recipe_ingredients ri
 JOIN recipes r ON r.id = ri.recipe_id
 WHERE ri.recipe_id = ANY(%s::uuid[])
   AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+  AND (COALESCE(r.is_public, TRUE) = TRUE OR r.created_by_user_id = %s::uuid)
 ORDER BY ri.recipe_id, ri.order_index
 """
 ALL_INGREDIENTS_FOR_RECIPES_SQL = """
@@ -64,51 +67,55 @@ FROM recipes r
 LEFT JOIN recipe_ingredients i ON i.recipe_id = r.id
 WHERE r.id = ANY(%s::uuid[])
   AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+  AND (COALESCE(r.is_public, TRUE) = TRUE OR r.created_by_user_id = %s::uuid)
 GROUP BY r.id
 """
 RECIPES_PAGE_SQL = """
 SELECT
-    id,
-    title,
-    servings,
-    total_time,
-    source_url,
-    is_public,
-    created_by_user_id,
-    is_test_data,
-    created_at,
-    updated_at
-FROM recipes
-WHERE (%s OR COALESCE(is_test_data, FALSE) = FALSE)
-ORDER BY created_at DESC, id DESC
+    r.id,
+    r.title,
+    r.servings,
+    r.total_time,
+    r.source_url,
+    r.is_public,
+    r.created_by_user_id,
+    r.is_test_data,
+    r.created_at,
+    r.updated_at
+FROM recipes r
+WHERE (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+  AND (COALESCE(r.is_public, TRUE) = TRUE OR r.created_by_user_id = %s::uuid)
+ORDER BY r.created_at DESC, r.id DESC
 LIMIT %s
 """
 RECIPES_PAGE_WITH_CURSOR_SQL = """
 SELECT
-    id,
-    title,
-    servings,
-    total_time,
-    source_url,
-    is_public,
-    created_by_user_id,
-    is_test_data,
-    created_at,
-    updated_at
-FROM recipes
-WHERE (created_at, id) < (%s::timestamp, %s::uuid)
-  AND (%s OR COALESCE(is_test_data, FALSE) = FALSE)
-ORDER BY created_at DESC, id DESC
+    r.id,
+    r.title,
+    r.servings,
+    r.total_time,
+    r.source_url,
+    r.is_public,
+    r.created_by_user_id,
+    r.is_test_data,
+    r.created_at,
+    r.updated_at
+FROM recipes r
+WHERE (r.created_at, r.id) < (%s::timestamp, %s::uuid)
+  AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+  AND (COALESCE(r.is_public, TRUE) = TRUE OR r.created_by_user_id = %s::uuid)
+ORDER BY r.created_at DESC, r.id DESC
 LIMIT %s
 """
 RECIPES_BY_TITLE_SQL = """
-SELECT id, title, created_at
-FROM recipes
-WHERE title ILIKE %s
-  AND (%s OR COALESCE(is_test_data, FALSE) = FALSE)
+SELECT r.id, r.title, r.created_at
+FROM recipes r
+WHERE r.title ILIKE %s
+  AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+  AND (COALESCE(r.is_public, TRUE) = TRUE OR r.created_by_user_id = %s::uuid)
 ORDER BY
-    CASE WHEN lower(title) = lower(%s) THEN 0 ELSE 1 END,
-    created_at DESC
+    CASE WHEN lower(r.title) = lower(%s) THEN 0 ELSE 1 END,
+    r.created_at DESC
 LIMIT %s
 """
 
@@ -219,8 +226,12 @@ class RecipeManager(BaseManager):
         cursor,
         recipe_id: str,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> Optional[dict]:
-        cursor.execute(RECIPE_WITH_CHILDREN_SQL, (recipe_id, include_test_data))
+        cursor.execute(
+            RECIPE_WITH_CHILDREN_SQL,
+            (recipe_id, include_test_data, viewer_user_id),
+        )
         row = cursor.fetchone()
         if not row:
             return None
@@ -300,7 +311,10 @@ class RecipeManager(BaseManager):
             raise DatabaseError(f"Failed to create recipe: {e!s}") from e
 
     def get_full_recipe(
-        self, recipe_id: str, include_test_data: bool = False
+        self,
+        recipe_id: str,
+        include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> Optional[dict]:
         """Get a complete recipe with ingredients and instructions"""
         try:
@@ -309,6 +323,7 @@ class RecipeManager(BaseManager):
                     cursor=cursor,
                     recipe_id=recipe_id,
                     include_test_data=include_test_data,
+                    viewer_user_id=viewer_user_id,
                 )
                 if not recipe_data:
                     return None
@@ -318,7 +333,10 @@ class RecipeManager(BaseManager):
             raise DatabaseError(f"Failed to get recipe: {e!s}") from e
 
     def get_full_recipe_with_embeddings(
-        self, recipe_id: str, include_test_data: bool = False
+        self,
+        recipe_id: str,
+        include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> Optional[dict]:
         """Get a complete recipe with ingredients, instructions, and embeddings."""
         try:
@@ -327,6 +345,7 @@ class RecipeManager(BaseManager):
                     cursor=cursor,
                     recipe_id=recipe_id,
                     include_test_data=include_test_data,
+                    viewer_user_id=viewer_user_id,
                 )
                 if not recipe_data:
                     return None
@@ -343,6 +362,7 @@ class RecipeManager(BaseManager):
         cursor_created_at: datetime | None = None,
         cursor_id: str | None = None,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[dict]:
         """List recipes ordered by newest first with optional cursor pagination."""
         query_limit = max(1, int(limit))
@@ -351,10 +371,19 @@ class RecipeManager(BaseManager):
                 if cursor_created_at is not None and cursor_id is not None:
                     cursor.execute(
                         RECIPES_PAGE_WITH_CURSOR_SQL,
-                        (cursor_created_at, cursor_id, include_test_data, query_limit),
+                        (
+                            cursor_created_at,
+                            cursor_id,
+                            include_test_data,
+                            viewer_user_id,
+                            query_limit,
+                        ),
                     )
                 else:
-                    cursor.execute(RECIPES_PAGE_SQL, (include_test_data, query_limit))
+                    cursor.execute(
+                        RECIPES_PAGE_SQL,
+                        (include_test_data, viewer_user_id, query_limit),
+                    )
                 return [dict(row) for row in cursor.fetchall()]
         except Exception as e:
             raise DatabaseError(f"Failed to list recipes: {e!s}") from e
@@ -364,6 +393,7 @@ class RecipeManager(BaseManager):
         recipe_ids: list[str],
         max_ingredients: int = 8,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict[str, list[str]]:
         """
         Fetch ingredient previews for many recipes in one query.
@@ -390,7 +420,7 @@ class RecipeManager(BaseManager):
             with self.get_db_context() as (_conn, cursor):
                 cursor.execute(
                     INGREDIENTS_FOR_RECIPES_SQL,
-                    (normalized_ids, include_test_data),
+                    (normalized_ids, include_test_data, viewer_user_id),
                 )
                 for row in cursor.fetchall():
                     recipe_id = str(row["recipe_id"])
@@ -407,6 +437,7 @@ class RecipeManager(BaseManager):
         title_query: str,
         limit: int = 5,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[dict]:
         normalized_query = (title_query or "").strip()
         if not normalized_query:
@@ -421,6 +452,7 @@ class RecipeManager(BaseManager):
                     (
                         like_pattern,
                         include_test_data,
+                        viewer_user_id,
                         normalized_query,
                         query_limit,
                     ),
@@ -441,6 +473,7 @@ class RecipeManager(BaseManager):
         self,
         recipe_ids: list[str],
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict[str, list[str]]:
         """
         Fetch full ingredient lists for many recipes in one query.
@@ -466,7 +499,7 @@ class RecipeManager(BaseManager):
             with self.get_db_context() as (_conn, cursor):
                 cursor.execute(
                     ALL_INGREDIENTS_FOR_RECIPES_SQL,
-                    (normalized_ids, include_test_data),
+                    (normalized_ids, include_test_data, viewer_user_id),
                 )
                 rows = cursor.fetchall()
                 ingredients_by_recipe: dict[str, list[str]] = {}
@@ -486,6 +519,7 @@ class RecipeManager(BaseManager):
         limit: int = 10,
         max_distance: float = 0.35,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[dict]:
         """Find recipes with embeddings closest to the provided embedding."""
         try:
@@ -496,6 +530,7 @@ class RecipeManager(BaseManager):
                         embedding,
                         embedding_type,
                         include_test_data,
+                        viewer_user_id,
                         embedding,
                         max_distance,
                         limit,
@@ -511,6 +546,7 @@ class RecipeManager(BaseManager):
         embedding: list[float],
         embedding_type: str,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> Optional[dict]:
         """Find the nearest embedding by cosine distance."""
         try:
@@ -524,10 +560,14 @@ class RecipeManager(BaseManager):
                 JOIN recipes r ON r.id = e.recipe_id
                 WHERE e.embedding_type = %s
                   AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
+                  AND (COALESCE(r.is_public, TRUE) = TRUE OR r.created_by_user_id = %s::uuid)
                 ORDER BY distance
                 LIMIT 1
                 """
-                cursor.execute(sql, (embedding, embedding_type, include_test_data))
+                cursor.execute(
+                    sql,
+                    (embedding, embedding_type, include_test_data, viewer_user_id),
+                )
                 row = cursor.fetchone()
                 return dict(row) if row else None
         except Exception as e:

@@ -44,6 +44,7 @@ class RecipeDedupeServiceImpl:
         self,
         recipe: Recipe,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> tuple[bool, Optional[str], Optional[list[float]]]:
         embedding_text = RecipeEmbeddingsServiceImpl._build_title_ingredients_text(
             recipe.title, recipe.ingredients
@@ -53,6 +54,7 @@ class RecipeDedupeServiceImpl:
             embedding=embedding,
             embedding_type=self.embedding_type,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         if not nearest:
             return False, None, embedding
@@ -70,6 +72,7 @@ class RecipeDedupeServiceImpl:
         existing_recipe = self.recipe_manager.get_full_recipe(
             nearest["recipe_id"],
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         if not existing_recipe:
             return False, None, embedding

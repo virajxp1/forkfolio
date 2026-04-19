@@ -44,9 +44,14 @@ class FakeRecipeManager:
         self,
         recipe_id: str,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict:
         self.calls.append(
-            {"recipe_id": recipe_id, "include_test_data": include_test_data}
+            {
+                "recipe_id": recipe_id,
+                "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
+            }
         )
         return {
             "id": recipe_id,
@@ -103,7 +108,7 @@ def test_process_and_store_forwards_source_url() -> None:
         }
     ]
     assert recipe_manager.calls == [
-        {"recipe_id": RECIPE_ID, "include_test_data": False}
+        {"recipe_id": RECIPE_ID, "include_test_data": False, "viewer_user_id": None}
     ]
 
 
@@ -145,7 +150,9 @@ def test_process_and_store_returns_test_recipe_when_requested() -> None:
     assert body["recipe_id"] == RECIPE_ID
     assert body["recipe"]["id"] == RECIPE_ID
     assert processing_service.calls[0]["is_test"] is True
-    assert recipe_manager.calls == [{"recipe_id": RECIPE_ID, "include_test_data": True}]
+    assert recipe_manager.calls == [
+        {"recipe_id": RECIPE_ID, "include_test_data": True, "viewer_user_id": None}
+    ]
 
 
 def test_process_and_store_forwards_visibility_and_creator() -> None:
@@ -168,3 +175,10 @@ def test_process_and_store_forwards_visibility_and_creator() -> None:
         processing_service.calls[0]["created_by_user_id"]
         == "22222222-2222-2222-2222-222222222222"
     )
+    assert recipe_manager.calls == [
+        {
+            "recipe_id": RECIPE_ID,
+            "include_test_data": False,
+            "viewer_user_id": "22222222-2222-2222-2222-222222222222",
+        }
+    ]

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { isForkfolioApiError, listRecipes } from "@/lib/forkfolio-api";
+import { getOptionalViewerUserId } from "@/lib/supabase/viewer";
 
 const DEFAULT_LIMIT = 12;
 const RECIPES_CACHE_CONTROL = "public, max-age=60, stale-while-revalidate=300";
@@ -21,13 +22,14 @@ export async function GET(request: NextRequest) {
   const limit = parseLimit(request.nextUrl.searchParams.get("limit"));
   const rawCursor = request.nextUrl.searchParams.get("cursor");
   const cursor = rawCursor?.trim() ? rawCursor.trim() : undefined;
+  const viewerUserId = await getOptionalViewerUserId();
 
   try {
-    const response = await listRecipes(limit, cursor);
+    const response = await listRecipes(limit, cursor, viewerUserId);
     return NextResponse.json(response, {
       status: 200,
       headers: {
-        "Cache-Control": RECIPES_CACHE_CONTROL,
+        "Cache-Control": viewerUserId ? "private, no-store" : RECIPES_CACHE_CONTROL,
       },
     });
   } catch (error) {

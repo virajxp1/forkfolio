@@ -3,14 +3,23 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { searchRecipesByNameMock, isForkfolioApiErrorMock } = vi.hoisted(() => ({
+const {
+  searchRecipesByNameMock,
+  isForkfolioApiErrorMock,
+  getOptionalViewerUserIdMock,
+} = vi.hoisted(() => ({
   searchRecipesByNameMock: vi.fn(),
   isForkfolioApiErrorMock: vi.fn(),
+  getOptionalViewerUserIdMock: vi.fn(),
 }));
 
 vi.mock("@/lib/forkfolio-api", () => ({
   searchRecipesByName: searchRecipesByNameMock,
   isForkfolioApiError: isForkfolioApiErrorMock,
+}));
+
+vi.mock("@/lib/supabase/viewer", () => ({
+  getOptionalViewerUserId: getOptionalViewerUserIdMock,
 }));
 
 import { GET } from "./route";
@@ -19,7 +28,9 @@ describe("GET /api/search/names", () => {
   beforeEach(() => {
     searchRecipesByNameMock.mockReset();
     isForkfolioApiErrorMock.mockReset();
+    getOptionalViewerUserIdMock.mockReset();
     isForkfolioApiErrorMock.mockReturnValue(false);
+    getOptionalViewerUserIdMock.mockResolvedValue(null);
   });
 
   it("returns 400 when query is missing", async () => {
@@ -64,7 +75,27 @@ describe("GET /api/search/names", () => {
     expect(response.headers.get("Cache-Control")).toBe(
       "public, max-age=15, stale-while-revalidate=60",
     );
-    expect(searchRecipesByNameMock).toHaveBeenCalledWith("chi", 10);
+    expect(searchRecipesByNameMock).toHaveBeenCalledWith("chi", 10, null);
+  });
+
+  it("forwards viewer user id and disables shared caching", async () => {
+    getOptionalViewerUserIdMock.mockResolvedValue("viewer-123");
+    searchRecipesByNameMock.mockResolvedValue({
+      query: "chi",
+      count: 1,
+      results: [{ id: "recipe-1", name: "Chicken Tikka Masala", distance: null }],
+      success: true,
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/search/names?query=chi&limit=10",
+    );
+
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(searchRecipesByNameMock).toHaveBeenCalledWith("chi", 10, "viewer-123");
   });
 
   it("maps Forkfolio API errors", async () => {

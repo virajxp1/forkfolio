@@ -55,6 +55,7 @@ class FakeRecipeManager:
         limit: int = 10,
         max_distance: float = 0.35,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[dict]:
         self.calls.append(
             {
@@ -63,6 +64,7 @@ class FakeRecipeManager:
                 "limit": limit,
                 "max_distance": max_distance,
                 "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
             }
         )
         if self.error:
@@ -74,12 +76,14 @@ class FakeRecipeManager:
         recipe_ids: list[str],
         max_ingredients: int = 8,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict[str, list[str]]:
         self.preview_calls.append(
             {
                 "recipe_ids": recipe_ids,
                 "max_ingredients": max_ingredients,
                 "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
             }
         )
         return {
@@ -92,12 +96,14 @@ class FakeRecipeManager:
         title_query: str,
         limit: int = 5,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[dict]:
         self.title_calls.append(
             {
                 "title_query": title_query,
                 "limit": limit,
                 "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
             }
         )
         if self.title_error:
@@ -195,6 +201,7 @@ def test_name_search_returns_results() -> None:
             "title_query": "chi",
             "limit": 10,
             "include_test_data": False,
+            "viewer_user_id": None,
         }
     ]
 
@@ -219,6 +226,21 @@ def test_name_search_returns_500_on_manager_error() -> None:
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Error performing recipe title search: db down"
+
+
+def test_name_search_forwards_viewer_user_id_header() -> None:
+    fake_manager = FakeRecipeManager()
+    fake_embeddings = FakeEmbeddingsService()
+    client = build_client(fake_manager, fake_embeddings)
+
+    response = client.get(
+        NAME_SEARCH_PATH,
+        params={"query": "chicken"},
+        headers={"X-Viewer-User-Id": "55555555-5555-5555-5555-555555555555"},
+    )
+
+    assert response.status_code == 200
+    assert fake_manager.title_calls[0]["viewer_user_id"] == "55555555-5555-5555-5555-555555555555"
 
 
 def test_semantic_search_reuses_cached_response(monkeypatch) -> None:
@@ -252,6 +274,35 @@ def test_semantic_search_reuses_cached_response(monkeypatch) -> None:
     assert second_response.json() == first_response.json()
     assert fake_embeddings.calls == ["lasagna"]
     assert len(fake_manager.calls) == 1
+
+
+def test_semantic_search_cache_is_scoped_by_viewer() -> None:
+    expected_results = [
+        {
+            "id": "recipe-1",
+            "name": "Classic Lasagne",
+            "distance": 0.08,
+        }
+    ]
+    fake_manager = FakeRecipeManager(results=expected_results)
+    fake_embeddings = FakeEmbeddingsService(embedding=[0.4, 0.5, 0.6])
+    client = build_client(fake_manager, fake_embeddings)
+
+    public_response = client.get(
+        SEMANTIC_SEARCH_PATH,
+        params={"query": "lasagna", "limit": 5},
+    )
+    viewer_response = client.get(
+        SEMANTIC_SEARCH_PATH,
+        params={"query": "lasagna", "limit": 5},
+        headers={"X-Viewer-User-Id": "44444444-4444-4444-4444-444444444444"},
+    )
+
+    assert public_response.status_code == 200
+    assert viewer_response.status_code == 200
+    assert fake_embeddings.calls == ["lasagna", "lasagna"]
+    assert fake_manager.calls[0]["viewer_user_id"] is None
+    assert fake_manager.calls[1]["viewer_user_id"] == "44444444-4444-4444-4444-444444444444"
 
 
 def test_semantic_search_returns_results() -> None:
@@ -289,6 +340,7 @@ def test_semantic_search_returns_results() -> None:
             "limit": expected_limit,
             "max_distance": settings.SEMANTIC_SEARCH_MAX_DISTANCE,
             "include_test_data": False,
+            "viewer_user_id": None,
         }
     ]
 
@@ -425,6 +477,7 @@ def test_semantic_search_applies_rerank_when_enabled(monkeypatch) -> None:
             "recipe_ids": [recipe_one, recipe_two],
             "max_ingredients": 8,
             "include_test_data": False,
+            "viewer_user_id": None,
         }
     ]
 

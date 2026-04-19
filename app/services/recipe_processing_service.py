@@ -199,6 +199,7 @@ class RecipeProcessingService:
                     self.dedupe_service.find_duplicate(
                         recipe,
                         include_test_data=is_test,
+                        viewer_user_id=created_by_user_id,
                     )
                 )
                 if is_duplicate and existing_id:

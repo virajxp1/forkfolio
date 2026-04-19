@@ -5,6 +5,7 @@ import {
   getRecipe,
   isForkfolioApiError,
 } from "@/lib/forkfolio-api";
+import { getOptionalViewerUserId } from "@/lib/supabase/viewer";
 
 const RECIPE_CACHE_CONTROL = "public, max-age=300, stale-while-revalidate=900";
 
@@ -41,13 +42,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
   if ("detail" in parsedRecipeId) {
     return NextResponse.json({ detail: parsedRecipeId.detail }, { status: parsedRecipeId.status });
   }
+  const viewerUserId = await getOptionalViewerUserId();
 
   try {
-    const response = await getRecipe(parsedRecipeId.recipeId);
+    const response = await getRecipe(parsedRecipeId.recipeId, viewerUserId);
     return NextResponse.json(response, {
       status: 200,
       headers: {
-        "Cache-Control": RECIPE_CACHE_CONTROL,
+        "Cache-Control": viewerUserId ? "private, no-store" : RECIPE_CACHE_CONTROL,
       },
     });
   } catch (error) {
