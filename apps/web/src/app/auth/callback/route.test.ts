@@ -78,6 +78,19 @@ describe("/auth/callback route", () => {
     expect(response.headers.get("location")).toBe("https://forkfolio.app/");
   });
 
+  it("uses forwarded host and proto when request origin is an internal proxy URL", async () => {
+    const response = await GET(
+      new Request("http://localhost:10000/auth/callback?code=abc&next=/bag", {
+        headers: {
+          "x-forwarded-host": "forkfolio-fe.onrender.com",
+          "x-forwarded-proto": "https",
+        },
+      }),
+    );
+
+    expect(response.headers.get("location")).toBe("https://forkfolio-fe.onrender.com/bag");
+  });
+
   it("uses configured app origin and ignores x-forwarded-host", async () => {
     process.env.FORKFOLIO_APP_ORIGIN = "https://www.forkfolio.app/account";
 
