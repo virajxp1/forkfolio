@@ -69,7 +69,9 @@ def _viewer_user_id_from_request(request: Request) -> str | None:
     try:
         return str(UUID(raw_value))
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail="Invalid X-Viewer-User-Id header") from exc
+        raise HTTPException(
+            status_code=400, detail="Invalid X-Viewer-User-Id header"
+        ) from exc
 
 
 @router.post("/process-and-store")

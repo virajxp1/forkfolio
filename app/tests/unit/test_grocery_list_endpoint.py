@@ -23,11 +23,13 @@ class FakeRecipeManager:
         self,
         recipe_ids: list[str],
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict[str, list[str]]:
         self.calls.append(
             {
                 "recipe_ids": recipe_ids,
                 "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
             }
         )
         return {
@@ -94,7 +96,11 @@ def test_create_grocery_list_returns_aggregated_ingredients() -> None:
     assert body["ingredients"] == ["2 tomatoes", "2 cloves garlic", "1 onion"]
     assert body["count"] == 3
     assert manager.calls == [
-        {"recipe_ids": [RECIPE_ONE, RECIPE_TWO], "include_test_data": False}
+        {
+            "recipe_ids": [RECIPE_ONE, RECIPE_TWO],
+            "include_test_data": False,
+            "viewer_user_id": None,
+        }
     ]
     assert grocery_service.calls == [
         ["1 tomato", "2 cloves garlic", "1 tomato", "1 onion"]
@@ -120,7 +126,11 @@ def test_create_grocery_list_deduplicates_recipe_ids_before_loading() -> None:
 
     assert response.status_code == 200
     assert manager.calls == [
-        {"recipe_ids": [RECIPE_ONE, RECIPE_TWO], "include_test_data": False}
+        {
+            "recipe_ids": [RECIPE_ONE, RECIPE_TWO],
+            "include_test_data": False,
+            "viewer_user_id": None,
+        }
     ]
 
 
@@ -160,3 +170,24 @@ def test_create_grocery_list_validates_recipe_ids_payload() -> None:
 
     response = client.post(GROCERY_LIST_PATH, json={"recipe_ids": ["not-a-uuid"]})
     assert response.status_code == 422
+
+
+def test_create_grocery_list_forwards_viewer_user_id_header() -> None:
+    manager = FakeRecipeManager(ingredients_by_recipe={RECIPE_ONE: ["1 tomato"]})
+    grocery_service = FakeGroceryListAggregationService(ingredients=["1 tomato"])
+    client = build_client(manager, grocery_service)
+
+    response = client.post(
+        GROCERY_LIST_PATH,
+        json={"recipe_ids": [RECIPE_ONE]},
+        headers={"X-Viewer-User-Id": "44444444-4444-4444-4444-444444444444"},
+    )
+
+    assert response.status_code == 200
+    assert manager.calls == [
+        {
+            "recipe_ids": [RECIPE_ONE],
+            "include_test_data": False,
+            "viewer_user_id": "44444444-4444-4444-4444-444444444444",
+        }
+    ]

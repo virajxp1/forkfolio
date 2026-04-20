@@ -240,7 +240,10 @@ def test_name_search_forwards_viewer_user_id_header() -> None:
     )
 
     assert response.status_code == 200
-    assert fake_manager.title_calls[0]["viewer_user_id"] == "55555555-5555-5555-5555-555555555555"
+    assert (
+        fake_manager.title_calls[0]["viewer_user_id"]
+        == "55555555-5555-5555-5555-555555555555"
+    )
 
 
 def test_semantic_search_reuses_cached_response(monkeypatch) -> None:
@@ -302,7 +305,10 @@ def test_semantic_search_cache_is_scoped_by_viewer() -> None:
     assert viewer_response.status_code == 200
     assert fake_embeddings.calls == ["lasagna", "lasagna"]
     assert fake_manager.calls[0]["viewer_user_id"] is None
-    assert fake_manager.calls[1]["viewer_user_id"] == "44444444-4444-4444-4444-444444444444"
+    assert (
+        fake_manager.calls[1]["viewer_user_id"]
+        == "44444444-4444-4444-4444-444444444444"
+    )
 
 
 def test_semantic_search_returns_results() -> None:
