@@ -118,6 +118,8 @@ Request body:
 {
   "raw_input": "Chocolate Chip Cookies\n\nIngredients:\n- 2 cups flour\n- 1 cup sugar\n\nInstructions:\n1. Mix\n2. Bake",
   "enforce_deduplication": true,
+  "isPublic": true,
+  "createdByUserId": "uuid",
   "isTest": false
 }
 ```
@@ -126,6 +128,8 @@ Field notes:
 
 - `raw_input` (string, required, min length `10`)
 - `enforce_deduplication` (boolean, optional, default `true`)
+- `isPublic` (boolean, optional, default `true`; `is_public` also accepted)
+- `createdByUserId` (UUID, optional; typically set by the web app from the signed-in user)
 - `isTest` (boolean, optional, default `false`; `is_test` also accepted)
 
 Success response (created):

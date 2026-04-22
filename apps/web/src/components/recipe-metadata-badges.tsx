@@ -1,4 +1,4 @@
-import { Clock3, LinkIcon, Users2 } from "lucide-react";
+import { Clock3, Globe, LinkIcon, Lock, Users2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -7,6 +7,7 @@ type RecipeMetadataBadgesProps = {
   servings?: string | null;
   totalTime?: string | null;
   sourceUrl?: string | null;
+  isPublic?: boolean | null;
   showSourceUrl?: boolean;
   className?: string;
 };
@@ -19,6 +20,7 @@ export function RecipeMetadataBadges({
   servings,
   totalTime,
   sourceUrl,
+  isPublic,
   showSourceUrl = false,
   className,
 }: RecipeMetadataBadgesProps) {
@@ -28,6 +30,7 @@ export function RecipeMetadataBadges({
   const showAnyBadge =
     Boolean(normalizedServings) ||
     Boolean(normalizedTotalTime) ||
+    typeof isPublic === "boolean" ||
     (showSourceUrl && Boolean(normalizedSourceUrl));
 
   if (!showAnyBadge) {
@@ -47,6 +50,17 @@ export function RecipeMetadataBadges({
         <Badge variant="secondary" className="min-w-0 max-w-full gap-1.5">
           <Users2 className="size-3.5 shrink-0" />
           <span className="truncate">{normalizedServings}</span>
+        </Badge>
+      ) : null}
+
+      {typeof isPublic === "boolean" ? (
+        <Badge variant="secondary" className="min-w-0 max-w-full gap-1.5">
+          {isPublic ? (
+            <Globe className="size-3.5 shrink-0" />
+          ) : (
+            <Lock className="size-3.5 shrink-0" />
+          )}
+          <span className="truncate">{isPublic ? "Public" : "Private"}</span>
         </Badge>
       ) : null}
 

@@ -90,6 +90,17 @@ function buildHeaders(init?: HeadersInit): Headers {
   return headers;
 }
 
+function buildViewerHeaders(viewerUserId?: string | null): HeadersInit | undefined {
+  const normalizedViewerUserId = viewerUserId?.trim();
+  if (!normalizedViewerUserId) {
+    return undefined;
+  }
+
+  return {
+    "X-Viewer-User-Id": normalizedViewerUserId,
+  };
+}
+
 async function readErrorPayload(response: Response): Promise<ApiErrorPayload | null> {
   try {
     return (await response.json()) as ApiErrorPayload;
@@ -128,6 +139,7 @@ export async function searchRecipes(
   query: string,
   limit = 12,
   rerank = false,
+  viewerUserId?: string | null,
 ): Promise<SearchRecipesResponse> {
   const params = new URLSearchParams({
     query: query.trim(),
@@ -137,12 +149,16 @@ export async function searchRecipes(
 
   return forkfolioFetch<SearchRecipesResponse>(
     `/recipes/search/semantic?${params.toString()}`,
+    {
+      headers: buildViewerHeaders(viewerUserId),
+    },
   );
 }
 
 export async function searchRecipesByName(
   query: string,
   limit = 10,
+  viewerUserId?: string | null,
 ): Promise<SearchRecipesResponse> {
   const params = new URLSearchParams({
     query: query.trim(),
@@ -151,22 +167,33 @@ export async function searchRecipesByName(
 
   return forkfolioFetch<SearchRecipesResponse>(
     `/recipes/search/by-name?${params.toString()}`,
+    {
+      headers: buildViewerHeaders(viewerUserId),
+    },
   );
 }
 
-export async function getRecipe(recipeId: string): Promise<GetRecipeResponse> {
-  return forkfolioFetch<GetRecipeResponse>(`/recipes/${encodeURIComponent(recipeId)}`);
+export async function getRecipe(
+  recipeId: string,
+  viewerUserId?: string | null,
+): Promise<GetRecipeResponse> {
+  return forkfolioFetch<GetRecipeResponse>(`/recipes/${encodeURIComponent(recipeId)}`, {
+    headers: buildViewerHeaders(viewerUserId),
+  });
 }
 
 export async function listRecipes(
   limit = 50,
   cursor?: string,
+  viewerUserId?: string | null,
 ): Promise<ListRecipesResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor?.trim()) {
     params.set("cursor", cursor.trim());
   }
-  return forkfolioFetch<ListRecipesResponse>(`/recipes/?${params.toString()}`);
+  return forkfolioFetch<ListRecipesResponse>(`/recipes/?${params.toString()}`, {
+    headers: buildViewerHeaders(viewerUserId),
+  });
 }
 
 export async function deleteRecipe(recipeId: string): Promise<DeleteRecipeResponse> {

@@ -271,6 +271,7 @@ def build_rerank_candidates(
     matches: list[dict],
     recipe_manager,
     include_test_data: bool = False,
+    viewer_user_id: str | None = None,
 ) -> list[dict]:
     recipe_ids = []
     for item in matches:
@@ -285,6 +286,7 @@ def build_rerank_candidates(
                 recipe_ids=recipe_ids,
                 max_ingredients=8,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
         except Exception as exc:
             logger.warning(

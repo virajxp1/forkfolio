@@ -92,6 +92,11 @@ class GroceryListAggregationServiceImpl(GroceryListAggregationService):
             for ingredient in response.ingredients
             if ingredient and ingredient.strip()
         ]
+        if not aggregated:
+            # Fall back to the original cleaned list if the LLM returns an empty
+            # aggregation. An empty grocery list is worse UX than preserving the
+            # source ingredients.
+            return cleaned_ingredients, None
         aggregated = self._restore_missing_coverage(cleaned_ingredients, aggregated)
         return aggregated, None
 

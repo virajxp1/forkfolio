@@ -101,6 +101,7 @@ Notes:
 {
   "raw_input": "Chocolate Chip Cookies...",
   "enforce_deduplication": true,
+  "isPublic": true,
   "isTest": false
 }
 ```
@@ -118,6 +119,8 @@ Notes:
     "servings": "24 cookies",
     "total_time": "35 minutes",
     "source_url": null,
+    "is_public": true,
+    "created_by_user_id": "uuid",
     "is_test_data": false,
     "created_at": "2026-03-03T00:00:00+00:00",
     "updated_at": "2026-03-03T00:00:00+00:00"

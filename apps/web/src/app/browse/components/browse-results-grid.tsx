@@ -50,7 +50,11 @@ function SearchCard({
   const recipeId = result.id;
   const ingredients = recipe?.ingredients?.slice(0, 3) ?? [];
   const canOpen = Boolean(recipeId);
-  const hasRecipeMetadata = Boolean(recipe?.total_time?.trim() || recipe?.servings?.trim());
+  const hasRecipeMetadata = Boolean(
+    recipe?.total_time?.trim() ||
+      recipe?.servings?.trim() ||
+      typeof recipe?.is_public === "boolean",
+  );
 
   return (
     <Card
@@ -88,7 +92,11 @@ function SearchCard({
 
           {recipe ? (
             hasRecipeMetadata ? (
-              <RecipeMetadataBadges servings={recipe.servings} totalTime={recipe.total_time} />
+              <RecipeMetadataBadges
+                servings={recipe.servings}
+                totalTime={recipe.total_time}
+                isPublic={recipe.is_public}
+              />
             ) : (
               <span className="text-muted-foreground">No time or serving info yet.</span>
             )

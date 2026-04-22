@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
 
 
@@ -36,6 +38,16 @@ class RecipeIngestionRequest(BaseModel):
         False,
         description="Mark the resulting recipe as test data.",
         alias="isTest",
+    )
+    is_public: bool = Field(
+        True,
+        description="Whether the saved recipe is public or private.",
+        alias="isPublic",
+    )
+    created_by_user_id: UUID | None = Field(
+        None,
+        description="User id that created the recipe.",
+        alias="createdByUserId",
     )
 
 

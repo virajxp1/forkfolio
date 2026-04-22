@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { isForkfolioApiError, searchRecipesByName } from "@/lib/forkfolio-api";
+import { getOptionalViewerUserId } from "@/lib/supabase/viewer";
 
 const DEFAULT_LIMIT = 10;
 const NAME_SEARCH_CACHE_CONTROL = "public, max-age=15, stale-while-revalidate=60";
@@ -20,6 +21,7 @@ function parseLimit(rawLimit: string | null): number {
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("query")?.trim() ?? "";
   const limit = parseLimit(request.nextUrl.searchParams.get("limit"));
+  const viewerUserId = await getOptionalViewerUserId();
 
   if (!query) {
     return NextResponse.json(
@@ -35,11 +37,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await searchRecipesByName(query, limit);
+    const response = await searchRecipesByName(query, limit, viewerUserId);
     return NextResponse.json(response, {
       status: 200,
       headers: {
-        "Cache-Control": NAME_SEARCH_CACHE_CONTROL,
+        "Cache-Control": viewerUserId ? "private, no-store" : NAME_SEARCH_CACHE_CONTROL,
       },
     });
   } catch (error) {

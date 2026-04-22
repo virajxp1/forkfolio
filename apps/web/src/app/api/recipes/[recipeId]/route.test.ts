@@ -3,16 +3,26 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { deleteRecipeApiMock, getRecipeApiMock, isForkfolioApiErrorMock } = vi.hoisted(() => ({
+const {
+  deleteRecipeApiMock,
+  getRecipeApiMock,
+  isForkfolioApiErrorMock,
+  getOptionalViewerUserIdMock,
+} = vi.hoisted(() => ({
   deleteRecipeApiMock: vi.fn(),
   getRecipeApiMock: vi.fn(),
   isForkfolioApiErrorMock: vi.fn(),
+  getOptionalViewerUserIdMock: vi.fn(),
 }));
 
 vi.mock("@/lib/forkfolio-api", () => ({
   deleteRecipe: deleteRecipeApiMock,
   getRecipe: getRecipeApiMock,
   isForkfolioApiError: isForkfolioApiErrorMock,
+}));
+
+vi.mock("@/lib/supabase/viewer", () => ({
+  getOptionalViewerUserId: getOptionalViewerUserIdMock,
 }));
 
 import { DELETE, GET } from "./route";
@@ -22,7 +32,9 @@ describe("/api/recipes/[recipeId]", () => {
     deleteRecipeApiMock.mockReset();
     getRecipeApiMock.mockReset();
     isForkfolioApiErrorMock.mockReset();
+    getOptionalViewerUserIdMock.mockReset();
     isForkfolioApiErrorMock.mockReturnValue(false);
+    getOptionalViewerUserIdMock.mockResolvedValue(null);
   });
 
   it("returns 400 when recipe id is blank", async () => {
@@ -46,6 +58,8 @@ describe("/api/recipes/[recipeId]", () => {
         servings: "2",
         total_time: "20 minutes",
         source_url: null,
+        is_public: true,
+        created_by_user_id: null,
         created_at: null,
         updated_at: null,
         ingredients: ["Tomatoes"],
@@ -62,7 +76,36 @@ describe("/api/recipes/[recipeId]", () => {
     expect(response.headers.get("Cache-Control")).toBe(
       "public, max-age=300, stale-while-revalidate=900",
     );
-    expect(getRecipeApiMock).toHaveBeenCalledWith("recipe-1");
+    expect(getRecipeApiMock).toHaveBeenCalledWith("recipe-1", null);
+  });
+
+  it("uses private no-store cache and forwards viewer id when signed in", async () => {
+    getOptionalViewerUserIdMock.mockResolvedValue("viewer-123");
+    getRecipeApiMock.mockResolvedValue({
+      success: true,
+      recipe: {
+        id: "recipe-1",
+        title: "Tomato Soup",
+        servings: "2",
+        total_time: "20 minutes",
+        source_url: null,
+        is_public: false,
+        created_by_user_id: "viewer-123",
+        created_at: null,
+        updated_at: null,
+        ingredients: ["Tomatoes"],
+        instructions: ["Cook"],
+      },
+    });
+
+    const request = new NextRequest("http://localhost:3000/api/recipes/recipe-1");
+    const response = await GET(request, {
+      params: Promise.resolve({ recipeId: "recipe-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(getRecipeApiMock).toHaveBeenCalledWith("recipe-1", "viewer-123");
   });
 
   it("maps Forkfolio API errors", async () => {

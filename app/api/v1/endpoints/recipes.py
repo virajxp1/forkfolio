@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from uuid import UUID
+
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 
 from app.api.schemas import (
     GroceryListCreateRequest,
@@ -41,12 +43,14 @@ def _semantic_search_cache_key(
     limit: int,
     include_test_data: bool,
     rerank_enabled: bool,
+    viewer_user_id: str | None,
 ) -> str:
     return hash_cache_key(
         "semantic_search",
         normalized_query,
         str(limit),
         str(include_test_data),
+        viewer_user_id or "public-only",
         str(settings.SEMANTIC_SEARCH_MAX_DISTANCE),
         str(rerank_enabled),
         str(settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT),
@@ -56,6 +60,18 @@ def _semantic_search_cache_key(
         str(settings.SEMANTIC_SEARCH_RERANK_CUISINE_BOOST),
         str(settings.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST),
     )
+
+
+def _viewer_user_id_from_request(request: Request) -> str | None:
+    raw_value = request.headers.get("x-viewer-user-id", "").strip()
+    if not raw_value:
+        return None
+    try:
+        return str(UUID(raw_value))
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400, detail="Invalid X-Viewer-User-Id header"
+        ) from exc
 
 
 @router.post("/process-and-store")
@@ -78,11 +94,18 @@ def process_and_store_recipe(
     source_url = (
         str(ingestion_request.source_url) if ingestion_request.source_url else None
     )
+    created_by_user_id = (
+        str(ingestion_request.created_by_user_id)
+        if ingestion_request.created_by_user_id
+        else None
+    )
     recipe_id, error, created = processing_service.process_raw_recipe(
         raw_input=ingestion_request.raw_input,
         source_url=source_url,
         enforce_deduplication=ingestion_request.enforce_deduplication,
         is_test=ingestion_request.is_test,
+        is_public=ingestion_request.is_public,
+        created_by_user_id=created_by_user_id,
     )
 
     if error:
@@ -98,6 +121,7 @@ def process_and_store_recipe(
         recipe_data = recipe_manager.get_full_recipe(
             recipe_id,
             include_test_data=ingestion_request.is_test,
+            viewer_user_id=created_by_user_id,
         )
         if not recipe_data:
             logger.error(f"Duplicate recipe found but not retrieved: {recipe_id}")
@@ -117,6 +141,7 @@ def process_and_store_recipe(
     recipe_data = recipe_manager.get_full_recipe(
         recipe_id,
         include_test_data=ingestion_request.is_test,
+        viewer_user_id=created_by_user_id,
     )
     if not recipe_data:
         logger.error(f"Recipe stored but not found: {recipe_id}")
@@ -180,6 +205,7 @@ def preview_recipe_from_url(
 
 @router.get("/")
 def list_recipes(
+    request: Request,
     limit: int = Query(
         default=50,
         ge=1,
@@ -203,6 +229,7 @@ def list_recipes(
     """
     cursor_created_at = None
     cursor_id = None
+    viewer_user_id = _viewer_user_id_from_request(request)
 
     if cursor:
         try:
@@ -216,6 +243,7 @@ def list_recipes(
             cursor_created_at=cursor_created_at,
             cursor_id=cursor_id,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         has_more = len(page_with_sentinel) > limit
         recipes_page = page_with_sentinel[:limit]
@@ -246,6 +274,7 @@ def list_recipes(
 
 @router.get("/search/semantic")
 def semantic_search_recipes(
+    request: Request,
     query: str = Query(
         ...,
         min_length=2,
@@ -287,11 +316,13 @@ def semantic_search_recipes(
     rerank_enabled = (
         settings.SEMANTIC_SEARCH_RERANK_ENABLED if rerank is None else rerank
     )
+    viewer_user_id = _viewer_user_id_from_request(request)
     cache_key = _semantic_search_cache_key(
         normalized_query=normalized_query,
         limit=limit,
         include_test_data=include_test_data,
         rerank_enabled=rerank_enabled,
+        viewer_user_id=viewer_user_id,
     )
     cached_response = semantic_search_cache.get(cache_key)
     if cached_response is not None:
@@ -323,6 +354,7 @@ def semantic_search_recipes(
             limit=candidate_limit,
             max_distance=settings.SEMANTIC_SEARCH_MAX_DISTANCE,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         if rerank_enabled and len(matches) > 1:
             ranked_items = []
@@ -331,6 +363,7 @@ def semantic_search_recipes(
                     matches,
                     recipe_manager,
                     include_test_data=include_test_data,
+                    viewer_user_id=viewer_user_id,
                 )
                 ranked_items = reranker_service.rerank(
                     query=normalized_query,
@@ -375,6 +408,7 @@ def semantic_search_recipes(
 
 @router.get("/search/by-name")
 def search_recipes_by_name(
+    request: Request,
     query: str = Query(
         ...,
         min_length=3,
@@ -393,6 +427,7 @@ def search_recipes_by_name(
     recipe_manager=recipe_manager_dep,
 ) -> dict:
     normalized_query = normalize_search_query(query)
+    viewer_user_id = _viewer_user_id_from_request(request)
     if len(normalized_query) < 3:
         raise HTTPException(
             status_code=422,
@@ -404,6 +439,7 @@ def search_recipes_by_name(
             title_query=normalized_query,
             limit=limit,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         results = [
             {
@@ -429,6 +465,7 @@ def search_recipes_by_name(
 
 @router.post("/grocery-list")
 def create_grocery_list(
+    request: Request,
     grocery_list_request: GroceryListCreateRequest = GROCERY_LIST_BODY,
     include_test_data: bool = Query(
         default=False,
@@ -443,10 +480,12 @@ def create_grocery_list(
     recipe_ids = list(
         dict.fromkeys(str(recipe_id) for recipe_id in grocery_list_request.recipe_ids)
     )
+    viewer_user_id = _viewer_user_id_from_request(request)
     try:
         ingredients_by_recipe = recipe_manager.get_ingredients_for_recipes(
             recipe_ids,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         missing_recipe_ids = [
             recipe_id
@@ -493,6 +532,7 @@ def create_grocery_list(
 
 @router.get("/{recipe_id}")
 def get_recipe(
+    request: Request,
     recipe_id: str,
     include_test_data: bool = Query(
         default=False,
@@ -507,11 +547,13 @@ def get_recipe(
     or 404 if the recipe is not found.
     """
     logger.info(f"Retrieving recipe with ID: {recipe_id}")
+    viewer_user_id = _viewer_user_id_from_request(request)
 
     try:
         recipe_data = recipe_manager.get_full_recipe(
             recipe_id,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
 
         if not recipe_data:
@@ -532,6 +574,7 @@ def get_recipe(
 
 @router.get("/{recipe_id}/all")
 def get_recipe_all(
+    request: Request,
     recipe_id: str,
     include_test_data: bool = Query(
         default=False,
@@ -546,11 +589,13 @@ def get_recipe_all(
     or 404 if the recipe is not found.
     """
     logger.info(f"Retrieving full recipe with embeddings for ID: {recipe_id}")
+    viewer_user_id = _viewer_user_id_from_request(request)
 
     try:
         recipe_data = recipe_manager.get_full_recipe_with_embeddings(
             recipe_id,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
 
         if not recipe_data:

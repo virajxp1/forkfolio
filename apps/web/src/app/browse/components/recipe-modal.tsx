@@ -63,7 +63,11 @@ export function RecipeModal({
             )}
 
             {recipe ? (
-              <RecipeMetadataBadges servings={recipe.servings} totalTime={recipe.total_time} />
+              <RecipeMetadataBadges
+                servings={recipe.servings}
+                totalTime={recipe.total_time}
+                isPublic={recipe.is_public}
+              />
             ) : null}
           </div>
 

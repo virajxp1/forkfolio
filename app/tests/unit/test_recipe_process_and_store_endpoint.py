@@ -20,6 +20,8 @@ class FakeRecipeProcessingService:
         source_url: str | None = None,
         enforce_deduplication: bool = True,
         is_test: bool = False,
+        is_public: bool = True,
+        created_by_user_id: str | None = None,
     ) -> tuple[str, None, bool]:
         self.calls.append(
             {
@@ -27,6 +29,8 @@ class FakeRecipeProcessingService:
                 "source_url": source_url,
                 "enforce_deduplication": enforce_deduplication,
                 "is_test": is_test,
+                "is_public": is_public,
+                "created_by_user_id": created_by_user_id,
             }
         )
         return RECIPE_ID, None, True
@@ -40,9 +44,14 @@ class FakeRecipeManager:
         self,
         recipe_id: str,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict:
         self.calls.append(
-            {"recipe_id": recipe_id, "include_test_data": include_test_data}
+            {
+                "recipe_id": recipe_id,
+                "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
+            }
         )
         return {
             "id": recipe_id,
@@ -50,6 +59,8 @@ class FakeRecipeManager:
             "servings": "2",
             "total_time": "20 minutes",
             "source_url": SOURCE_URL,
+            "is_public": True,
+            "created_by_user_id": None,
             "created_at": None,
             "updated_at": None,
             "ingredients": ["200g spaghetti"],
@@ -92,10 +103,12 @@ def test_process_and_store_forwards_source_url() -> None:
             "source_url": SOURCE_URL,
             "enforce_deduplication": True,
             "is_test": False,
+            "is_public": True,
+            "created_by_user_id": None,
         }
     ]
     assert recipe_manager.calls == [
-        {"recipe_id": RECIPE_ID, "include_test_data": False}
+        {"recipe_id": RECIPE_ID, "include_test_data": False, "viewer_user_id": None}
     ]
 
 
@@ -114,6 +127,7 @@ def test_process_and_store_accepts_source_url_alias() -> None:
 
     assert response.status_code == 200
     assert processing_service.calls[0]["source_url"] == SOURCE_URL
+    assert processing_service.calls[0]["is_public"] is True
 
 
 def test_process_and_store_returns_test_recipe_when_requested() -> None:
@@ -136,4 +150,35 @@ def test_process_and_store_returns_test_recipe_when_requested() -> None:
     assert body["recipe_id"] == RECIPE_ID
     assert body["recipe"]["id"] == RECIPE_ID
     assert processing_service.calls[0]["is_test"] is True
-    assert recipe_manager.calls == [{"recipe_id": RECIPE_ID, "include_test_data": True}]
+    assert recipe_manager.calls == [
+        {"recipe_id": RECIPE_ID, "include_test_data": True, "viewer_user_id": None}
+    ]
+
+
+def test_process_and_store_forwards_visibility_and_creator() -> None:
+    processing_service = FakeRecipeProcessingService()
+    recipe_manager = FakeRecipeManager()
+    client = build_client(processing_service, recipe_manager)
+
+    response = client.post(
+        PROCESS_AND_STORE_PATH,
+        json={
+            "raw_input": "Tomato Pasta recipe with ingredients and instructions.",
+            "isPublic": False,
+            "createdByUserId": "22222222-2222-2222-2222-222222222222",
+        },
+    )
+
+    assert response.status_code == 200
+    assert processing_service.calls[0]["is_public"] is False
+    assert (
+        processing_service.calls[0]["created_by_user_id"]
+        == "22222222-2222-2222-2222-222222222222"
+    )
+    assert recipe_manager.calls == [
+        {
+            "recipe_id": RECIPE_ID,
+            "include_test_data": False,
+            "viewer_user_id": "22222222-2222-2222-2222-222222222222",
+        }
+    ]
