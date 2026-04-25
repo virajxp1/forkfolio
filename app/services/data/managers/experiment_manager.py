@@ -281,7 +281,9 @@ class ExperimentManager(BaseManager):
         return isinstance(title, str) and bool(TEST_THREAD_TITLE_PATTERN.search(title))
 
     @staticmethod
-    def _owner_scope_params(viewer_user_id: str | None) -> tuple[str | None, str | None]:
+    def _owner_scope_params(
+        viewer_user_id: str | None,
+    ) -> tuple[str | None, str | None]:
         return (viewer_user_id, viewer_user_id)
 
     def _thread_exists(
