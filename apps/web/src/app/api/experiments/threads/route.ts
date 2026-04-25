@@ -5,6 +5,7 @@ import {
   isForkfolioApiError,
   listExperimentThreads,
 } from "@/lib/forkfolio-api";
+import { getRequiredViewerUserId } from "@/lib/supabase/viewer";
 import type {
   CreateExperimentThreadRequest,
   ExperimentMode,
@@ -204,8 +205,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const viewerResult = await getRequiredViewerUserId(
+    "Experiment threads",
+    "Sign in to use experiment threads.",
+  );
+  if (!viewerResult.viewerUserId) {
+    return NextResponse.json(
+      { detail: viewerResult.detail },
+      { status: viewerResult.status },
+    );
+  }
+
   try {
-    const response = await createExperimentThread(normalizedPayload.payload);
+    const response = await createExperimentThread(
+      normalizedPayload.payload,
+      viewerResult.viewerUserId,
+    );
     return NextResponse.json(response, {
       status: 200,
       headers: {
@@ -232,8 +247,22 @@ export async function GET(request: NextRequest) {
   const includeTest = parseIncludeTest(
     request.nextUrl.searchParams.get("include_test"),
   );
+  const viewerResult = await getRequiredViewerUserId(
+    "Experiment threads",
+    "Sign in to use experiment threads.",
+  );
+  if (!viewerResult.viewerUserId) {
+    return NextResponse.json(
+      { detail: viewerResult.detail },
+      { status: viewerResult.status },
+    );
+  }
   try {
-    const response = await listExperimentThreads(limit, includeTest);
+    const response = await listExperimentThreads(
+      limit,
+      includeTest,
+      viewerResult.viewerUserId,
+    );
     const listedThreads = Array.isArray(response.threads) ? response.threads : [];
     const filteredThreads = includeTest
       ? listedThreads.slice(0, limit)
