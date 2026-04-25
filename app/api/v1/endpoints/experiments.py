@@ -8,6 +8,7 @@ from app.api.schemas import (
     ExperimentMessageCreateRequest,
     ExperimentThreadCreateRequest,
 )
+from app.api.v1.helpers.request_auth import viewer_user_id_from_request
 from app.core.config import settings
 from app.core.dependencies import get_experiment_service
 from app.core.logging import get_logger
@@ -36,25 +37,13 @@ def _to_sse_chunk(event: str, payload: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
 
 
-def _viewer_user_id_from_request(request: Request) -> str | None:
-    raw_value = request.headers.get("x-viewer-user-id", "").strip()
-    if not raw_value:
-        return None
-    try:
-        return str(UUID(raw_value))
-    except ValueError as exc:
-        raise HTTPException(
-            status_code=400, detail="Invalid X-Viewer-User-Id header"
-        ) from exc
-
-
 @router.post("/threads")
 def create_experiment_thread(
     request: Request,
     payload: ExperimentThreadCreateRequest = EXPERIMENT_BODY,
     experiment_service=experiment_service_dep,
 ) -> dict:
-    viewer_user_id = _viewer_user_id_from_request(request)
+    viewer_user_id = viewer_user_id_from_request(request)
     try:
         thread = experiment_service.create_thread(
             mode=payload.mode,
@@ -97,7 +86,7 @@ def list_experiment_threads(
     ),
     experiment_service=experiment_service_dep,
 ) -> dict:
-    viewer_user_id = _viewer_user_id_from_request(request)
+    viewer_user_id = viewer_user_id_from_request(request)
     try:
         threads = experiment_service.list_threads(
             limit=limit,
@@ -129,7 +118,7 @@ def get_experiment_thread(
     experiment_service=experiment_service_dep,
 ) -> dict:
     thread_id_str = str(thread_id)
-    viewer_user_id = _viewer_user_id_from_request(request)
+    viewer_user_id = viewer_user_id_from_request(request)
     try:
         thread = experiment_service.get_thread(
             thread_id=thread_id_str,
@@ -155,7 +144,7 @@ def create_experiment_message(
     experiment_service=experiment_service_dep,
 ) -> dict:
     thread_id_str = str(thread_id)
-    viewer_user_id = _viewer_user_id_from_request(request)
+    viewer_user_id = viewer_user_id_from_request(request)
     context_recipe_ids = (
         _to_string_ids(payload.context_recipe_ids)
         if payload.context_recipe_ids is not None
@@ -207,7 +196,7 @@ def stream_experiment_message(
     experiment_service=experiment_service_dep,
 ):
     thread_id_str = str(thread_id)
-    viewer_user_id = _viewer_user_id_from_request(request)
+    viewer_user_id = viewer_user_id_from_request(request)
     context_recipe_ids = (
         _to_string_ids(payload.context_recipe_ids)
         if payload.context_recipe_ids is not None
