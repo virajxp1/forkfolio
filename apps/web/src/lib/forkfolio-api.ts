@@ -307,10 +307,12 @@ export async function createGroceryList(
 
 export async function createExperimentThread(
   payload: CreateExperimentThreadRequest,
+  viewerUserId?: string | null,
 ): Promise<CreateExperimentThreadResponse> {
   return forkfolioFetch<CreateExperimentThreadResponse>("/experiments/threads", {
     method: "POST",
     headers: buildHeaders({
+      ...(buildViewerHeaders(viewerUserId) ?? {}),
       "Content-Type": "application/json",
     }),
     body: JSON.stringify(payload),
@@ -320,6 +322,7 @@ export async function createExperimentThread(
 export async function listExperimentThreads(
   limit = 20,
   includeTest = false,
+  viewerUserId?: string | null,
 ): Promise<ListExperimentThreadsResponse> {
   const params = new URLSearchParams({
     limit: String(limit),
@@ -327,30 +330,39 @@ export async function listExperimentThreads(
   });
   return forkfolioFetch<ListExperimentThreadsResponse>(
     `/experiments/threads?${params.toString()}`,
+    {
+      headers: buildViewerHeaders(viewerUserId),
+    },
   );
 }
 
 export async function getExperimentThread(
   threadId: string,
   messageLimit = 120,
+  viewerUserId?: string | null,
 ): Promise<GetExperimentThreadResponse> {
   const params = new URLSearchParams({
     message_limit: String(messageLimit),
   });
   return forkfolioFetch<GetExperimentThreadResponse>(
     `/experiments/threads/${encodeURIComponent(threadId)}?${params.toString()}`,
+    {
+      headers: buildViewerHeaders(viewerUserId),
+    },
   );
 }
 
 export async function createExperimentMessage(
   threadId: string,
   payload: CreateExperimentMessageRequest,
+  viewerUserId?: string | null,
 ): Promise<CreateExperimentMessageResponse> {
   return forkfolioFetch<CreateExperimentMessageResponse>(
     `/experiments/threads/${encodeURIComponent(threadId)}/messages`,
     {
       method: "POST",
       headers: buildHeaders({
+        ...(buildViewerHeaders(viewerUserId) ?? {}),
         "Content-Type": "application/json",
       }),
       body: JSON.stringify(payload),

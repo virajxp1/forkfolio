@@ -97,6 +97,7 @@ class ExperimentService:
         self,
         recipe_ids: list[str],
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[str]:
         normalized_ids = self._normalize_context_recipe_ids(recipe_ids)
         if not normalized_ids:
@@ -107,6 +108,7 @@ class ExperimentService:
             if not self.recipe_manager.get_full_recipe(
                 recipe_id,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             ):
                 missing_ids.append(recipe_id)
 
@@ -124,6 +126,7 @@ class ExperimentService:
         context_recipe_ids: list[str] | None = None,
         include_test_data: bool = False,
         is_test: bool = False,
+        created_by_user_id: str | None = None,
     ) -> dict:
         normalized_mode = self._normalize_mode(mode)
         normalized_title = (
@@ -132,6 +135,7 @@ class ExperimentService:
         validated_context_ids = self._validate_recipe_ids(
             context_recipe_ids or [],
             include_test_data=include_test_data,
+            viewer_user_id=created_by_user_id,
         )
         metadata: dict[str, object] = {"orchestration": "langgraph-ready"}
         if is_test:
@@ -142,18 +146,26 @@ class ExperimentService:
             title=normalized_title,
             metadata=metadata,
             context_recipe_ids=validated_context_ids,
+            created_by_user_id=created_by_user_id,
         )
 
-    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
+    def list_threads(
+        self,
+        limit: int = 20,
+        include_test: bool = False,
+        viewer_user_id: str | None = None,
+    ) -> list[dict]:
         return self.experiment_manager.list_threads(
             limit=limit,
             include_test=include_test,
+            viewer_user_id=viewer_user_id,
         )
 
     def _resolve_attach_recipe_names(
         self,
         recipe_names: list[str],
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> tuple[list[dict], list[str]]:
         attached_recipes: list[dict] = []
         unresolved_names: list[str] = []
@@ -163,6 +175,7 @@ class ExperimentService:
                 recipe_name,
                 limit=1,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
             if not matches:
                 unresolved_names.append(recipe_name)
@@ -174,6 +187,7 @@ class ExperimentService:
         self,
         recipe_ids: list[str],
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> tuple[list[dict], list[str]]:
         attached_recipes: list[dict] = []
         unresolved_ids: list[str] = []
@@ -182,6 +196,7 @@ class ExperimentService:
             recipe = self.recipe_manager.get_full_recipe(
                 recipe_id,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
             if not recipe:
                 unresolved_ids.append(recipe_id)
@@ -200,15 +215,18 @@ class ExperimentService:
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> tuple[list[dict], list[str]]:
         if attach_recipe_ids:
             return self._resolve_attach_recipe_ids(
                 attach_recipe_ids,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
         return self._resolve_attach_recipe_names(
             attach_recipe_names or [],
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
 
     def get_thread(
@@ -216,11 +234,13 @@ class ExperimentService:
         thread_id: str,
         message_limit: int = 100,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict:
         thread = self.experiment_manager.get_thread(
             thread_id=thread_id,
             message_limit=message_limit,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         if not thread:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
@@ -230,12 +250,14 @@ class ExperimentService:
         self,
         context_recipe_ids: list[str],
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[dict]:
         context_payload: list[dict] = []
         for recipe_id in context_recipe_ids:
             recipe = self.recipe_manager.get_full_recipe(
                 recipe_id,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
             if not recipe:
                 continue
@@ -274,10 +296,12 @@ class ExperimentService:
         prior_messages: list[dict],
         stream_requested: bool,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict:
         context_payload = self._build_context_payload(
             context_recipe_ids,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         history_payload = self._build_history_payload(prior_messages)
         return self._agent_graph.execute(
@@ -323,6 +347,7 @@ class ExperimentService:
         context_recipe_ids: list[str],
         prior_messages: list[dict],
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> str:
         plan = self._build_agent_plan(
             mode=mode,
@@ -331,6 +356,7 @@ class ExperimentService:
             prior_messages=prior_messages,
             stream_requested=False,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         assistant_content = str(plan.get("assistant_content") or "").strip()
         if assistant_content:
@@ -345,6 +371,7 @@ class ExperimentService:
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict:
         normalized_content = content.strip()
         if not normalized_content:
@@ -354,6 +381,7 @@ class ExperimentService:
             thread_id,
             message_limit=40,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         if not thread:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
@@ -362,10 +390,12 @@ class ExperimentService:
             validated_context_ids = self._validate_recipe_ids(
                 context_recipe_ids,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
             self.experiment_manager.set_context_recipe_ids(
                 thread_id=thread_id,
                 context_recipe_ids=validated_context_ids,
+                viewer_user_id=viewer_user_id,
             )
             thread["context_recipe_ids"] = validated_context_ids
 
@@ -373,6 +403,7 @@ class ExperimentService:
             attach_recipe_ids=attach_recipe_ids,
             attach_recipe_names=attach_recipe_names,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         attachment_message = None
         if attached_recipes:
@@ -386,6 +417,7 @@ class ExperimentService:
             self.experiment_manager.set_context_recipe_ids(
                 thread_id=thread_id,
                 context_recipe_ids=combined_context_ids,
+                viewer_user_id=viewer_user_id,
             )
             thread["context_recipe_ids"] = combined_context_ids
 
@@ -398,12 +430,14 @@ class ExperimentService:
                 thread_id=thread_id,
                 role="system",
                 content=attachment_event_text,
+                viewer_user_id=viewer_user_id,
             )
 
         user_message = self.experiment_manager.create_message(
             thread_id=thread_id,
             role="user",
             content=normalized_content,
+            viewer_user_id=viewer_user_id,
         )
         if not user_message:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
@@ -411,14 +445,18 @@ class ExperimentService:
         self.experiment_manager.set_thread_title_if_empty(
             thread_id=thread_id,
             title=normalized_content[:80],
+            viewer_user_id=viewer_user_id,
         )
 
         thread_messages = self.experiment_manager.list_messages(
-            thread_id=thread_id, limit=40
+            thread_id=thread_id,
+            limit=40,
+            viewer_user_id=viewer_user_id,
         )
         thread_context_recipe_ids = self.experiment_manager.get_context_recipe_ids(
             thread_id,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         assistant_content = self._run_agent_turn(
             mode=thread["mode"],
@@ -426,12 +464,14 @@ class ExperimentService:
             context_recipe_ids=thread_context_recipe_ids,
             prior_messages=thread_messages,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
 
         assistant_message = self.experiment_manager.create_message(
             thread_id=thread_id,
             role="assistant",
             content=assistant_content,
+            viewer_user_id=viewer_user_id,
         )
         if not assistant_message:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
@@ -440,6 +480,7 @@ class ExperimentService:
             thread_id=thread_id,
             message_limit=120,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         return {
             "thread": updated_thread,
@@ -458,6 +499,7 @@ class ExperimentService:
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> Iterator[dict]:
         normalized_content = content.strip()
         if not normalized_content:
@@ -467,6 +509,7 @@ class ExperimentService:
             thread_id,
             message_limit=40,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         if not thread:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
@@ -475,10 +518,12 @@ class ExperimentService:
             validated_context_ids = self._validate_recipe_ids(
                 context_recipe_ids,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
             self.experiment_manager.set_context_recipe_ids(
                 thread_id=thread_id,
                 context_recipe_ids=validated_context_ids,
+                viewer_user_id=viewer_user_id,
             )
             thread["context_recipe_ids"] = validated_context_ids
 
@@ -486,6 +531,7 @@ class ExperimentService:
             attach_recipe_ids=attach_recipe_ids,
             attach_recipe_names=attach_recipe_names,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         attachment_message = None
         if attached_recipes:
@@ -499,6 +545,7 @@ class ExperimentService:
             self.experiment_manager.set_context_recipe_ids(
                 thread_id=thread_id,
                 context_recipe_ids=combined_context_ids,
+                viewer_user_id=viewer_user_id,
             )
             thread["context_recipe_ids"] = combined_context_ids
 
@@ -511,6 +558,7 @@ class ExperimentService:
                 thread_id=thread_id,
                 role="system",
                 content=attachment_event_text,
+                viewer_user_id=viewer_user_id,
             )
             if attachment_message:
                 yield {
@@ -526,6 +574,7 @@ class ExperimentService:
             thread_id=thread_id,
             role="user",
             content=normalized_content,
+            viewer_user_id=viewer_user_id,
         )
         if not user_message:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
@@ -533,16 +582,20 @@ class ExperimentService:
         self.experiment_manager.set_thread_title_if_empty(
             thread_id=thread_id,
             title=normalized_content[:80],
+            viewer_user_id=viewer_user_id,
         )
 
         yield {"event": "status", "data": {"step": "drafting"}}
 
         thread_messages = self.experiment_manager.list_messages(
-            thread_id=thread_id, limit=40
+            thread_id=thread_id,
+            limit=40,
+            viewer_user_id=viewer_user_id,
         )
         thread_context_recipe_ids = self.experiment_manager.get_context_recipe_ids(
             thread_id,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         plan = self._build_agent_plan(
             mode=thread["mode"],
@@ -551,6 +604,7 @@ class ExperimentService:
             prior_messages=thread_messages,
             stream_requested=True,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
 
         assistant_parts: list[str] = []
@@ -585,6 +639,7 @@ class ExperimentService:
                         context_recipe_ids=thread_context_recipe_ids,
                         prior_messages=thread_messages,
                         include_test_data=include_test_data,
+                        viewer_user_id=viewer_user_id,
                     )
                     for fallback_chunk in self._chunk_text(fallback):
                         assistant_parts.append(fallback_chunk)
@@ -599,6 +654,7 @@ class ExperimentService:
             thread_id=thread_id,
             role="assistant",
             content=assistant_content,
+            viewer_user_id=viewer_user_id,
         )
         if not assistant_message:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
@@ -607,6 +663,7 @@ class ExperimentService:
             thread_id=thread_id,
             message_limit=120,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         yield {
             "event": "final",

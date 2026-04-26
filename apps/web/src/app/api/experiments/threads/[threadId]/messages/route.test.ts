@@ -3,14 +3,23 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createExperimentMessageMock, isForkfolioApiErrorMock } = vi.hoisted(() => ({
+const {
+  createExperimentMessageMock,
+  isForkfolioApiErrorMock,
+  getRequiredViewerUserIdMock,
+} = vi.hoisted(() => ({
   createExperimentMessageMock: vi.fn(),
   isForkfolioApiErrorMock: vi.fn(),
+  getRequiredViewerUserIdMock: vi.fn(),
 }));
 
 vi.mock("@/lib/forkfolio-api", () => ({
   createExperimentMessage: createExperimentMessageMock,
   isForkfolioApiError: isForkfolioApiErrorMock,
+}));
+
+vi.mock("@/lib/supabase/viewer", () => ({
+  getRequiredViewerUserId: getRequiredViewerUserIdMock,
 }));
 
 import { POST } from "./route";
@@ -19,7 +28,9 @@ describe("POST /api/experiments/threads/[threadId]/messages", () => {
   beforeEach(() => {
     createExperimentMessageMock.mockReset();
     isForkfolioApiErrorMock.mockReset();
+    getRequiredViewerUserIdMock.mockReset();
     isForkfolioApiErrorMock.mockReturnValue(false);
+    getRequiredViewerUserIdMock.mockResolvedValue({ viewerUserId: "user-123" });
   });
 
   it("returns 400 when content is missing", async () => {
@@ -184,7 +195,7 @@ describe("POST /api/experiments/threads/[threadId]/messages", () => {
       content: "Make this vegan",
       context_recipe_ids: ["recipe-1"],
       attach_recipe_ids: ["recipe-1"],
-    });
+    }, "user-123");
   });
 
   it("maps Forkfolio API errors", async () => {
@@ -213,5 +224,34 @@ describe("POST /api/experiments/threads/[threadId]/messages", () => {
 
     expect(response.status).toBe(404);
     expect(await response.json()).toEqual({ detail: "Experiment thread not found" });
+  });
+
+  it("returns 401 when the user is not signed in", async () => {
+    getRequiredViewerUserIdMock.mockResolvedValue({
+      viewerUserId: null,
+      detail: "Sign in to use experiment threads.",
+      status: 401,
+    });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/experiments/threads/thread-1/messages",
+      {
+        method: "POST",
+        body: JSON.stringify({ content: "hello" }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    const response = await POST(request, {
+      params: Promise.resolve({ threadId: "thread-1" }),
+    });
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      detail: "Sign in to use experiment threads.",
+    });
+    expect(createExperimentMessageMock).not.toHaveBeenCalled();
   });
 });

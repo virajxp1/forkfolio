@@ -14,12 +14,19 @@ MESSAGE_ID = "33333333-3333-3333-3333-333333333333"
 
 
 class StubExperimentService:
-    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
+    def list_threads(
+        self,
+        limit: int = 20,
+        include_test: bool = False,
+        viewer_user_id: str | None = None,
+    ) -> list[dict]:
+        del viewer_user_id
         test_thread = {
             "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
             "mode": "invent_new",
             "title": "Experiment E2E seed",
             "metadata": {"orchestration": "langgraph-ready", "is_test": True},
+            "created_by_user_id": None,
             "created_at": "2026-03-16T00:00:00+00:00",
             "updated_at": "2026-03-16T00:01:00+00:00",
             "last_message_role": "assistant",
@@ -32,6 +39,7 @@ class StubExperimentService:
                 "mode": "modify_existing",
                 "title": "Veganize tikka masala",
                 "metadata": {"orchestration": "langgraph-ready"},
+                "created_by_user_id": None,
                 "created_at": "2026-03-16T00:00:00+00:00",
                 "updated_at": "2026-03-16T00:01:00+00:00",
                 "last_message_role": "assistant",
@@ -48,6 +56,7 @@ class StubExperimentService:
         context_recipe_ids: list[str] | None = None,
         include_test_data: bool = False,
         is_test: bool = False,
+        created_by_user_id: str | None = None,
     ) -> dict:
         del include_test_data
         if context_recipe_ids and RECIPE_ID not in context_recipe_ids:
@@ -63,6 +72,7 @@ class StubExperimentService:
                 "orchestration": "langgraph-ready",
                 **({"is_test": True} if is_test else {}),
             },
+            "created_by_user_id": created_by_user_id,
             "context_recipe_ids": context_recipe_ids or [],
             "messages": [],
             "created_at": "2026-03-16T00:00:00+00:00",
@@ -74,8 +84,10 @@ class StubExperimentService:
         thread_id: str,
         message_limit: int = 100,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict:
         del include_test_data
+        del viewer_user_id
         if thread_id != THREAD_ID:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
         return {
@@ -83,6 +95,7 @@ class StubExperimentService:
             "mode": "modify_existing",
             "title": "Veganize tikka masala",
             "metadata": {"orchestration": "langgraph-ready"},
+            "created_by_user_id": None,
             "context_recipe_ids": [RECIPE_ID],
             "messages": [
                 {
@@ -108,8 +121,10 @@ class StubExperimentService:
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict:
         del include_test_data
+        del viewer_user_id
         if thread_id != THREAD_ID:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
         if context_recipe_ids and RECIPE_ID not in context_recipe_ids:
@@ -156,8 +171,10 @@ class StubExperimentService:
         attach_recipe_ids: list[str] | None = None,
         attach_recipe_names: list[str] | None = None,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ):
         del include_test_data
+        del viewer_user_id
         if thread_id != THREAD_ID:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
         yield {"event": "status", "data": {"step": "drafting"}}
@@ -232,6 +249,19 @@ def test_create_experiment_thread_missing_context_recipe_returns_404() -> None:
     detail = response.json()["detail"]
     assert detail["message"] == "One or more context recipes were not found."
     assert detail["missing_recipe_ids"] == [THREAD_ID]
+
+
+def test_create_experiment_thread_rejects_invalid_viewer_header() -> None:
+    client = TestClient(build_experiments_app())
+
+    response = client.post(
+        "/api/v1/experiments/threads",
+        headers={"X-Viewer-User-Id": "not-a-uuid"},
+        json={"mode": "invent_new"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid X-Viewer-User-Id header"
 
 
 def test_get_experiment_thread_success() -> None:
