@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createExperimentMessage, isForkfolioApiError } from "@/lib/forkfolio-api";
+import { getRequiredViewerUserId } from "@/lib/supabase/viewer";
 import type { CreateExperimentMessageRequest } from "@/lib/forkfolio-types";
 
 type ThreadMessageRoutePayload = {
@@ -113,10 +114,22 @@ export async function POST(
     );
   }
 
+  const viewerResult = await getRequiredViewerUserId(
+    "Experiment threads",
+    "Sign in to use experiment threads.",
+  );
+  if (!viewerResult.viewerUserId) {
+    return NextResponse.json(
+      { detail: viewerResult.detail },
+      { status: viewerResult.status },
+    );
+  }
+
   try {
     const response = await createExperimentMessage(
       normalizedThreadId,
       normalizedPayload.payload,
+      viewerResult.viewerUserId,
     );
     return NextResponse.json(response, {
       status: 200,

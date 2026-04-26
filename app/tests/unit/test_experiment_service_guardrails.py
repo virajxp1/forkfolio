@@ -10,8 +10,13 @@ class FakeRecipeManager:
     def __init__(self, recipes: dict[str, dict] | None = None) -> None:
         self.recipes = recipes or {}
 
-    def get_full_recipe(self, recipe_id: str, include_test_data: bool = False):
-        del include_test_data
+    def get_full_recipe(
+        self,
+        recipe_id: str,
+        include_test_data: bool = False,
+        viewer_user_id: str | None = None,
+    ):
+        del include_test_data, viewer_user_id
         recipe = self.recipes.get(recipe_id)
         if recipe is None:
             return None
@@ -22,8 +27,9 @@ class FakeRecipeManager:
         query: str,
         limit: int = 1,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ):
-        del query, limit, include_test_data
+        del query, limit, include_test_data, viewer_user_id
         return []
 
 
@@ -34,6 +40,7 @@ class FakeExperimentManager:
             "id": "thread-1",
             "title": None,
             "metadata": {"orchestration": "langgraph-ready"},
+            "created_by_user_id": None,
             "context_recipe_ids": [],
             "messages": [],
             "created_at": now,
@@ -47,8 +54,9 @@ class FakeExperimentManager:
         thread_id: str,
         message_limit: int = 100,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict | None:
-        del include_test_data
+        del include_test_data, viewer_user_id
         if thread_id != self.thread["id"]:
             return None
         payload = dict(self.thread)
@@ -57,8 +65,12 @@ class FakeExperimentManager:
         return payload
 
     def set_context_recipe_ids(
-        self, thread_id: str, context_recipe_ids: list[str]
+        self,
+        thread_id: str,
+        context_recipe_ids: list[str],
+        viewer_user_id: str | None = None,
     ) -> None:
+        del viewer_user_id
         if thread_id == self.thread["id"]:
             self.thread["context_recipe_ids"] = list(context_recipe_ids)
 
@@ -69,8 +81,9 @@ class FakeExperimentManager:
         content: str,
         tool_name=None,
         tool_call=None,
+        viewer_user_id: str | None = None,
     ) -> dict | None:
-        del tool_name, tool_call
+        del tool_name, tool_call, viewer_user_id
         if thread_id != self.thread["id"]:
             return None
         self._sequence += 1
@@ -87,14 +100,26 @@ class FakeExperimentManager:
         self.messages.append(message)
         return message
 
-    def set_thread_title_if_empty(self, thread_id: str, title: str) -> bool:
+    def set_thread_title_if_empty(
+        self,
+        thread_id: str,
+        title: str,
+        viewer_user_id: str | None = None,
+    ) -> bool:
+        del viewer_user_id
         if thread_id != self.thread["id"]:
             return False
         if not self.thread["title"]:
             self.thread["title"] = title
         return True
 
-    def list_messages(self, thread_id: str, limit: int = 100) -> list[dict]:
+    def list_messages(
+        self,
+        thread_id: str,
+        limit: int = 100,
+        viewer_user_id: str | None = None,
+    ) -> list[dict]:
+        del viewer_user_id
         if thread_id != self.thread["id"]:
             return []
         return list(self.messages[-max(1, limit) :])
@@ -103,15 +128,20 @@ class FakeExperimentManager:
         self,
         thread_id: str,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[str]:
-        del include_test_data
+        del include_test_data, viewer_user_id
         if thread_id != self.thread["id"]:
             return []
         return list(self.thread["context_recipe_ids"])
 
-    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
-        del include_test
-        del limit
+    def list_threads(
+        self,
+        limit: int = 20,
+        include_test: bool = False,
+        viewer_user_id: str | None = None,
+    ) -> list[dict]:
+        del include_test, limit, viewer_user_id
         return [dict(self.thread)]
 
 

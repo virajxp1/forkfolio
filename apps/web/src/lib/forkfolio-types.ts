@@ -251,6 +251,7 @@ export type ExperimentThreadRecord = {
   id: string;
   title: string | null;
   metadata: Record<string, unknown>;
+  created_by_user_id?: string | null;
   context_recipe_ids: string[];
   messages: ExperimentMessageRecord[];
   created_at: string | null;
@@ -285,6 +286,7 @@ export type ExperimentThreadSummary = {
   id: string;
   title: string | null;
   metadata: Record<string, unknown>;
+  created_by_user_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
   last_message_role: ExperimentMessageRole | null;

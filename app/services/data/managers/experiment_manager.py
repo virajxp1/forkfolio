@@ -13,35 +13,55 @@ THREAD_INSERT_SQL = """
 INSERT INTO experiment_threads (
     mode,
     title,
-    metadata
+    metadata,
+    created_by_user_id
 )
-VALUES (%s, %s, %s)
+VALUES (%s, %s, %s, %s)
 RETURNING
     id,
     title,
     metadata,
+    created_by_user_id,
     created_at,
     updated_at
+"""
+
+THREAD_OWNER_SCOPE_SQL = """
+(
+    (%s IS NULL AND t.created_by_user_id IS NULL)
+    OR t.created_by_user_id = %s
+)
 """
 
 THREAD_GET_SQL = """
 SELECT
-    id,
-    title,
-    metadata,
-    created_at,
-    updated_at
-FROM experiment_threads
-WHERE id = %s
-"""
+    t.id,
+    t.title,
+    t.metadata,
+    t.created_by_user_id,
+    t.created_at,
+    t.updated_at
+FROM experiment_threads t
+WHERE t.id = %s
+  AND """
+THREAD_GET_SQL += THREAD_OWNER_SCOPE_SQL
 
-THREAD_EXISTS_SQL = "SELECT 1 FROM experiment_threads WHERE id = %s"
+THREAD_EXISTS_SQL = """
+SELECT 1
+FROM experiment_threads t
+WHERE t.id = %s
+  AND """
+THREAD_EXISTS_SQL += THREAD_OWNER_SCOPE_SQL
 
 THREAD_CONTEXT_GET_SQL = """
 SELECT ecr.recipe_id
 FROM experiment_context_recipes ecr
+JOIN experiment_threads t ON t.id = ecr.thread_id
 JOIN recipes r ON r.id = ecr.recipe_id
 WHERE ecr.thread_id = %s
+  AND """
+THREAD_CONTEXT_GET_SQL += THREAD_OWNER_SCOPE_SQL
+THREAD_CONTEXT_GET_SQL += """
   AND (%s OR COALESCE(r.is_test_data, FALSE) = FALSE)
 ORDER BY ecr.added_at, ecr.recipe_id
 """
@@ -59,9 +79,11 @@ WHERE thread_id = %s
 
 MESSAGE_NEXT_SEQUENCE_SQL = """
 SELECT COALESCE(MAX(sequence_no), 0) + 1 AS next_sequence
-FROM experiment_messages
-WHERE thread_id = %s
-"""
+FROM experiment_messages em
+JOIN experiment_threads t ON t.id = em.thread_id
+WHERE em.thread_id = %s
+  AND """
+MESSAGE_NEXT_SEQUENCE_SQL += THREAD_OWNER_SCOPE_SQL
 
 MESSAGE_INSERT_SQL = """
 INSERT INTO experiment_messages (
@@ -86,17 +108,21 @@ RETURNING
 
 MESSAGES_GET_SQL = """
 SELECT
-    id,
-    thread_id,
-    sequence_no,
-    role,
-    content,
-    tool_name,
-    tool_call,
-    created_at
-FROM experiment_messages
-WHERE thread_id = %s
-ORDER BY sequence_no DESC
+    em.id,
+    em.thread_id,
+    em.sequence_no,
+    em.role,
+    em.content,
+    em.tool_name,
+    em.tool_call,
+    em.created_at
+FROM experiment_messages em
+JOIN experiment_threads t ON t.id = em.thread_id
+WHERE em.thread_id = %s
+  AND """
+MESSAGES_GET_SQL += THREAD_OWNER_SCOPE_SQL
+MESSAGES_GET_SQL += """
+ORDER BY em.sequence_no DESC
 LIMIT %s
 """
 
@@ -105,6 +131,7 @@ SELECT
     t.id,
     t.title,
     t.metadata,
+    t.created_by_user_id,
     t.created_at,
     t.updated_at,
     m.role AS last_message_role,
@@ -118,22 +145,29 @@ LEFT JOIN LATERAL (
     ORDER BY sequence_no DESC
     LIMIT 1
 ) m ON true
+WHERE """
+THREADS_LIST_SQL += THREAD_OWNER_SCOPE_SQL
+THREADS_LIST_SQL += """
 ORDER BY t.updated_at DESC, t.created_at DESC
 LIMIT %s
 """
 
 THREAD_TITLE_UPDATE_IF_EMPTY_SQL = """
-UPDATE experiment_threads
+UPDATE experiment_threads t
 SET title = %s
-WHERE id = %s
-  AND (title IS NULL OR btrim(title) = '')
+WHERE t.id = %s
+  AND """
+THREAD_TITLE_UPDATE_IF_EMPTY_SQL += THREAD_OWNER_SCOPE_SQL
+THREAD_TITLE_UPDATE_IF_EMPTY_SQL += """
+  AND (t.title IS NULL OR btrim(t.title) = '')
 """
 
 THREAD_TOUCH_SQL = """
-UPDATE experiment_threads
+UPDATE experiment_threads t
 SET updated_at = NOW()
-WHERE id = %s
-"""
+WHERE t.id = %s
+  AND """
+THREAD_TOUCH_SQL += THREAD_OWNER_SCOPE_SQL
 
 TEST_THREAD_TITLE_PATTERN = re.compile(
     r"\b("
@@ -181,6 +215,11 @@ class ExperimentManager(BaseManager):
             "id": str(row["id"]),
             "title": row["title"],
             "metadata": row.get("metadata") or {},
+            "created_by_user_id": (
+                str(row["created_by_user_id"])
+                if row.get("created_by_user_id") is not None
+                else None
+            ),
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
         }
@@ -238,8 +277,22 @@ class ExperimentManager(BaseManager):
         title = thread.get("title")
         return isinstance(title, str) and bool(TEST_THREAD_TITLE_PATTERN.search(title))
 
-    def _thread_exists(self, cursor, thread_id: str) -> bool:
-        cursor.execute(THREAD_EXISTS_SQL, (thread_id,))
+    @staticmethod
+    def _owner_scope_params(
+        viewer_user_id: str | None,
+    ) -> tuple[str | None, str | None]:
+        return (viewer_user_id, viewer_user_id)
+
+    def _thread_exists(
+        self,
+        cursor,
+        thread_id: str,
+        viewer_user_id: str | None = None,
+    ) -> bool:
+        cursor.execute(
+            THREAD_EXISTS_SQL,
+            (thread_id, *self._owner_scope_params(viewer_user_id)),
+        )
         return cursor.fetchone() is not None
 
     def _replace_context_recipes(
@@ -255,10 +308,18 @@ class ExperimentManager(BaseManager):
         self,
         thread_id: str,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[str]:
         try:
             with self.get_db_context() as (_conn, cursor):
-                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id, include_test_data))
+                cursor.execute(
+                    THREAD_CONTEXT_GET_SQL,
+                    (
+                        thread_id,
+                        *self._owner_scope_params(viewer_user_id),
+                        include_test_data,
+                    ),
+                )
                 rows = cursor.fetchall()
                 return [str(row["recipe_id"]) for row in rows]
         except Exception as e:
@@ -269,6 +330,7 @@ class ExperimentManager(BaseManager):
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
         context_recipe_ids: list[str] | None = None,
+        created_by_user_id: str | None = None,
     ) -> dict:
         normalized_context = self._normalize_context_recipe_ids(
             context_recipe_ids or []
@@ -278,7 +340,12 @@ class ExperimentManager(BaseManager):
             with self.get_db_context() as (_conn, cursor):
                 cursor.execute(
                     THREAD_INSERT_SQL,
-                    (DEFAULT_EXPERIMENT_THREAD_MODE, title, Json(metadata_payload)),
+                    (
+                        DEFAULT_EXPERIMENT_THREAD_MODE,
+                        title,
+                        Json(metadata_payload),
+                        created_by_user_id,
+                    ),
                 )
                 row = cursor.fetchone()
                 if row is None:
@@ -302,23 +369,41 @@ class ExperimentManager(BaseManager):
         thread_id: str,
         message_limit: int = 100,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict | None:
         query_limit = max(1, min(int(message_limit), 500))
         try:
             with self.get_db_context() as (_conn, cursor):
-                cursor.execute(THREAD_GET_SQL, (thread_id,))
+                cursor.execute(
+                    THREAD_GET_SQL,
+                    (thread_id, *self._owner_scope_params(viewer_user_id)),
+                )
                 row = cursor.fetchone()
                 if row is None:
                     return None
 
                 thread = self._serialize_thread(dict(row))
-                cursor.execute(THREAD_CONTEXT_GET_SQL, (thread_id, include_test_data))
+                cursor.execute(
+                    THREAD_CONTEXT_GET_SQL,
+                    (
+                        thread_id,
+                        *self._owner_scope_params(viewer_user_id),
+                        include_test_data,
+                    ),
+                )
                 context_rows = cursor.fetchall()
                 thread["context_recipe_ids"] = [
                     str(context_row["recipe_id"]) for context_row in context_rows
                 ]
 
-                cursor.execute(MESSAGES_GET_SQL, (thread_id, query_limit))
+                cursor.execute(
+                    MESSAGES_GET_SQL,
+                    (
+                        thread_id,
+                        *self._owner_scope_params(viewer_user_id),
+                        query_limit,
+                    ),
+                )
                 message_rows = cursor.fetchall()
                 # Query fetches latest messages first for limit efficiency.
                 messages = [
@@ -330,11 +415,14 @@ class ExperimentManager(BaseManager):
             raise DatabaseError(f"Failed to load experiment thread: {e!s}") from e
 
     def set_context_recipe_ids(
-        self, thread_id: str, context_recipe_ids: list[str]
+        self,
+        thread_id: str,
+        context_recipe_ids: list[str],
+        viewer_user_id: str | None = None,
     ) -> bool:
         try:
             with self.get_db_context() as (_conn, cursor):
-                if not self._thread_exists(cursor, thread_id):
+                if not self._thread_exists(cursor, thread_id, viewer_user_id):
                     return False
                 self._replace_context_recipes(cursor, thread_id, context_recipe_ids)
                 return True
@@ -343,11 +431,23 @@ class ExperimentManager(BaseManager):
                 f"Failed to update thread context recipes: {e!s}"
             ) from e
 
-    def list_messages(self, thread_id: str, limit: int = 100) -> list[dict]:
+    def list_messages(
+        self,
+        thread_id: str,
+        limit: int = 100,
+        viewer_user_id: str | None = None,
+    ) -> list[dict]:
         query_limit = max(1, min(int(limit), 500))
         try:
             with self.get_db_context() as (_conn, cursor):
-                cursor.execute(MESSAGES_GET_SQL, (thread_id, query_limit))
+                cursor.execute(
+                    MESSAGES_GET_SQL,
+                    (
+                        thread_id,
+                        *self._owner_scope_params(viewer_user_id),
+                        query_limit,
+                    ),
+                )
                 rows = cursor.fetchall()
                 messages = [self._serialize_message(dict(item)) for item in rows]
                 return list(reversed(messages))
@@ -361,6 +461,7 @@ class ExperimentManager(BaseManager):
         content: str,
         tool_name: str | None = None,
         tool_call: dict[str, Any] | None = None,
+        viewer_user_id: str | None = None,
     ) -> dict | None:
         normalized_content = content.strip()
         if not normalized_content:
@@ -368,10 +469,13 @@ class ExperimentManager(BaseManager):
 
         try:
             with self.get_db_context() as (_conn, cursor):
-                if not self._thread_exists(cursor, thread_id):
+                if not self._thread_exists(cursor, thread_id, viewer_user_id):
                     return None
 
-                cursor.execute(MESSAGE_NEXT_SEQUENCE_SQL, (thread_id,))
+                cursor.execute(
+                    MESSAGE_NEXT_SEQUENCE_SQL,
+                    (thread_id, *self._owner_scope_params(viewer_user_id)),
+                )
                 sequence_row = cursor.fetchone()
                 if not sequence_row:
                     raise DatabaseError("Unable to compute next message sequence")
@@ -394,12 +498,20 @@ class ExperimentManager(BaseManager):
                 row = cursor.fetchone()
                 if row is None:
                     raise DatabaseError("Message insertion returned no row")
-                cursor.execute(THREAD_TOUCH_SQL, (thread_id,))
+                cursor.execute(
+                    THREAD_TOUCH_SQL,
+                    (thread_id, *self._owner_scope_params(viewer_user_id)),
+                )
                 return self._serialize_message(dict(row))
         except Exception as e:
             raise DatabaseError(f"Failed to create experiment message: {e!s}") from e
 
-    def set_thread_title_if_empty(self, thread_id: str, title: str) -> bool:
+    def set_thread_title_if_empty(
+        self,
+        thread_id: str,
+        title: str,
+        viewer_user_id: str | None = None,
+    ) -> bool:
         normalized_title = title.strip()
         if not normalized_title:
             return False
@@ -407,18 +519,30 @@ class ExperimentManager(BaseManager):
             with self.get_db_context() as (_conn, cursor):
                 cursor.execute(
                     THREAD_TITLE_UPDATE_IF_EMPTY_SQL,
-                    (normalized_title, thread_id),
+                    (
+                        normalized_title,
+                        thread_id,
+                        *self._owner_scope_params(viewer_user_id),
+                    ),
                 )
                 return cursor.rowcount > 0
         except Exception as e:
             raise DatabaseError(f"Failed to update thread title: {e!s}") from e
 
-    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
+    def list_threads(
+        self,
+        limit: int = 20,
+        include_test: bool = False,
+        viewer_user_id: str | None = None,
+    ) -> list[dict]:
         query_limit = max(1, min(int(limit), 100))
         fetch_limit = query_limit if include_test else 500
         try:
             with self.get_db_context() as (_conn, cursor):
-                cursor.execute(THREADS_LIST_SQL, (fetch_limit,))
+                cursor.execute(
+                    THREADS_LIST_SQL,
+                    (*self._owner_scope_params(viewer_user_id), fetch_limit),
+                )
                 rows = cursor.fetchall()
                 threads: list[dict] = []
                 for row in rows:

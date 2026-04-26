@@ -1,13 +1,14 @@
 import json
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from app.api.schemas import (
     ExperimentMessageCreateRequest,
     ExperimentThreadCreateRequest,
 )
+from app.api.v1.helpers.request_auth import viewer_user_id_from_request
 from app.core.config import settings
 from app.core.dependencies import get_experiment_service
 from app.core.logging import get_logger
@@ -38,15 +39,18 @@ def _to_sse_chunk(event: str, payload: dict) -> str:
 
 @router.post("/threads")
 def create_experiment_thread(
+    request: Request,
     payload: ExperimentThreadCreateRequest = EXPERIMENT_BODY,
     experiment_service=experiment_service_dep,
 ) -> dict:
+    viewer_user_id = viewer_user_id_from_request(request)
     try:
         thread = experiment_service.create_thread(
             title=payload.title,
             context_recipe_ids=_to_string_ids(payload.context_recipe_ids),
             include_test_data=payload.include_test_data,
             is_test=payload.is_test,
+            created_by_user_id=viewer_user_id,
         )
         return {"thread": thread, "success": True}
     except ExperimentValidationError as e:
@@ -68,6 +72,7 @@ def create_experiment_thread(
 
 @router.get("/threads")
 def list_experiment_threads(
+    request: Request,
     limit: int = Query(
         default=20,
         ge=1,
@@ -80,10 +85,12 @@ def list_experiment_threads(
     ),
     experiment_service=experiment_service_dep,
 ) -> dict:
+    viewer_user_id = viewer_user_id_from_request(request)
     try:
         threads = experiment_service.list_threads(
             limit=limit,
             include_test=include_test,
+            viewer_user_id=viewer_user_id,
         )
         return {"threads": threads, "count": len(threads), "success": True}
     except Exception as e:
@@ -95,6 +102,7 @@ def list_experiment_threads(
 
 @router.get("/threads/{thread_id}")
 def get_experiment_thread(
+    request: Request,
     thread_id: UUID,
     message_limit: int = Query(
         default=120,
@@ -109,11 +117,13 @@ def get_experiment_thread(
     experiment_service=experiment_service_dep,
 ) -> dict:
     thread_id_str = str(thread_id)
+    viewer_user_id = viewer_user_id_from_request(request)
     try:
         thread = experiment_service.get_thread(
             thread_id=thread_id_str,
             message_limit=message_limit,
             include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         return {"thread": thread, "success": True}
     except ExperimentThreadNotFoundError as e:
@@ -127,11 +137,13 @@ def get_experiment_thread(
 
 @router.post("/threads/{thread_id}/messages")
 def create_experiment_message(
+    request: Request,
     thread_id: UUID,
     payload: ExperimentMessageCreateRequest = EXPERIMENT_BODY,
     experiment_service=experiment_service_dep,
 ) -> dict:
     thread_id_str = str(thread_id)
+    viewer_user_id = viewer_user_id_from_request(request)
     context_recipe_ids = (
         _to_string_ids(payload.context_recipe_ids)
         if payload.context_recipe_ids is not None
@@ -151,6 +163,7 @@ def create_experiment_message(
             attach_recipe_ids=attach_recipe_ids,
             attach_recipe_names=attach_recipe_names,
             include_test_data=payload.include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         return {"thread_id": thread_id_str, **response_payload, "success": True}
     except ExperimentThreadNotFoundError as e:
@@ -176,11 +189,13 @@ def create_experiment_message(
 
 @router.post("/threads/{thread_id}/messages/stream")
 def stream_experiment_message(
+    request: Request,
     thread_id: UUID,
     payload: ExperimentMessageCreateRequest = EXPERIMENT_BODY,
     experiment_service=experiment_service_dep,
 ):
     thread_id_str = str(thread_id)
+    viewer_user_id = viewer_user_id_from_request(request)
     context_recipe_ids = (
         _to_string_ids(payload.context_recipe_ids)
         if payload.context_recipe_ids is not None
@@ -202,6 +217,7 @@ def stream_experiment_message(
                 attach_recipe_ids=attach_recipe_ids,
                 attach_recipe_names=attach_recipe_names,
                 include_test_data=payload.include_test_data,
+                viewer_user_id=viewer_user_id,
             )
             for event_payload in event_iterator:
                 event_name = str(event_payload.get("event", "message"))

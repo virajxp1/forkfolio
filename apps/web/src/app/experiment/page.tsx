@@ -1,11 +1,28 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { History, Loader2, Paperclip, Plus, Send, Sparkles, X } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  History,
+  Loader2,
+  LockKeyhole,
+  Paperclip,
+  Plus,
+  Send,
+  Sparkles,
+  X,
+} from "lucide-react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { AuthProfileButton } from "@/components/auth-profile-button";
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +71,8 @@ type ParsedSseEvent = {
   event: string;
   data: unknown;
 };
+
+type ExperimentAccessState = "ready" | "auth_required" | "auth_unavailable";
 
 const STARTER_PROMPTS = [
   "Invent a new weeknight dinner with at least 30g protein per serving.",
@@ -229,6 +248,49 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function getAccessState(error: unknown): ExperimentAccessState | null {
+  if (!(error instanceof BrowserApiError)) {
+    return null;
+  }
+  if (error.status === 401) {
+    return "auth_required";
+  }
+  if (error.status === 503) {
+    return "auth_unavailable";
+  }
+  return null;
+}
+
+function getAccessStateCopy(accessState: ExperimentAccessState): {
+  badgeLabel: string;
+  title: string;
+  description: string;
+  sidebarTitle: string;
+  sidebarDescription: string;
+} {
+  if (accessState === "auth_required") {
+    return {
+      badgeLabel: "Private workspace",
+      title: "Sign in to open Recipe Lab",
+      description:
+        "Your experiment threads, recipe attachments, and saved context now stay tied to your account. Sign in to keep brainstorming where you left off.",
+      sidebarTitle: "Sign in for history",
+      sidebarDescription:
+        "Thread history is now private to each account, so the lab stays personal instead of shared.",
+    };
+  }
+
+  return {
+    badgeLabel: "Setup required",
+    title: "Recipe Lab needs authentication setup",
+    description:
+      "Private experiment threads depend on Supabase Auth. Add the auth configuration, then reload to unlock history and messaging.",
+    sidebarTitle: "Authentication unavailable",
+    sidebarDescription:
+      "Recipe Lab history cannot load until authentication is configured for this environment.",
+  };
+}
+
 function formatThreadLabel(thread: ExperimentThreadSummary): string {
   const base = thread.title?.trim() ? thread.title.trim() : "Untitled conversation";
   return base.length > 64 ? `${base.slice(0, 61)}...` : base;
@@ -336,6 +398,7 @@ export default function ExperimentPage() {
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [accessState, setAccessState] = useState<ExperimentAccessState>("ready");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attachmentFeedback, setAttachmentFeedback] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
@@ -356,13 +419,32 @@ export default function ExperimentPage() {
     messageInput.trim().length > 0 &&
     !isCreatingThread &&
     !isLoadingThread;
+  const isAccessBlocked = accessState !== "ready";
+  const accessStateCopy = isAccessBlocked ? getAccessStateCopy(accessState) : null;
+
+  function applyAccessState(nextAccessState: ExperimentAccessState) {
+    setAccessState(nextAccessState);
+    setThread(null);
+    setThreadHistory([]);
+    setPendingAttachments([]);
+    setAttachmentFeedback(null);
+    setStreamStatus(null);
+    setStreamingMessageId(null);
+    setErrorMessage(null);
+  }
 
   async function refreshHistory() {
     setIsLoadingHistory(true);
     try {
       const response = await listThreadsClient(40);
+      setAccessState("ready");
       setThreadHistory(response.threads ?? []);
-    } catch {
+    } catch (error) {
+      const nextAccessState = getAccessState(error);
+      if (nextAccessState) {
+        applyAccessState(nextAccessState);
+        return;
+      }
       setThreadHistory([]);
     } finally {
       setIsLoadingHistory(false);
@@ -377,8 +459,12 @@ export default function ExperimentPage() {
     });
   }
 
-  useEffect(() => {
+  const loadInitialHistory = useEffectEvent(() => {
     void refreshHistory();
+  });
+
+  useEffect(() => {
+    loadInitialHistory();
   }, []);
 
   useEffect(() => {
@@ -443,10 +529,16 @@ export default function ExperimentPage() {
 
     try {
       const response = await createThreadClient();
+      setAccessState("ready");
       const nextThread = normalizeThread(response.thread);
       setThread(nextThread);
       await refreshHistory();
     } catch (error) {
+      const nextAccessState = getAccessState(error);
+      if (nextAccessState) {
+        applyAccessState(nextAccessState);
+        return;
+      }
       setErrorMessage(getErrorMessage(error, "Failed to start a new conversation."));
     } finally {
       setIsCreatingThread(false);
@@ -467,9 +559,15 @@ export default function ExperimentPage() {
     setIsLoadingThread(true);
     try {
       const response = await getThreadClient(normalizedThreadId);
+      setAccessState("ready");
       const nextThread = normalizeThread(response.thread);
       setThread(nextThread);
     } catch (error) {
+      const nextAccessState = getAccessState(error);
+      if (nextAccessState) {
+        applyAccessState(nextAccessState);
+        return;
+      }
       setErrorMessage(getErrorMessage(error, "Failed to load conversation."));
     } finally {
       setIsLoadingThread(false);
@@ -515,11 +613,20 @@ export default function ExperimentPage() {
       setIsCreatingThread(true);
       try {
         const createResponse = await createThreadClient();
+        setAccessState("ready");
         activeThread = normalizeThread(createResponse.thread);
         setThread(activeThread);
         upsertThreadHistory(activeThread);
         void refreshHistory();
       } catch (error) {
+        const nextAccessState = getAccessState(error);
+        if (nextAccessState) {
+          applyAccessState(nextAccessState);
+          setIsSendingMessage(false);
+          setStreamStatus(null);
+          setStreamingMessageId(null);
+          return;
+        }
         setErrorMessage(getErrorMessage(error, "Failed to start a new conversation."));
         setIsSendingMessage(false);
         setStreamStatus(null);
@@ -757,6 +864,11 @@ export default function ExperimentPage() {
       }
       upsertThreadHistory(nextThreadSummary);
     } catch (error) {
+      const nextAccessState = getAccessState(error);
+      if (nextAccessState) {
+        applyAccessState(nextAccessState);
+        return;
+      }
       setThread(previousThreadSnapshot);
       setErrorMessage(getErrorMessage(error, "Failed to send message."));
     } finally {
@@ -806,24 +918,33 @@ export default function ExperimentPage() {
             <CardHeader className="space-y-3">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <History className="size-4 text-primary" />
-                History
+                {isAccessBlocked ? "Private history" : "History"}
               </CardTitle>
-              <Button onClick={() => void handleNewThread()} disabled={isCreatingThread}>
-                {isCreatingThread ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Starting…
-                  </>
-                ) : (
-                  <>
-                    <Plus className="size-4" />
-                    New Thread
-                  </>
-                )}
-              </Button>
+              {!isAccessBlocked ? (
+                <Button onClick={() => void handleNewThread()} disabled={isCreatingThread}>
+                  {isCreatingThread ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Starting…
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="size-4" />
+                      New Thread
+                    </>
+                  )}
+                </Button>
+              ) : null}
             </CardHeader>
             <CardContent className="h-[calc(82vh-8rem)] space-y-2 overflow-y-auto">
-              {isLoadingHistory ? (
+              {isAccessBlocked && accessStateCopy ? (
+                <div className="flex h-full flex-col justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
+                  <p className="text-sm font-semibold">{accessStateCopy.sidebarTitle}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {accessStateCopy.sidebarDescription}
+                  </p>
+                </div>
+              ) : isLoadingHistory ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : threadHistory.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No conversation history yet.</p>
@@ -855,12 +976,16 @@ export default function ExperimentPage() {
           <Card className="h-[82vh] overflow-hidden">
             <CardHeader>
               <CardTitle>
-                {thread
+                {isAccessBlocked && accessStateCopy
+                  ? accessStateCopy.title
+                  : thread
                   ? thread.title?.trim() || "Untitled conversation"
                   : "Start a new conversation"}
               </CardTitle>
               <CardDescription>
-                {thread
+                {isAccessBlocked && accessStateCopy
+                  ? accessStateCopy.description
+                  : thread
                   ? "Continue the thread or attach recipes before your next message."
                   : "Type a message to start instantly, or use New Thread."}
               </CardDescription>
@@ -878,7 +1003,66 @@ export default function ExperimentPage() {
               ) : null}
 
               <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-muted/20">
-                {!thread ? (
+                {isAccessBlocked && accessStateCopy ? (
+                  <div className="flex h-full items-center justify-center overflow-y-auto p-4 sm:p-6">
+                    <div className="w-full max-w-2xl rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm sm:p-6">
+                      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="space-y-4">
+                          <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                            <LockKeyhole className="size-5" />
+                          </span>
+                          <div className="space-y-2">
+                            <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                              {accessStateCopy.badgeLabel}
+                            </p>
+                            <h2 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+                              {accessStateCopy.title}
+                            </h2>
+                            <p className="max-w-[56ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
+                              {accessStateCopy.description}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="secondary" className="rounded-full px-3 py-1">
+                              Private history
+                            </Badge>
+                            <Badge variant="secondary" className="rounded-full px-3 py-1">
+                              Saved recipe context
+                            </Badge>
+                            <Badge variant="secondary" className="rounded-full px-3 py-1">
+                              Account-scoped drafts
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
+                          {accessState === "auth_required" ? (
+                            <>
+                              <AuthProfileButton />
+                              <p className="max-w-xs text-sm text-muted-foreground lg:text-right">
+                                Sign in here or from the header to continue in your personal lab.
+                              </p>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => void refreshHistory()}
+                              >
+                                Check again
+                              </Button>
+                              <p className="max-w-xs text-sm text-muted-foreground lg:text-right">
+                                Once authentication is configured, reload this view to restore
+                                thread history and messaging.
+                              </p>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : !thread ? (
                   <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 sm:p-5">
                     <div className="rounded-lg border border-border/70 bg-background/90 p-4">
                       <div className="flex items-center gap-2">
@@ -983,205 +1167,211 @@ export default function ExperimentPage() {
                 )}
               </div>
 
-              <form
-                className="space-y-3 rounded-lg border border-border/70 bg-card/30 p-3"
-                onSubmit={handleSendMessage}
-              >
-                <div className="space-y-2">
-                  <Label htmlFor="message-input">Your message</Label>
-                  <Textarea
-                    id="message-input"
-                    value={messageInput}
-                    onChange={(event) => setMessageInput(event.target.value)}
-                    placeholder="Attach chicken tikka masala and make it vegan + high protein."
-                    className="min-h-24"
-                    disabled={isBusy}
-                  />
-                </div>
-
-                {pendingAttachments.length > 0 ? (
+              {!isAccessBlocked ? (
+                <form
+                  className="space-y-3 rounded-lg border border-border/70 bg-card/30 p-3"
+                  onSubmit={handleSendMessage}
+                >
                   <div className="space-y-2">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Attached to next message
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {pendingAttachments.map((attachment) => (
-                        <Badge
-                          key={attachment.id}
-                          variant="secondary"
-                          className="inline-flex items-center gap-1"
-                        >
-                          <span>{attachment.name}</span>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-xs"
-                            className="opacity-80 transition-opacity hover:opacity-100"
-                            onClick={() => removePendingAttachment(attachment.id)}
-                            aria-label={`Remove ${attachment.name}`}
-                          >
-                            <X className="size-3" />
-                          </Button>
-                        </Badge>
-                      ))}
-                    </div>
+                    <Label htmlFor="message-input">Your message</Label>
+                    <Textarea
+                      id="message-input"
+                      value={messageInput}
+                      onChange={(event) => setMessageInput(event.target.value)}
+                      placeholder="Attach chicken tikka masala and make it vegan + high protein."
+                      className="min-h-24"
+                      disabled={isBusy}
+                    />
                   </div>
-                ) : null}
 
-                <div className="flex items-center justify-between gap-2">
-                  <Dialog open={isAttachDialogOpen} onOpenChange={setIsAttachDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button type="button" variant="outline" disabled={isBusy}>
-                        <Paperclip className="size-4" />
-                        Attach
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="max-w-xl gap-0 p-0">
-                      <DialogHeader className="border-b px-5 py-4">
-                        <DialogTitle>Attach Recipes</DialogTitle>
-                        <DialogDescription>
-                          Search by recipe name. Add one or more recipes to your next message.
-                        </DialogDescription>
-                      </DialogHeader>
+                  {pendingAttachments.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Attached to next message
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {pendingAttachments.map((attachment) => (
+                          <Badge
+                            key={attachment.id}
+                            variant="secondary"
+                            className="inline-flex items-center gap-1"
+                          >
+                            <span>{attachment.name}</span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-xs"
+                              className="opacity-80 transition-opacity hover:opacity-100"
+                              onClick={() => removePendingAttachment(attachment.id)}
+                              aria-label={`Remove ${attachment.name}`}
+                            >
+                              <X className="size-3" />
+                            </Button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
 
-                      <div className="space-y-4 px-5 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="attach-search-input">Recipe name</Label>
-                          <Input
-                            id="attach-search-input"
-                            value={attachSearchInput}
-                            onChange={(event) => setAttachSearchInput(event.target.value)}
-                            placeholder="Search chicken tikka masala"
-                          />
-                          {normalizedAttachQuery.length > 0 && normalizedAttachQuery.length < 3 ? (
-                            <p className="text-sm text-muted-foreground">
-                              Type at least 3 characters.
-                            </p>
-                          ) : null}
-                          {isSearchingAttachments ? (
-                            <p className="text-sm text-muted-foreground">Searching…</p>
-                          ) : null}
-                          {attachSearchError ? (
-                            <p className="text-sm text-destructive">{attachSearchError}</p>
-                          ) : null}
-                        </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <Dialog open={isAttachDialogOpen} onOpenChange={setIsAttachDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button type="button" variant="outline" disabled={isBusy}>
+                          <Paperclip className="size-4" />
+                          Attach
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent className="max-w-xl gap-0 p-0">
+                        <DialogHeader className="border-b px-5 py-4">
+                          <DialogTitle>Attach Recipes</DialogTitle>
+                          <DialogDescription>
+                            Search by recipe name. Add one or more recipes to your next message.
+                          </DialogDescription>
+                        </DialogHeader>
 
-                        <div className="rounded-lg border border-border/70 bg-muted/20">
-                          <div className="max-h-64 space-y-2 overflow-y-auto p-2">
-                            {normalizedAttachQuery.length < 3 ? (
-                              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                Search with at least 3 characters to attach a recipe.
+                        <div className="space-y-4 px-5 py-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="attach-search-input">Recipe name</Label>
+                            <Input
+                              id="attach-search-input"
+                              value={attachSearchInput}
+                              onChange={(event) => setAttachSearchInput(event.target.value)}
+                              placeholder="Search chicken tikka masala"
+                            />
+                            {normalizedAttachQuery.length > 0 && normalizedAttachQuery.length < 3 ? (
+                              <p className="text-sm text-muted-foreground">
+                                Type at least 3 characters.
                               </p>
                             ) : null}
-                            {normalizedAttachQuery.length >= 3 &&
-                            !isSearchingAttachments &&
-                            attachSearchResults.length === 0 &&
-                            !attachSearchError ? (
-                              <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-                                No recipes found for &quot;{normalizedAttachQuery}&quot;.
-                              </p>
+                            {isSearchingAttachments ? (
+                              <p className="text-sm text-muted-foreground">Searching…</p>
                             ) : null}
-                            {attachSearchResults.map((result) => {
-                              const alreadyAttached = pendingAttachments.some(
-                                (item) => item.id === result.id,
-                              );
-                              return (
-                                <div
-                                  key={result.id}
-                                  className="flex items-center justify-between gap-2 rounded-md border border-border/70 bg-background px-3 py-2"
-                                >
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-medium">{result.name}</p>
-                                  </div>
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={alreadyAttached ? "secondary" : "outline"}
-                                    disabled={alreadyAttached}
-                                    aria-label={`Attach ${result.name}`}
-                                    onClick={() => addPendingAttachment(result)}
+                            {attachSearchError ? (
+                              <p className="text-sm text-destructive">{attachSearchError}</p>
+                            ) : null}
+                          </div>
+
+                          <div className="rounded-lg border border-border/70 bg-muted/20">
+                            <div className="max-h-64 space-y-2 overflow-y-auto p-2">
+                              {normalizedAttachQuery.length < 3 ? (
+                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                  Search with at least 3 characters to attach a recipe.
+                                </p>
+                              ) : null}
+                              {normalizedAttachQuery.length >= 3 &&
+                              !isSearchingAttachments &&
+                              attachSearchResults.length === 0 &&
+                              !attachSearchError ? (
+                                <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+                                  No recipes found for &quot;{normalizedAttachQuery}&quot;.
+                                </p>
+                              ) : null}
+                              {attachSearchResults.map((result) => {
+                                const alreadyAttached = pendingAttachments.some(
+                                  (item) => item.id === result.id,
+                                );
+                                return (
+                                  <div
+                                    key={result.id}
+                                    className="flex items-center justify-between gap-2 rounded-md border border-border/70 bg-background px-3 py-2"
                                   >
-                                    {alreadyAttached ? "Added" : "Attach"}
-                                  </Button>
-                                </div>
-                              );
-                            })}
+                                    <div className="min-w-0">
+                                      <p className="truncate text-sm font-medium">
+                                        {result.name}
+                                      </p>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={alreadyAttached ? "secondary" : "outline"}
+                                      disabled={alreadyAttached}
+                                      aria-label={`Attach ${result.name}`}
+                                      onClick={() => addPendingAttachment(result)}
+                                    >
+                                      {alreadyAttached ? "Added" : "Attach"}
+                                    </Button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              Attached to next message
+                            </p>
+                            {pendingAttachments.length > 0 ? (
+                              <div className="flex flex-wrap gap-2">
+                                {pendingAttachments.map((attachment) => (
+                                  <Badge
+                                    key={attachment.id}
+                                    variant="secondary"
+                                    className="inline-flex items-center gap-1"
+                                  >
+                                    <span>{attachment.name}</span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-xs"
+                                      className="opacity-80 transition-opacity hover:opacity-100"
+                                      onClick={() => removePendingAttachment(attachment.id)}
+                                      aria-label={`Remove ${attachment.name}`}
+                                    >
+                                      <X className="size-3" />
+                                    </Button>
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">
+                                No recipes attached yet.
+                              </p>
+                            )}
                           </div>
                         </div>
 
-                        <div className="space-y-2">
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            Attached to next message
+                        <DialogFooter className="border-t px-5 py-3 sm:justify-between">
+                          <p className="text-xs text-muted-foreground">
+                            {pendingAttachments.length} recipe
+                            {pendingAttachments.length === 1 ? "" : "s"} selected
                           </p>
-                          {pendingAttachments.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                              {pendingAttachments.map((attachment) => (
-                                <Badge
-                                  key={attachment.id}
-                                  variant="secondary"
-                                  className="inline-flex items-center gap-1"
-                                >
-                                  <span>{attachment.name}</span>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="icon-xs"
-                                    className="opacity-80 transition-opacity hover:opacity-100"
-                                    onClick={() => removePendingAttachment(attachment.id)}
-                                    aria-label={`Remove ${attachment.name}`}
-                                  >
-                                    <X className="size-3" />
-                                  </Button>
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">No recipes attached yet.</p>
-                          )}
-                        </div>
-                      </div>
+                          <Button type="button" onClick={() => setIsAttachDialogOpen(false)}>
+                            Done
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
 
-                      <DialogFooter className="border-t px-5 py-3 sm:justify-between">
-                        <p className="text-xs text-muted-foreground">
-                          {pendingAttachments.length} recipe
-                          {pendingAttachments.length === 1 ? "" : "s"} selected
-                        </p>
-                        <Button type="button" onClick={() => setIsAttachDialogOpen(false)}>
-                          Done
+                    <div className="flex items-center gap-2">
+                      {latestAssistantMessage ? (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          disabled={isBusy}
+                          onClick={handleOpenAddRecipeFlow}
+                        >
+                          <Sparkles className="size-4" />
+                          Add As Recipe
                         </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
+                      ) : null}
 
-                  <div className="flex items-center gap-2">
-                    {latestAssistantMessage ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={isBusy}
-                        onClick={handleOpenAddRecipeFlow}
-                      >
-                        <Sparkles className="size-4" />
-                        Add As Recipe
+                      <Button type="submit" disabled={!canSendMessage}>
+                        {isSendingMessage ? (
+                          <>
+                            <Loader2 className="size-4 animate-spin" />
+                            Sending…
+                          </>
+                        ) : (
+                          <>
+                            <Send className="size-4" />
+                            Send
+                          </>
+                        )}
                       </Button>
-                    ) : null}
-
-                    <Button type="submit" disabled={!canSendMessage}>
-                      {isSendingMessage ? (
-                        <>
-                          <Loader2 className="size-4 animate-spin" />
-                          Sending…
-                        </>
-                      ) : (
-                        <>
-                          <Send className="size-4" />
-                          Send
-                        </>
-                      )}
-                    </Button>
+                    </div>
                   </div>
-                </div>
-              </form>
+                </form>
+              ) : null}
             </CardContent>
           </Card>
         </section>

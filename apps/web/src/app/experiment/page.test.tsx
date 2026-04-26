@@ -613,6 +613,66 @@ describe("/experiment page", () => {
     expect(reloadCalls).toHaveLength(0);
   });
 
+  it("renders a private workspace gate when history requires sign-in", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(
+      jsonResponse({ detail: "Sign in to use experiment threads." }, 401),
+    );
+
+    render(<ExperimentPage />);
+
+    expect(await screen.findByRole("heading", { name: "Sign in to open Recipe Lab" })).toBeInTheDocument();
+    expect(screen.getByText("Private workspace")).toBeInTheDocument();
+    expect(screen.getByText("Sign in for history")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New Thread" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Your message")).not.toBeInTheDocument();
+    expect(screen.queryByText("No conversation history yet.")).not.toBeInTheDocument();
+  });
+
+  it("renders auth setup guidance and retries when auth is unavailable", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { detail: "Experiment threads require Supabase Auth configuration." },
+        503,
+      ),
+    );
+
+    const user = userEvent.setup();
+    render(<ExperimentPage />);
+
+    expect(
+      await screen.findByRole("heading", { name: "Recipe Lab needs authentication setup" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Authentication unavailable")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New Thread" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Your message")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Check again" }));
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/experiments/threads?limit=40",
+      expect.objectContaining({
+        cache: "no-store",
+        headers: expect.objectContaining({
+          Accept: "application/json",
+        }),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/experiments/threads?limit=40",
+      expect.objectContaining({
+        cache: "no-store",
+        headers: expect.objectContaining({
+          Accept: "application/json",
+        }),
+      }),
+    );
+  });
+
   it("stores latest assistant output before opening Add Recipe flow", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockImplementation(async (input, init) => {
