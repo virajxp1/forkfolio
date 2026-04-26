@@ -2,6 +2,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+
 class ExperimentThreadCreateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=140)
     context_recipe_ids: list[UUID] = Field(default_factory=list)
