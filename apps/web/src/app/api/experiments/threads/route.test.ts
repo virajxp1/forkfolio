@@ -41,30 +41,11 @@ describe("POST /api/experiments/threads", () => {
     expect(createExperimentThreadMock).not.toHaveBeenCalled();
   });
 
-  it("returns 422 when mode is invalid", async () => {
-    const request = new NextRequest("http://localhost:3000/api/experiments/threads", {
-      method: "POST",
-      body: JSON.stringify({ mode: "wrong-mode" }),
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    const response = await POST(request);
-
-    expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({
-      detail: "mode must be one of: invent_new, modify_existing.",
-    });
-    expect(createExperimentThreadMock).not.toHaveBeenCalled();
-  });
-
-  it("normalizes payload and forwards thread creation", async () => {
+  it("ignores legacy mode values and normalizes the rest of the payload", async () => {
     createExperimentThreadMock.mockResolvedValue({
       success: true,
       thread: {
         id: "thread-1",
-        mode: "invent_new",
         title: "Vegan weeknight curry",
         metadata: {},
         context_recipe_ids: ["recipe-1", "recipe-2"],
@@ -77,7 +58,7 @@ describe("POST /api/experiments/threads", () => {
     const request = new NextRequest("http://localhost:3000/api/experiments/threads", {
       method: "POST",
       body: JSON.stringify({
-        mode: "invent_new",
+        mode: "wrong-mode",
         title: "  Vegan weeknight curry  ",
         context_recipe_ids: ["recipe-1", "recipe-2", "recipe-1", " "],
         isTest: true,
@@ -92,7 +73,6 @@ describe("POST /api/experiments/threads", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(createExperimentThreadMock).toHaveBeenCalledWith({
-      mode: "invent_new",
       title: "Vegan weeknight curry",
       context_recipe_ids: ["recipe-1", "recipe-2"],
       is_test: true,
@@ -103,7 +83,6 @@ describe("POST /api/experiments/threads", () => {
     const request = new NextRequest("http://localhost:3000/api/experiments/threads", {
       method: "POST",
       body: JSON.stringify({
-        mode: "invent_new",
         is_test: "true",
       }),
       headers: {
@@ -130,7 +109,7 @@ describe("POST /api/experiments/threads", () => {
 
     const request = new NextRequest("http://localhost:3000/api/experiments/threads", {
       method: "POST",
-      body: JSON.stringify({ mode: "invent_new" }),
+      body: JSON.stringify({}),
       headers: {
         "Content-Type": "application/json",
       },
@@ -149,7 +128,6 @@ describe("POST /api/experiments/threads", () => {
       threads: [
         {
           id: "thread-1",
-          mode: "invent_new",
           title: "Weeknight curry",
           metadata: {},
           created_at: null,
@@ -160,7 +138,6 @@ describe("POST /api/experiments/threads", () => {
         },
         {
           id: "thread-2",
-          mode: "invent_new",
           title: "Experiment E2E run",
           metadata: {},
           created_at: null,
@@ -188,7 +165,6 @@ describe("POST /api/experiments/threads", () => {
       threads: [
         {
           id: "thread-1",
-          mode: "invent_new",
           title: "Weeknight curry",
           metadata: {},
           created_at: null,
@@ -199,7 +175,6 @@ describe("POST /api/experiments/threads", () => {
         },
         {
           id: "thread-2",
-          mode: "invent_new",
           title: "Experiment E2E run",
           metadata: { is_test: true },
           created_at: null,

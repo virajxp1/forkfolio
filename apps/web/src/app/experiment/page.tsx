@@ -247,7 +247,6 @@ function toThreadSummary(thread: ExperimentThreadRecord): ExperimentThreadSummar
   const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
   return {
     id: thread.id,
-    mode: thread.mode,
     title: thread.title,
     metadata: thread.metadata ?? {},
     created_at: thread.created_at,
@@ -721,7 +720,6 @@ export default function ExperimentPage() {
             .sort((left, right) => left.sequence_no - right.sequence_no);
           return {
             ...currentThread,
-            mode: finalThread.mode,
             title: finalThread.title,
             metadata: finalThread.metadata,
             created_at: finalThread.created_at,
@@ -799,7 +797,7 @@ export default function ExperimentPage() {
             Recipe Lab
           </h1>
           <p className="max-w-3xl text-base text-muted-foreground">
-            Build new ideas or modify existing recipes in one continuous, attach-aware chat thread.
+            Sketch new ideas or adapt saved recipes in one continuous, attach-aware chat thread.
           </p>
         </section>
 
@@ -887,7 +885,7 @@ export default function ExperimentPage() {
                         <span className="rounded-full bg-primary/10 p-2">
                           <Sparkles className="size-4 text-primary" />
                         </span>
-                        <p className="text-sm font-semibold">Choose a direction to begin</p>
+                        <p className="text-sm font-semibold">Start with a recipe goal</p>
                       </div>
                       <p className="mt-2 text-sm text-muted-foreground">
                         Quick starters are ready now. Clicking one pre-fills your message and opens
@@ -920,8 +918,8 @@ export default function ExperimentPage() {
                     <div className="rounded-lg border border-border/70 bg-background/90 p-4">
                       <p className="text-sm font-semibold">Start with a clear goal</p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        Attach a recipe if you want a modification, or just describe the new dish
-                        you want to invent.
+                        Attach a saved recipe for grounded iteration, or just describe what you
+                        want to cook.
                       </p>
                     </div>
 

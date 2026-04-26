@@ -18,14 +18,12 @@ class ExperimentsClient(BaseAPIClient):
 
     def create_thread(
         self,
-        mode: str = "invent_new",
         title: Optional[str] = None,
         context_recipe_ids: Optional[list[str]] = None,
         include_test_data: bool = True,
         is_test: bool = True,
     ) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
-            "mode": mode,
             "include_test_data": include_test_data,
         }
         if title is not None:

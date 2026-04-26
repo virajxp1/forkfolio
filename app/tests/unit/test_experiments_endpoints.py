@@ -17,7 +17,6 @@ class StubExperimentService:
     def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
         test_thread = {
             "id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-            "mode": "invent_new",
             "title": "Experiment E2E seed",
             "metadata": {"orchestration": "langgraph-ready", "is_test": True},
             "created_at": "2026-03-16T00:00:00+00:00",
@@ -29,7 +28,6 @@ class StubExperimentService:
         return [
             {
                 "id": THREAD_ID,
-                "mode": "modify_existing",
                 "title": "Veganize tikka masala",
                 "metadata": {"orchestration": "langgraph-ready"},
                 "created_at": "2026-03-16T00:00:00+00:00",
@@ -43,7 +41,6 @@ class StubExperimentService:
 
     def create_thread(
         self,
-        mode: str,
         title: str | None = None,
         context_recipe_ids: list[str] | None = None,
         include_test_data: bool = False,
@@ -57,7 +54,6 @@ class StubExperimentService:
             )
         return {
             "id": THREAD_ID,
-            "mode": mode,
             "title": title,
             "metadata": {
                 "orchestration": "langgraph-ready",
@@ -80,7 +76,6 @@ class StubExperimentService:
             raise ExperimentThreadNotFoundError("Experiment thread not found")
         return {
             "id": THREAD_ID,
-            "mode": "modify_existing",
             "title": "Veganize tikka masala",
             "metadata": {"orchestration": "langgraph-ready"},
             "context_recipe_ids": [RECIPE_ID],
@@ -207,7 +202,6 @@ def test_create_experiment_thread_success() -> None:
     response = client.post(
         "/api/v1/experiments/threads",
         json={
-            "mode": "modify_existing",
             "title": "Veganize tikka masala",
             "context_recipe_ids": [RECIPE_ID],
         },
@@ -225,7 +219,7 @@ def test_create_experiment_thread_missing_context_recipe_returns_404() -> None:
 
     response = client.post(
         "/api/v1/experiments/threads",
-        json={"mode": "invent_new", "context_recipe_ids": [THREAD_ID]},
+        json={"context_recipe_ids": [THREAD_ID]},
     )
 
     assert response.status_code == 404

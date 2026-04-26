@@ -129,7 +129,6 @@ describe("POST /api/experiments/threads/[threadId]/messages", () => {
       thread_id: "thread-1",
       thread: {
         id: "thread-1",
-        mode: "modify_existing",
         title: null,
         metadata: {},
         context_recipe_ids: ["recipe-1"],

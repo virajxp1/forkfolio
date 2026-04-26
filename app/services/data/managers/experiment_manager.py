@@ -18,7 +18,6 @@ INSERT INTO experiment_threads (
 VALUES (%s, %s, %s)
 RETURNING
     id,
-    mode,
     title,
     metadata,
     created_at,
@@ -28,7 +27,6 @@ RETURNING
 THREAD_GET_SQL = """
 SELECT
     id,
-    mode,
     title,
     metadata,
     created_at,
@@ -105,7 +103,6 @@ LIMIT %s
 THREADS_LIST_SQL = """
 SELECT
     t.id,
-    t.mode,
     t.title,
     t.metadata,
     t.created_at,
@@ -174,6 +171,7 @@ TEST_METADATA_SOURCE_VALUES = {
     "ci",
 }
 TRUTHY_FLAG_VALUES = {"1", "true", "yes", "y", "on"}
+DEFAULT_EXPERIMENT_THREAD_MODE = "invent_new"
 
 
 class ExperimentManager(BaseManager):
@@ -181,7 +179,6 @@ class ExperimentManager(BaseManager):
     def _serialize_thread(row: dict) -> dict:
         return {
             "id": str(row["id"]),
-            "mode": row["mode"],
             "title": row["title"],
             "metadata": row.get("metadata") or {},
             "created_at": row["created_at"],
@@ -269,7 +266,6 @@ class ExperimentManager(BaseManager):
 
     def create_thread(
         self,
-        mode: str,
         title: str | None = None,
         metadata: dict[str, Any] | None = None,
         context_recipe_ids: list[str] | None = None,
@@ -280,7 +276,10 @@ class ExperimentManager(BaseManager):
         metadata_payload = metadata if isinstance(metadata, dict) else {}
         try:
             with self.get_db_context() as (_conn, cursor):
-                cursor.execute(THREAD_INSERT_SQL, (mode, title, Json(metadata_payload)))
+                cursor.execute(
+                    THREAD_INSERT_SQL,
+                    (DEFAULT_EXPERIMENT_THREAD_MODE, title, Json(metadata_payload)),
+                )
                 row = cursor.fetchone()
                 if row is None:
                     raise DatabaseError("Thread insertion returned no row")
