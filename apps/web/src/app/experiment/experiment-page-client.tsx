@@ -76,7 +76,12 @@ type ParsedSseEvent = {
   data: unknown;
 };
 
-export type ExperimentAccessState = "ready" | "auth_required" | "auth_unavailable";
+export type ExperimentAccessState =
+  | "resolving"
+  | "ready"
+  | "auth_required"
+  | "auth_unavailable";
+type BlockedExperimentAccessState = Exclude<ExperimentAccessState, "resolving" | "ready">;
 type BrowserSupabaseClient = ReturnType<typeof createSupabaseClient>;
 type ViewerAccessResolution =
   | {
@@ -327,7 +332,13 @@ function getAccessState(error: unknown): ExperimentAccessState | null {
   return null;
 }
 
-function getAccessStateCopy(accessState: ExperimentAccessState): {
+function isBlockedAccessState(
+  accessState: ExperimentAccessState,
+): accessState is BlockedExperimentAccessState {
+  return accessState === "auth_required" || accessState === "auth_unavailable";
+}
+
+function getAccessStateCopy(accessState: BlockedExperimentAccessState): {
   badgeLabel: string;
   title: string;
   description: string;
@@ -463,6 +474,8 @@ export default function ExperimentPageClient({
   const hasAuthConfig = hasSupabaseAuthConfig();
   const [supabase] = useState(() => (hasAuthConfig ? createSupabaseClient() : null));
   const initialViewerUserId = initialAccess?.viewerUserId ?? null;
+  const initialAccessState =
+    initialAccess?.accessState ?? (hasAuthConfig ? "resolving" : "auth_unavailable");
   const shouldResolveViewerOnMount = hasAuthConfig && !initialAccess;
   const [messageInput, setMessageInput] = useState("");
   const [thread, setThread] = useState<ExperimentThreadRecord | null>(null);
@@ -471,11 +484,8 @@ export default function ExperimentPageClient({
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [accessState, setAccessState] = useState<ExperimentAccessState>(
-    initialAccess?.accessState ?? (hasAuthConfig ? "ready" : "auth_unavailable"),
-  );
+  const [accessState, setAccessState] = useState<ExperimentAccessState>(initialAccessState);
   const [viewerUserId, setViewerUserId] = useState<string | null>(initialViewerUserId);
-  const [isResolvingViewer, setIsResolvingViewer] = useState(shouldResolveViewerOnMount);
   const [errorMessage, setErrorMessage] = useState<string | null>(initialAccess?.errorMessage ?? null);
   const [attachmentFeedback, setAttachmentFeedback] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
@@ -488,11 +498,12 @@ export default function ExperimentPageClient({
   const [isSearchingAttachments, setIsSearchingAttachments] = useState(false);
   const [attachSearchError, setAttachSearchError] = useState<string | null>(null);
   const messageListEndRef = useRef<HTMLDivElement | null>(null);
+  const accessStateRef = useRef<ExperimentAccessState>(initialAccessState);
   const viewerUserIdRef = useRef<string | null>(initialViewerUserId);
   const activeThreadId = thread?.id ?? null;
   const activeThreadMessageCount = thread?.messages.length ?? 0;
-  const isAccessPending = isResolvingViewer;
-  const isAccessBlocked = !isAccessPending && accessState !== "ready";
+  const isAccessPending = accessState === "resolving";
+  const isAccessBlocked = isBlockedAccessState(accessState);
   const canUseThreads = !isAccessPending && accessState === "ready";
   const accessStateCopy = isAccessBlocked ? getAccessStateCopy(accessState) : null;
   const canSendMessage =
@@ -502,10 +513,18 @@ export default function ExperimentPageClient({
     !isCreatingThread &&
     !isLoadingThread;
 
-  function resetExperimentState() {
+  function commitAccessState(nextAccessState: ExperimentAccessState) {
+    accessStateRef.current = nextAccessState;
+    setAccessState(nextAccessState);
+  }
+
+  function resetExperimentState(options?: {
+    errorMessage?: string | null;
+    historyLoading?: boolean;
+  }) {
     setIsCreatingThread(false);
     setIsLoadingThread(false);
-    setIsLoadingHistory(false);
+    setIsLoadingHistory(options?.historyLoading ?? false);
     setIsSendingMessage(false);
     setThread(null);
     setThreadHistory([]);
@@ -519,51 +538,63 @@ export default function ExperimentPageClient({
     setAttachmentFeedback(null);
     setStreamStatus(null);
     setStreamingMessageId(null);
-    setErrorMessage(null);
+    setErrorMessage(options?.errorMessage ?? null);
   }
 
-  function applyAccessState(nextAccessState: ExperimentAccessState) {
-    setAccessState(nextAccessState);
-    resetExperimentState();
-  }
-
-  function applyBlockingAccessState(nextAccessState: ExperimentAccessState) {
-    if (nextAccessState === "auth_required") {
+  function applyBlockedAccessState(
+    nextAccessState: BlockedExperimentAccessState,
+    options?: {
+      clearViewer?: boolean;
+      errorMessage?: string | null;
+    },
+  ) {
+    if (options?.clearViewer) {
       viewerUserIdRef.current = null;
       setViewerUserId(null);
     }
-    applyAccessState(nextAccessState);
+    commitAccessState(nextAccessState);
+    resetExperimentState({ errorMessage: options?.errorMessage });
+  }
+
+  function applyViewerReadyState(nextViewerUserId: string) {
+    viewerUserIdRef.current = nextViewerUserId;
+    setViewerUserId(nextViewerUserId);
+    commitAccessState("ready");
+    resetExperimentState({ historyLoading: true });
   }
 
   function applyViewerAccessResolution(resolution: ViewerAccessResolution) {
     if (resolution.accessState === "ready") {
-      if (viewerUserIdRef.current === resolution.viewerUserId && accessState === "ready") {
+      if (
+        viewerUserIdRef.current === resolution.viewerUserId &&
+        accessStateRef.current === "ready"
+      ) {
         setErrorMessage(null);
         return;
       }
-      viewerUserIdRef.current = resolution.viewerUserId;
-      setViewerUserId(resolution.viewerUserId);
-      setAccessState("ready");
-      resetExperimentState();
-      setIsLoadingHistory(true);
+      applyViewerReadyState(resolution.viewerUserId);
       return;
     }
 
-    viewerUserIdRef.current = null;
-    setViewerUserId(null);
-    applyBlockingAccessState(resolution.accessState);
-    if (resolution.errorMessage) {
-      setErrorMessage(resolution.errorMessage);
-    }
+    applyBlockedAccessState(resolution.accessState, {
+      clearViewer: true,
+      errorMessage: resolution.errorMessage,
+    });
   }
 
   function isViewerStillActive(activeViewerUserId: string | null): boolean {
     return Boolean(activeViewerUserId && viewerUserIdRef.current === activeViewerUserId);
   }
 
-  const applyBlockingAccessStateFromEffect = useEffectEvent(
-    (nextAccessState: ExperimentAccessState) => {
-      applyBlockingAccessState(nextAccessState);
+  const applyBlockedAccessStateFromEffect = useEffectEvent(
+    (
+      nextAccessState: BlockedExperimentAccessState,
+      options?: {
+        clearViewer?: boolean;
+        errorMessage?: string | null;
+      },
+    ) => {
+      applyBlockedAccessState(nextAccessState, options);
     },
   );
 
@@ -585,7 +616,7 @@ export default function ExperimentPageClient({
       if (viewerUserIdRef.current !== activeViewerUserId) {
         return;
       }
-      setAccessState("ready");
+      commitAccessState("ready");
       setThreadHistory(response.threads ?? []);
     } catch (error) {
       if (viewerUserIdRef.current !== activeViewerUserId) {
@@ -593,7 +624,9 @@ export default function ExperimentPageClient({
       }
       const nextAccessState = getAccessState(error);
       if (nextAccessState) {
-        applyBlockingAccessState(nextAccessState);
+        applyBlockedAccessState(nextAccessState, {
+          clearViewer: nextAccessState === "auth_required",
+        });
         return;
       }
       setThreadHistory([]);
@@ -617,13 +650,12 @@ export default function ExperimentPageClient({
       return;
     }
     if (!supabase) {
-      applyBlockingAccessStateFromEffect("auth_unavailable");
-      setIsResolvingViewer(false);
+      applyBlockedAccessStateFromEffect("auth_unavailable", { clearViewer: true });
       return;
     }
 
     let isActive = true;
-    setIsResolvingViewer(true);
+    commitAccessState("resolving");
 
     void resolveViewerAccessClient(supabase)
       .then((resolution) => {
@@ -631,11 +663,6 @@ export default function ExperimentPageClient({
           return;
         }
         applyViewerAccessResolutionFromEffect(resolution);
-      })
-      .finally(() => {
-        if (isActive) {
-          setIsResolvingViewer(false);
-        }
       });
 
     return () => {
@@ -646,17 +673,17 @@ export default function ExperimentPageClient({
   const handleAuthStateChangeFromEffect = useEffectEvent((nextViewerUser: User | null) => {
     const nextViewerUserId = resolveViewerUserId(nextViewerUser);
     if (!nextViewerUserId) {
-      setIsResolvingViewer(false);
-      applyBlockingAccessState("auth_required");
+      applyBlockedAccessState("auth_required", { clearViewer: true });
       return;
     }
-    if (viewerUserIdRef.current === nextViewerUserId && accessState === "ready") {
-      setIsResolvingViewer(false);
+    if (
+      viewerUserIdRef.current === nextViewerUserId &&
+      accessStateRef.current === "ready"
+    ) {
       setErrorMessage(null);
       return;
     }
 
-    setIsResolvingViewer(false);
     applyViewerAccessResolution({
       accessState: "ready",
       viewerUserId: nextViewerUserId,
@@ -763,7 +790,7 @@ export default function ExperimentPageClient({
       if (!isViewerStillActive(activeViewerUserId)) {
         return;
       }
-      setAccessState("ready");
+      commitAccessState("ready");
       const nextThread = normalizeThread(response.thread);
       setThread(nextThread);
       await refreshHistory(activeViewerUserId);
@@ -773,7 +800,9 @@ export default function ExperimentPageClient({
       }
       const nextAccessState = getAccessState(error);
       if (nextAccessState) {
-        applyBlockingAccessState(nextAccessState);
+        applyBlockedAccessState(nextAccessState, {
+          clearViewer: nextAccessState === "auth_required",
+        });
         return;
       }
       setErrorMessage(getErrorMessage(error, "Failed to start a new conversation."));
@@ -808,7 +837,7 @@ export default function ExperimentPageClient({
       if (!isViewerStillActive(activeViewerUserId)) {
         return;
       }
-      setAccessState("ready");
+      commitAccessState("ready");
       const nextThread = normalizeThread(response.thread);
       setThread(nextThread);
     } catch (error) {
@@ -817,7 +846,9 @@ export default function ExperimentPageClient({
       }
       const nextAccessState = getAccessState(error);
       if (nextAccessState) {
-        applyBlockingAccessState(nextAccessState);
+        applyBlockedAccessState(nextAccessState, {
+          clearViewer: nextAccessState === "auth_required",
+        });
         return;
       }
       setErrorMessage(getErrorMessage(error, "Failed to load conversation."));
@@ -880,7 +911,7 @@ export default function ExperimentPageClient({
         if (!isViewerStillActive(activeViewerUserId)) {
           return;
         }
-        setAccessState("ready");
+        commitAccessState("ready");
         activeThread = normalizeThread(createResponse.thread);
         setThread(activeThread);
         upsertThreadHistory(activeThread);
@@ -891,7 +922,9 @@ export default function ExperimentPageClient({
         }
         const nextAccessState = getAccessState(error);
         if (nextAccessState) {
-          applyBlockingAccessState(nextAccessState);
+          applyBlockedAccessState(nextAccessState, {
+            clearViewer: nextAccessState === "auth_required",
+          });
           setIsSendingMessage(false);
           setStreamStatus(null);
           setStreamingMessageId(null);
@@ -1149,7 +1182,9 @@ export default function ExperimentPageClient({
       }
       const nextAccessState = getAccessState(error);
       if (nextAccessState) {
-        applyBlockingAccessState(nextAccessState);
+        applyBlockedAccessState(nextAccessState, {
+          clearViewer: nextAccessState === "auth_required",
+        });
         return;
       }
       setThread(previousThreadSnapshot);
@@ -1168,19 +1203,15 @@ export default function ExperimentPageClient({
       return;
     }
     if (!supabase) {
-      applyBlockingAccessState("auth_unavailable");
+      applyBlockedAccessState("auth_unavailable", { clearViewer: true });
       return;
     }
     if (viewerUserIdRef.current) {
       await refreshHistory(viewerUserIdRef.current);
       return;
     }
-    setIsResolvingViewer(true);
-    try {
-      applyViewerAccessResolution(await resolveViewerAccessClient(supabase));
-    } finally {
-      setIsResolvingViewer(false);
-    }
+    commitAccessState("resolving");
+    applyViewerAccessResolution(await resolveViewerAccessClient(supabase));
   }
 
   const isBusy = isCreatingThread || isLoadingThread || isSendingMessage || isAccessPending;
