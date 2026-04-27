@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import {
   History,
   Loader2,
@@ -40,6 +41,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { saveExperimentRecipeDraft } from "@/lib/experiment-recipe-draft";
+import { isExpectedSignedOutMessage } from "@/lib/supabase/auth";
+import { createClient as createSupabaseClient } from "@/lib/supabase/client";
+import { hasSupabaseAuthConfig } from "@/lib/supabase/config";
 import type {
   CreateExperimentMessageResponse,
   CreateExperimentThreadResponse,
@@ -73,6 +77,18 @@ type ParsedSseEvent = {
 };
 
 type ExperimentAccessState = "ready" | "auth_required" | "auth_unavailable";
+type BrowserSupabaseClient = ReturnType<typeof createSupabaseClient>;
+type ViewerAccessResolution =
+  | {
+      accessState: "ready";
+      viewerUserId: string;
+      errorMessage: null;
+    }
+  | {
+      accessState: "auth_required" | "auth_unavailable";
+      viewerUserId: null;
+      errorMessage: string | null;
+    };
 
 const STARTER_PROMPTS = [
   "Invent a new weeknight dinner with at least 30g protein per serving.",
@@ -238,6 +254,51 @@ function normalizeThread(thread: ExperimentThreadRecord): ExperimentThreadRecord
   };
 }
 
+function resolveViewerUserId(user: User | null | undefined): string | null {
+  const normalizedUserId = user?.id?.trim() ?? "";
+  return normalizedUserId || null;
+}
+
+async function resolveViewerAccessClient(
+  supabase: BrowserSupabaseClient,
+): Promise<ViewerAccessResolution> {
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    const viewerUserId = resolveViewerUserId(data.user);
+
+    if (viewerUserId) {
+      return {
+        accessState: "ready",
+        viewerUserId,
+        errorMessage: null,
+      };
+    }
+
+    if (error?.message && !isExpectedSignedOutMessage(error.message)) {
+      return {
+        accessState: "auth_unavailable",
+        viewerUserId: null,
+        errorMessage: error.message,
+      };
+    }
+
+    return {
+      accessState: "auth_required",
+      viewerUserId: null,
+      errorMessage: null,
+    };
+  } catch (error) {
+    return {
+      accessState: "auth_unavailable",
+      viewerUserId: null,
+      errorMessage:
+        error instanceof Error && error.message
+          ? error.message
+          : "Failed to verify your account.",
+    };
+  }
+}
+
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof BrowserApiError) {
     return error.detail ?? error.message;
@@ -391,6 +452,8 @@ function renderMessageContent(
 
 export default function ExperimentPage() {
   const router = useRouter();
+  const hasAuthConfig = hasSupabaseAuthConfig();
+  const [supabase] = useState(() => (hasAuthConfig ? createSupabaseClient() : null));
   const [messageInput, setMessageInput] = useState("");
   const [thread, setThread] = useState<ExperimentThreadRecord | null>(null);
   const [threadHistory, setThreadHistory] = useState<ExperimentThreadSummary[]>([]);
@@ -398,7 +461,11 @@ export default function ExperimentPage() {
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [accessState, setAccessState] = useState<ExperimentAccessState>("ready");
+  const [accessState, setAccessState] = useState<ExperimentAccessState>(
+    hasAuthConfig ? "ready" : "auth_unavailable",
+  );
+  const [viewerUserId, setViewerUserId] = useState<string | null>(null);
+  const [isResolvingViewer, setIsResolvingViewer] = useState(hasAuthConfig);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [attachmentFeedback, setAttachmentFeedback] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
@@ -411,43 +478,119 @@ export default function ExperimentPage() {
   const [isSearchingAttachments, setIsSearchingAttachments] = useState(false);
   const [attachSearchError, setAttachSearchError] = useState<string | null>(null);
   const messageListEndRef = useRef<HTMLDivElement | null>(null);
+  const viewerUserIdRef = useRef<string | null>(null);
   const activeThreadId = thread?.id ?? null;
   const activeThreadMessageCount = thread?.messages.length ?? 0;
-
+  const isAccessPending = isResolvingViewer;
+  const isAccessBlocked = !isAccessPending && accessState !== "ready";
+  const canUseThreads = !isAccessPending && accessState === "ready";
+  const accessStateCopy = isAccessBlocked ? getAccessStateCopy(accessState) : null;
   const canSendMessage =
+    canUseThreads &&
     !isSendingMessage &&
     messageInput.trim().length > 0 &&
     !isCreatingThread &&
     !isLoadingThread;
-  const isAccessBlocked = accessState !== "ready";
-  const accessStateCopy = isAccessBlocked ? getAccessStateCopy(accessState) : null;
 
-  function applyAccessState(nextAccessState: ExperimentAccessState) {
-    setAccessState(nextAccessState);
+  function resetExperimentState() {
+    setIsCreatingThread(false);
+    setIsLoadingThread(false);
+    setIsLoadingHistory(false);
+    setIsSendingMessage(false);
     setThread(null);
     setThreadHistory([]);
+    setMessageInput("");
     setPendingAttachments([]);
+    setIsAttachDialogOpen(false);
+    setAttachSearchInput("");
+    setAttachSearchResults([]);
+    setIsSearchingAttachments(false);
+    setAttachSearchError(null);
     setAttachmentFeedback(null);
     setStreamStatus(null);
     setStreamingMessageId(null);
     setErrorMessage(null);
   }
 
-  async function refreshHistory() {
+  function applyAccessState(nextAccessState: ExperimentAccessState) {
+    setAccessState(nextAccessState);
+    resetExperimentState();
+  }
+
+  function applyBlockingAccessState(nextAccessState: ExperimentAccessState) {
+    if (nextAccessState === "auth_required") {
+      viewerUserIdRef.current = null;
+      setViewerUserId(null);
+    }
+    applyAccessState(nextAccessState);
+  }
+
+  function applyViewerAccessResolution(resolution: ViewerAccessResolution) {
+    if (resolution.accessState === "ready") {
+      if (viewerUserIdRef.current === resolution.viewerUserId && accessState === "ready") {
+        setErrorMessage(null);
+        return;
+      }
+      viewerUserIdRef.current = resolution.viewerUserId;
+      setViewerUserId(resolution.viewerUserId);
+      setAccessState("ready");
+      resetExperimentState();
+      setIsLoadingHistory(true);
+      return;
+    }
+
+    viewerUserIdRef.current = null;
+    setViewerUserId(null);
+    applyBlockingAccessState(resolution.accessState);
+    if (resolution.errorMessage) {
+      setErrorMessage(resolution.errorMessage);
+    }
+  }
+
+  function isViewerStillActive(activeViewerUserId: string | null): boolean {
+    return Boolean(activeViewerUserId && viewerUserIdRef.current === activeViewerUserId);
+  }
+
+  const applyBlockingAccessStateFromEffect = useEffectEvent(
+    (nextAccessState: ExperimentAccessState) => {
+      applyBlockingAccessState(nextAccessState);
+    },
+  );
+
+  const applyViewerAccessResolutionFromEffect = useEffectEvent(
+    (resolution: ViewerAccessResolution) => {
+      applyViewerAccessResolution(resolution);
+    },
+  );
+
+  async function refreshHistory(activeViewerUserId: string | null = viewerUserIdRef.current) {
+    if (!activeViewerUserId) {
+      setIsLoadingHistory(false);
+      return;
+    }
+
     setIsLoadingHistory(true);
     try {
       const response = await listThreadsClient(40);
+      if (viewerUserIdRef.current !== activeViewerUserId) {
+        return;
+      }
       setAccessState("ready");
       setThreadHistory(response.threads ?? []);
     } catch (error) {
+      if (viewerUserIdRef.current !== activeViewerUserId) {
+        return;
+      }
       const nextAccessState = getAccessState(error);
       if (nextAccessState) {
-        applyAccessState(nextAccessState);
+        applyBlockingAccessState(nextAccessState);
         return;
       }
       setThreadHistory([]);
     } finally {
-      setIsLoadingHistory(false);
+      if (viewerUserIdRef.current === activeViewerUserId) {
+        setIsLoadingHistory(false);
+      }
     }
   }
 
@@ -459,13 +602,81 @@ export default function ExperimentPage() {
     });
   }
 
-  const loadInitialHistory = useEffectEvent(() => {
-    void refreshHistory();
+  useEffect(() => {
+    if (!supabase) {
+      applyBlockingAccessStateFromEffect("auth_unavailable");
+      setIsResolvingViewer(false);
+      return;
+    }
+
+    let isActive = true;
+    setIsResolvingViewer(true);
+
+    void resolveViewerAccessClient(supabase)
+      .then((resolution) => {
+        if (!isActive) {
+          return;
+        }
+        applyViewerAccessResolutionFromEffect(resolution);
+      })
+      .finally(() => {
+        if (isActive) {
+          setIsResolvingViewer(false);
+        }
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [supabase]);
+
+  const handleAuthStateChangeFromEffect = useEffectEvent((nextViewerUser: User | null) => {
+    const nextViewerUserId = resolveViewerUserId(nextViewerUser);
+    if (!nextViewerUserId) {
+      setIsResolvingViewer(false);
+      applyBlockingAccessState("auth_required");
+      return;
+    }
+    if (viewerUserIdRef.current === nextViewerUserId && accessState === "ready") {
+      setIsResolvingViewer(false);
+      setErrorMessage(null);
+      return;
+    }
+
+    setIsResolvingViewer(false);
+    applyViewerAccessResolution({
+      accessState: "ready",
+      viewerUserId: nextViewerUserId,
+      errorMessage: null,
+    });
   });
 
   useEffect(() => {
-    loadInitialHistory();
-  }, []);
+    if (!supabase) {
+      return;
+    }
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      handleAuthStateChangeFromEffect(session?.user ?? null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  const loadViewerHistory = useEffectEvent((activeViewerUserId: string) => {
+    void refreshHistory(activeViewerUserId);
+  });
+
+  useEffect(() => {
+    if (!viewerUserId) {
+      return;
+    }
+    loadViewerHistory(viewerUserId);
+  }, [viewerUserId]);
 
   useEffect(() => {
     if (!isAttachDialogOpen) {
@@ -520,6 +731,13 @@ export default function ExperimentPage() {
   }, [activeThreadId, activeThreadMessageCount]);
 
   async function handleNewThread() {
+    if (!canUseThreads) {
+      return;
+    }
+    const activeViewerUserId = viewerUserIdRef.current;
+    if (!activeViewerUserId) {
+      return;
+    }
     setErrorMessage(null);
     setAttachmentFeedback(null);
     setStreamStatus(null);
@@ -529,23 +747,38 @@ export default function ExperimentPage() {
 
     try {
       const response = await createThreadClient();
+      if (!isViewerStillActive(activeViewerUserId)) {
+        return;
+      }
       setAccessState("ready");
       const nextThread = normalizeThread(response.thread);
       setThread(nextThread);
-      await refreshHistory();
+      await refreshHistory(activeViewerUserId);
     } catch (error) {
+      if (!isViewerStillActive(activeViewerUserId)) {
+        return;
+      }
       const nextAccessState = getAccessState(error);
       if (nextAccessState) {
-        applyAccessState(nextAccessState);
+        applyBlockingAccessState(nextAccessState);
         return;
       }
       setErrorMessage(getErrorMessage(error, "Failed to start a new conversation."));
     } finally {
-      setIsCreatingThread(false);
+      if (isViewerStillActive(activeViewerUserId)) {
+        setIsCreatingThread(false);
+      }
     }
   }
 
   async function handleSelectThread(threadId: string) {
+    if (!canUseThreads) {
+      return;
+    }
+    const activeViewerUserId = viewerUserIdRef.current;
+    if (!activeViewerUserId) {
+      return;
+    }
     const normalizedThreadId = threadId.trim();
     if (!normalizedThreadId) {
       return;
@@ -559,18 +792,26 @@ export default function ExperimentPage() {
     setIsLoadingThread(true);
     try {
       const response = await getThreadClient(normalizedThreadId);
+      if (!isViewerStillActive(activeViewerUserId)) {
+        return;
+      }
       setAccessState("ready");
       const nextThread = normalizeThread(response.thread);
       setThread(nextThread);
     } catch (error) {
+      if (!isViewerStillActive(activeViewerUserId)) {
+        return;
+      }
       const nextAccessState = getAccessState(error);
       if (nextAccessState) {
-        applyAccessState(nextAccessState);
+        applyBlockingAccessState(nextAccessState);
         return;
       }
       setErrorMessage(getErrorMessage(error, "Failed to load conversation."));
     } finally {
-      setIsLoadingThread(false);
+      if (isViewerStillActive(activeViewerUserId)) {
+        setIsLoadingThread(false);
+      }
     }
   }
 
@@ -588,6 +829,9 @@ export default function ExperimentPage() {
   }
 
   function applyStarterPrompt(prompt: string) {
+    if (!canUseThreads) {
+      return;
+    }
     setMessageInput(prompt);
     if (!thread && !isCreatingThread && !isLoadingThread) {
       void handleNewThread();
@@ -596,6 +840,13 @@ export default function ExperimentPage() {
 
   async function handleSendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canUseThreads) {
+      return;
+    }
+    const activeViewerUserId = viewerUserIdRef.current;
+    if (!activeViewerUserId) {
+      return;
+    }
     const normalizedMessage = messageInput.trim();
     if (!normalizedMessage) {
       setErrorMessage("Message cannot be empty.");
@@ -613,15 +864,21 @@ export default function ExperimentPage() {
       setIsCreatingThread(true);
       try {
         const createResponse = await createThreadClient();
+        if (!isViewerStillActive(activeViewerUserId)) {
+          return;
+        }
         setAccessState("ready");
         activeThread = normalizeThread(createResponse.thread);
         setThread(activeThread);
         upsertThreadHistory(activeThread);
-        void refreshHistory();
+        void refreshHistory(activeViewerUserId);
       } catch (error) {
+        if (!isViewerStillActive(activeViewerUserId)) {
+          return;
+        }
         const nextAccessState = getAccessState(error);
         if (nextAccessState) {
-          applyAccessState(nextAccessState);
+          applyBlockingAccessState(nextAccessState);
           setIsSendingMessage(false);
           setStreamStatus(null);
           setStreamingMessageId(null);
@@ -633,7 +890,9 @@ export default function ExperimentPage() {
         setStreamingMessageId(null);
         return;
       } finally {
-        setIsCreatingThread(false);
+        if (isViewerStillActive(activeViewerUserId)) {
+          setIsCreatingThread(false);
+        }
       }
     }
 
@@ -697,6 +956,9 @@ export default function ExperimentPage() {
       };
 
       const applyStreamEvent = (parsed: ParsedSseEvent) => {
+        if (!isViewerStillActive(activeViewerUserId)) {
+          return;
+        }
         if (parsed.event === "status") {
           const data = parsed.data as { step?: string };
           if (data?.step) {
@@ -786,6 +1048,10 @@ export default function ExperimentPage() {
         }
       }
 
+      if (!isViewerStillActive(activeViewerUserId)) {
+        return;
+      }
+
       if (streamState.streamError) {
         throw new BrowserApiError(streamState.streamError, 500, streamState.streamError);
       }
@@ -864,21 +1130,46 @@ export default function ExperimentPage() {
       }
       upsertThreadHistory(nextThreadSummary);
     } catch (error) {
+      if (!isViewerStillActive(activeViewerUserId)) {
+        return;
+      }
       const nextAccessState = getAccessState(error);
       if (nextAccessState) {
-        applyAccessState(nextAccessState);
+        applyBlockingAccessState(nextAccessState);
         return;
       }
       setThread(previousThreadSnapshot);
       setErrorMessage(getErrorMessage(error, "Failed to send message."));
     } finally {
-      setIsSendingMessage(false);
-      setStreamStatus(null);
-      setStreamingMessageId(null);
+      if (isViewerStillActive(activeViewerUserId)) {
+        setIsSendingMessage(false);
+        setStreamStatus(null);
+        setStreamingMessageId(null);
+      }
     }
   }
 
-  const isBusy = isCreatingThread || isLoadingThread || isSendingMessage;
+  async function handleAccessRetry() {
+    if (isAccessPending) {
+      return;
+    }
+    if (!supabase) {
+      applyBlockingAccessState("auth_unavailable");
+      return;
+    }
+    if (viewerUserIdRef.current) {
+      await refreshHistory(viewerUserIdRef.current);
+      return;
+    }
+    setIsResolvingViewer(true);
+    try {
+      applyViewerAccessResolution(await resolveViewerAccessClient(supabase));
+    } finally {
+      setIsResolvingViewer(false);
+    }
+  }
+
+  const isBusy = isCreatingThread || isLoadingThread || isSendingMessage || isAccessPending;
   const normalizedAttachQuery = attachSearchInput.trim();
   const latestAssistantMessage =
     [...(thread?.messages ?? [])]
@@ -918,9 +1209,9 @@ export default function ExperimentPage() {
             <CardHeader className="space-y-3">
               <CardTitle className="flex items-center gap-2 text-xl">
                 <History className="size-4 text-primary" />
-                {isAccessBlocked ? "Private history" : "History"}
+                {isAccessPending || isAccessBlocked ? "Private history" : "History"}
               </CardTitle>
-              {!isAccessBlocked ? (
+              {canUseThreads ? (
                 <Button onClick={() => void handleNewThread()} disabled={isCreatingThread}>
                   {isCreatingThread ? (
                     <>
@@ -937,7 +1228,17 @@ export default function ExperimentPage() {
               ) : null}
             </CardHeader>
             <CardContent className="h-[calc(82vh-8rem)] space-y-2 overflow-y-auto">
-              {isAccessBlocked && accessStateCopy ? (
+              {isAccessPending ? (
+                <div className="flex h-full flex-col justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold">
+                    <Loader2 className="size-4 animate-spin text-primary" />
+                    Checking your account
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Recipe Lab waits for your account before requesting private thread history.
+                  </p>
+                </div>
+              ) : isAccessBlocked && accessStateCopy ? (
                 <div className="flex h-full flex-col justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
                   <p className="text-sm font-semibold">{accessStateCopy.sidebarTitle}</p>
                   <p className="text-sm text-muted-foreground">
@@ -976,14 +1277,18 @@ export default function ExperimentPage() {
           <Card className="h-[82vh] overflow-hidden">
             <CardHeader>
               <CardTitle>
-                {isAccessBlocked && accessStateCopy
+                {isAccessPending
+                  ? "Checking your Recipe Lab access"
+                  : isAccessBlocked && accessStateCopy
                   ? accessStateCopy.title
                   : thread
                   ? thread.title?.trim() || "Untitled conversation"
                   : "Start a new conversation"}
               </CardTitle>
               <CardDescription>
-                {isAccessBlocked && accessStateCopy
+                {isAccessPending
+                  ? "Loading your account state before requesting private thread history."
+                  : isAccessBlocked && accessStateCopy
                   ? accessStateCopy.description
                   : thread
                   ? "Continue the thread or attach recipes before your next message."
@@ -1003,7 +1308,29 @@ export default function ExperimentPage() {
               ) : null}
 
               <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-muted/20">
-                {isAccessBlocked && accessStateCopy ? (
+                {isAccessPending ? (
+                  <div className="flex h-full items-center justify-center overflow-y-auto p-4 sm:p-6">
+                    <div className="w-full max-w-xl rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm sm:p-6">
+                      <div className="flex items-start gap-4">
+                        <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary">
+                          <Loader2 className="size-5 animate-spin" />
+                        </span>
+                        <div className="space-y-2">
+                          <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
+                            Loading access
+                          </p>
+                          <h2 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
+                            Checking your Recipe Lab access
+                          </h2>
+                          <p className="max-w-[56ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
+                            Thread history stays hidden until the current account is resolved, so
+                            signed-out visitors do not trigger private history requests.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : isAccessBlocked && accessStateCopy ? (
                   <div className="flex h-full items-center justify-center overflow-y-auto p-4 sm:p-6">
                     <div className="w-full max-w-2xl rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm sm:p-6">
                       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -1048,7 +1375,9 @@ export default function ExperimentPage() {
                               <Button
                                 type="button"
                                 variant="outline"
-                                onClick={() => void refreshHistory()}
+                                onClick={() => {
+                                  void handleAccessRetry();
+                                }}
                               >
                                 Check again
                               </Button>
