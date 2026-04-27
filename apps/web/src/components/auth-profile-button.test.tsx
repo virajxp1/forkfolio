@@ -90,4 +90,13 @@ describe("AuthProfileButton", () => {
     expect(await screen.findByRole("button", { name: /Sign In/i })).toBeInTheDocument();
     expect(await screen.findByText("Failed to reach auth service.")).toBeInTheDocument();
   });
+
+  it("shows an error when getUser rejects", async () => {
+    getUserMock.mockRejectedValue(new Error("Failed to reach auth service."));
+
+    render(<AuthProfileButton />);
+
+    expect(await screen.findByRole("button", { name: /Sign In/i })).toBeInTheDocument();
+    expect(await screen.findByText("Failed to reach auth service.")).toBeInTheDocument();
+  });
 });

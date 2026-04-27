@@ -17,6 +17,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
+import { isExpectedSignedOutMessage } from "@/lib/supabase/auth";
 import { hasSupabaseAuthConfig } from "@/lib/supabase/config";
 
 function resolveDisplayName(user: User): string {
@@ -40,11 +41,6 @@ function resolveDisplayName(user: User): string {
 
 function resolveInitial(label: string): string {
   return label.slice(0, 1).toUpperCase() || "P";
-}
-
-function isExpectedSignedOutMessage(message: string | null | undefined): boolean {
-  const normalizedMessage = message?.trim().toLowerCase().replace(/[!.]+$/, "") ?? "";
-  return normalizedMessage === "auth session missing";
 }
 
 export function AuthProfileButton() {
@@ -79,6 +75,17 @@ export function AuthProfileButton() {
           ? null
           : nextErrorMessage,
       );
+      setIsLoading(false);
+    }).catch((error: unknown) => {
+      if (!isActive) {
+        return;
+      }
+
+      const nextErrorMessage =
+        error instanceof Error && error.message ? error.message : "Failed to reach auth service.";
+
+      setCurrentUser(null);
+      setErrorMessage(isExpectedSignedOutMessage(nextErrorMessage) ? null : nextErrorMessage);
       setIsLoading(false);
     });
 
