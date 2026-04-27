@@ -91,7 +91,7 @@ vi.mock("@/lib/supabase/config", () => ({
   hasSupabaseAuthConfig: hasSupabaseAuthConfigMock,
 }));
 
-import ExperimentPage from "./page";
+import ExperimentPageClient from "./experiment-page-client";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -139,7 +139,7 @@ function mockSignedOutUser(message = "Auth session missing!") {
 }
 
 async function renderAuthenticatedExperimentPage() {
-  render(<ExperimentPage />);
+  render(<ExperimentPageClient />);
   await screen.findByRole("button", { name: "New Thread" });
 }
 
@@ -721,11 +721,24 @@ describe("/experiment page", () => {
     expect(reloadCalls).toHaveLength(0);
   });
 
+  it("renders a server-seeded sign-in gate immediately without requesting history", () => {
+    const fetchMock = vi.mocked(fetch);
+
+    render(
+      <ExperimentPageClient
+        initialAccess={{ accessState: "auth_required", viewerUserId: null, errorMessage: null }}
+      />,
+    );
+
+    expect(screen.getByRole("heading", { name: "Sign in to open Recipe Lab" })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("renders a private workspace gate without requesting history when no user is signed in", async () => {
     const fetchMock = vi.mocked(fetch);
     mockSignedOutUser();
 
-    render(<ExperimentPage />);
+    render(<ExperimentPageClient />);
 
     expect(await screen.findByRole("heading", { name: "Sign in to open Recipe Lab" })).toBeInTheDocument();
     expect(screen.getByText("Private workspace")).toBeInTheDocument();
@@ -746,7 +759,7 @@ describe("/experiment page", () => {
     );
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    render(<ExperimentPageClient />);
 
     expect(
       await screen.findByRole("heading", { name: "Recipe Lab needs authentication setup" }),
@@ -784,7 +797,7 @@ describe("/experiment page", () => {
     const fetchMock = vi.mocked(fetch);
     getUserMock.mockRejectedValue(new Error("Failed to reach auth service."));
 
-    render(<ExperimentPage />);
+    render(<ExperimentPageClient />);
 
     expect(
       await screen.findByRole("heading", { name: "Recipe Lab needs authentication setup" }),
