@@ -3,68 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY } from "@/lib/experiment-recipe-draft";
+import { setupSupabaseMock } from "@/test/supabase-mock";
 
-const {
-  createClientMock,
-  getUserMock,
-  hasSupabaseAuthConfigMock,
-  mockRouterPush,
-  emitAuthStateChange,
-  onAuthStateChangeMock,
-  resetAuthStateChangeListeners,
-  signInWithOAuthMock,
-  signOutMock,
-  unsubscribeMock,
-} = vi.hoisted(() => {
-  const getUserMock = vi.fn();
-  const authStateChangeListeners = new Set<
-    (event: string, session: { user: { id: string } } | null) => void
-  >();
-  const unsubscribeMock = vi.fn();
-  const onAuthStateChangeMock = vi.fn((callback) => {
-    authStateChangeListeners.add(callback);
-    return {
-      data: {
-        subscription: {
-          unsubscribe() {
-            authStateChangeListeners.delete(callback);
-            unsubscribeMock();
-          },
-        },
-      },
-    };
-  });
-  const signInWithOAuthMock = vi.fn();
-  const signOutMock = vi.fn();
-  const createClientMock = vi.fn(() => ({
-    auth: {
-      getUser: getUserMock,
-      onAuthStateChange: onAuthStateChangeMock,
-      signInWithOAuth: signInWithOAuthMock,
-      signOut: signOutMock,
-    },
-  }));
-  const hasSupabaseAuthConfigMock = vi.fn();
-
-  return {
-    createClientMock,
-    emitAuthStateChange(event: string, session: { user: { id: string } } | null) {
-      for (const listener of authStateChangeListeners) {
-        listener(event, session);
-      }
-    },
-    getUserMock,
-    hasSupabaseAuthConfigMock,
-    mockRouterPush: vi.fn(),
-    onAuthStateChangeMock,
-    resetAuthStateChangeListeners() {
-      authStateChangeListeners.clear();
-    },
-    signInWithOAuthMock,
-    signOutMock,
-    unsubscribeMock,
-  };
-});
+const supabaseMock = setupSupabaseMock();
+const { mockRouterPush } = vi.hoisted(() => ({
+  mockRouterPush: vi.fn(),
+}));
 
 vi.mock("next/navigation", async () => {
   const actual =
@@ -82,14 +26,6 @@ vi.mock("next/navigation", async () => {
     }),
   };
 });
-
-vi.mock("@/lib/supabase/client", () => ({
-  createClient: createClientMock,
-}));
-
-vi.mock("@/lib/supabase/config", () => ({
-  hasSupabaseAuthConfig: hasSupabaseAuthConfigMock,
-}));
 
 import ExperimentPageClient from "./experiment-page-client";
 
@@ -125,17 +61,11 @@ function toUrl(input: RequestInfo | URL): string {
 }
 
 function mockSignedInUser(userId = "user-1") {
-  getUserMock.mockResolvedValue({
-    data: { user: { id: userId } },
-    error: null,
-  });
+  supabaseMock.signInUser(userId);
 }
 
 function mockSignedOutUser(message = "Auth session missing!") {
-  getUserMock.mockResolvedValue({
-    data: { user: null },
-    error: { message },
-  });
+  supabaseMock.signOutUser(message);
 }
 
 async function renderAuthenticatedExperimentPage() {
@@ -147,20 +77,9 @@ describe("/experiment page", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
     window.sessionStorage.clear();
-    createClientMock.mockClear();
-    getUserMock.mockReset();
-    hasSupabaseAuthConfigMock.mockReset();
+    supabaseMock.reset();
     mockRouterPush.mockReset();
-    onAuthStateChangeMock.mockClear();
-    resetAuthStateChangeListeners();
-    signInWithOAuthMock.mockReset();
-    signOutMock.mockReset();
-    unsubscribeMock.mockClear();
-
-    hasSupabaseAuthConfigMock.mockReturnValue(true);
     mockSignedInUser();
-    signInWithOAuthMock.mockResolvedValue({ error: null });
-    signOutMock.mockResolvedValue({ error: null });
   });
 
   it("starts a new thread from sidebar and renders active conversation", async () => {
@@ -793,11 +712,19 @@ describe("/experiment page", () => {
     );
   });
 
-  it("shows the blocked auth state when getUser rejects and does not request history", async () => {
+  it("shows a seeded blocked auth state without requesting history", async () => {
     const fetchMock = vi.mocked(fetch);
-    getUserMock.mockRejectedValue(new Error("Failed to reach auth service."));
+    supabaseMock.hasSupabaseAuthConfigMock.mockReturnValue(false);
 
-    render(<ExperimentPageClient />);
+    render(
+      <ExperimentPageClient
+        initialAccess={{
+          accessState: "auth_unavailable",
+          viewerUserId: null,
+          errorMessage: "Failed to reach auth service.",
+        }}
+      />,
+    );
 
     expect(
       await screen.findByRole("heading", { name: "Recipe Lab needs authentication setup" }),
@@ -867,7 +794,7 @@ describe("/experiment page", () => {
     expect(await screen.findAllByText("Current draft from history.")).not.toHaveLength(0);
 
     await act(async () => {
-      emitAuthStateChange("SIGNED_OUT", null);
+      supabaseMock.emit("SIGNED_OUT", null);
     });
 
     expect(await screen.findByRole("heading", { name: "Sign in to open Recipe Lab" })).toBeInTheDocument();
@@ -921,7 +848,7 @@ describe("/experiment page", () => {
     expect(await screen.findByRole("button", { name: /User one thread/i })).toBeInTheDocument();
 
     await act(async () => {
-      emitAuthStateChange("SIGNED_IN", { user: { id: "user-2" } });
+      supabaseMock.emit("SIGNED_IN", { user: { id: "user-2" } });
     });
 
     expect(await screen.findByRole("button", { name: /User two thread/i })).toBeInTheDocument();

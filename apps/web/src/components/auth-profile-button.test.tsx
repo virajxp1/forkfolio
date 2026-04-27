@@ -1,74 +1,19 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
-const {
-  createClientMock,
-  getUserMock,
-  hasSupabaseAuthConfigMock,
-  onAuthStateChangeMock,
-  signInWithOAuthMock,
-  signOutMock,
-  unsubscribeMock,
-} = vi.hoisted(() => {
-  const getUserMock = vi.fn();
-  const unsubscribeMock = vi.fn();
-  const onAuthStateChangeMock = vi.fn(() => ({
-    data: {
-      subscription: {
-        unsubscribe: unsubscribeMock,
-      },
-    },
-  }));
-  const signInWithOAuthMock = vi.fn();
-  const signOutMock = vi.fn();
-  const createClientMock = vi.fn(() => ({
-    auth: {
-      getUser: getUserMock,
-      onAuthStateChange: onAuthStateChangeMock,
-      signInWithOAuth: signInWithOAuthMock,
-      signOut: signOutMock,
-    },
-  }));
-  const hasSupabaseAuthConfigMock = vi.fn();
+import { setupSupabaseMock } from "@/test/supabase-mock";
 
-  return {
-    createClientMock,
-    getUserMock,
-    hasSupabaseAuthConfigMock,
-    onAuthStateChangeMock,
-    signInWithOAuthMock,
-    signOutMock,
-    unsubscribeMock,
-  };
-});
-
-vi.mock("@/lib/supabase/client", () => ({
-  createClient: createClientMock,
-}));
-
-vi.mock("@/lib/supabase/config", () => ({
-  hasSupabaseAuthConfig: hasSupabaseAuthConfigMock,
-}));
+const supabaseMock = setupSupabaseMock();
 
 import { AuthProfileButton } from "./auth-profile-button";
 
 describe("AuthProfileButton", () => {
   beforeEach(() => {
-    createClientMock.mockClear();
-    getUserMock.mockReset();
-    hasSupabaseAuthConfigMock.mockReset();
-    onAuthStateChangeMock.mockClear();
-    signInWithOAuthMock.mockReset();
-    signOutMock.mockReset();
-    unsubscribeMock.mockClear();
-
-    hasSupabaseAuthConfigMock.mockReturnValue(true);
-    signInWithOAuthMock.mockResolvedValue({ error: null });
-    signOutMock.mockResolvedValue({ error: null });
+    supabaseMock.reset();
   });
 
   it("treats a missing auth session as a signed-out state instead of an error", async () => {
-    getUserMock.mockResolvedValue({
+    supabaseMock.getUserMock.mockResolvedValue({
       data: { user: null },
       error: { message: "Auth session missing!" },
     });
@@ -80,7 +25,7 @@ describe("AuthProfileButton", () => {
   });
 
   it("still shows unexpected auth errors", async () => {
-    getUserMock.mockResolvedValue({
+    supabaseMock.getUserMock.mockResolvedValue({
       data: { user: null },
       error: { message: "Failed to reach auth service." },
     });
@@ -92,7 +37,7 @@ describe("AuthProfileButton", () => {
   });
 
   it("shows an error when getUser rejects", async () => {
-    getUserMock.mockRejectedValue(new Error("Failed to reach auth service."));
+    supabaseMock.getUserMock.mockRejectedValue(new Error("Failed to reach auth service."));
 
     render(<AuthProfileButton />);
 

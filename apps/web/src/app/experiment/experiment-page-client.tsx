@@ -1,11 +1,9 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { User } from "@supabase/supabase-js";
 import {
   History,
   Loader2,
-  LockKeyhole,
   Paperclip,
   Plus,
   Send,
@@ -23,7 +21,6 @@ import {
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
-import { AuthProfileButton } from "@/components/auth-profile-button";
 import { ForkfolioHeader } from "@/components/forkfolio-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,9 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { saveExperimentRecipeDraft } from "@/lib/experiment-recipe-draft";
-import { isExpectedSignedOutMessage } from "@/lib/supabase/auth";
-import { createClient as createSupabaseClient } from "@/lib/supabase/client";
-import { hasSupabaseAuthConfig } from "@/lib/supabase/config";
+import { useViewerAuth, type ViewerAccessSeed } from "@/lib/supabase/use-viewer-auth";
 import type {
   CreateExperimentMessageResponse,
   CreateExperimentThreadResponse,
@@ -54,6 +49,13 @@ import type {
   ListExperimentThreadsResponse,
   SearchRecipesResponse,
 } from "@/lib/forkfolio-types";
+
+import {
+  AccessPanel,
+  AccessSidebar,
+  getBlockedAccessCopy,
+  type BlockedAccessReason,
+} from "./access-gate";
 
 type ErrorPayload = {
   detail?: string | { message?: string };
@@ -76,25 +78,7 @@ type ParsedSseEvent = {
   data: unknown;
 };
 
-export type ExperimentAccessState =
-  | "resolving"
-  | "ready"
-  | "auth_required"
-  | "auth_unavailable";
-type BlockedExperimentAccessState = Exclude<ExperimentAccessState, "resolving" | "ready">;
-type BrowserSupabaseClient = ReturnType<typeof createSupabaseClient>;
-type ViewerAccessResolution =
-  | {
-      accessState: "ready";
-      viewerUserId: string;
-      errorMessage: null;
-    }
-  | {
-      accessState: "auth_required" | "auth_unavailable";
-      viewerUserId: null;
-      errorMessage: string | null;
-    };
-export type ExperimentInitialAccess = ViewerAccessResolution;
+export type ExperimentInitialAccess = ViewerAccessSeed;
 
 type ExperimentPageClientProps = {
   initialAccess?: ExperimentInitialAccess | null;
@@ -264,51 +248,6 @@ function normalizeThread(thread: ExperimentThreadRecord): ExperimentThreadRecord
   };
 }
 
-function resolveViewerUserId(user: User | null | undefined): string | null {
-  const normalizedUserId = user?.id?.trim() ?? "";
-  return normalizedUserId || null;
-}
-
-async function resolveViewerAccessClient(
-  supabase: BrowserSupabaseClient,
-): Promise<ViewerAccessResolution> {
-  try {
-    const { data, error } = await supabase.auth.getUser();
-    const viewerUserId = resolveViewerUserId(data.user);
-
-    if (viewerUserId) {
-      return {
-        accessState: "ready",
-        viewerUserId,
-        errorMessage: null,
-      };
-    }
-
-    if (error?.message && !isExpectedSignedOutMessage(error.message)) {
-      return {
-        accessState: "auth_unavailable",
-        viewerUserId: null,
-        errorMessage: error.message,
-      };
-    }
-
-    return {
-      accessState: "auth_required",
-      viewerUserId: null,
-      errorMessage: null,
-    };
-  } catch (error) {
-    return {
-      accessState: "auth_unavailable",
-      viewerUserId: null,
-      errorMessage:
-        error instanceof Error && error.message
-          ? error.message
-          : "Failed to verify your account.",
-    };
-  }
-}
-
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof BrowserApiError) {
     return error.detail ?? error.message;
@@ -319,7 +258,7 @@ function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function getAccessState(error: unknown): ExperimentAccessState | null {
+function getBlockedReason(error: unknown): BlockedAccessReason | null {
   if (!(error instanceof BrowserApiError)) {
     return null;
   }
@@ -330,42 +269,6 @@ function getAccessState(error: unknown): ExperimentAccessState | null {
     return "auth_unavailable";
   }
   return null;
-}
-
-function isBlockedAccessState(
-  accessState: ExperimentAccessState,
-): accessState is BlockedExperimentAccessState {
-  return accessState === "auth_required" || accessState === "auth_unavailable";
-}
-
-function getAccessStateCopy(accessState: BlockedExperimentAccessState): {
-  badgeLabel: string;
-  title: string;
-  description: string;
-  sidebarTitle: string;
-  sidebarDescription: string;
-} {
-  if (accessState === "auth_required") {
-    return {
-      badgeLabel: "Private workspace",
-      title: "Sign in to open Recipe Lab",
-      description:
-        "Your experiment threads, recipe attachments, and saved context now stay tied to your account. Sign in to keep brainstorming where you left off.",
-      sidebarTitle: "Sign in for history",
-      sidebarDescription:
-        "Thread history is now private to each account, so the lab stays personal instead of shared.",
-    };
-  }
-
-  return {
-    badgeLabel: "Setup required",
-    title: "Recipe Lab needs authentication setup",
-    description:
-      "Private experiment threads depend on Supabase Auth. Add the auth configuration, then reload to unlock history and messaging.",
-    sidebarTitle: "Authentication unavailable",
-    sidebarDescription:
-      "Recipe Lab history cannot load until authentication is configured for this environment.",
-  };
 }
 
 function formatThreadLabel(thread: ExperimentThreadSummary): string {
@@ -471,12 +374,8 @@ export default function ExperimentPageClient({
   initialAccess = null,
 }: ExperimentPageClientProps) {
   const router = useRouter();
-  const hasAuthConfig = hasSupabaseAuthConfig();
-  const [supabase] = useState(() => (hasAuthConfig ? createSupabaseClient() : null));
-  const initialViewerUserId = initialAccess?.viewerUserId ?? null;
-  const initialAccessState =
-    initialAccess?.accessState ?? (hasAuthConfig ? "resolving" : "auth_unavailable");
-  const shouldResolveViewerOnMount = hasAuthConfig && !initialAccess;
+  const { auth, isViewerActive, markBlocked, retry } = useViewerAuth(initialAccess);
+
   const [messageInput, setMessageInput] = useState("");
   const [thread, setThread] = useState<ExperimentThreadRecord | null>(null);
   const [threadHistory, setThreadHistory] = useState<ExperimentThreadSummary[]>([]);
@@ -484,9 +383,9 @@ export default function ExperimentPageClient({
   const [isLoadingThread, setIsLoadingThread] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [accessState, setAccessState] = useState<ExperimentAccessState>(initialAccessState);
-  const [viewerUserId, setViewerUserId] = useState<string | null>(initialViewerUserId);
-  const [errorMessage, setErrorMessage] = useState<string | null>(initialAccess?.errorMessage ?? null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(
+    initialAccess?.errorMessage ?? null,
+  );
   const [attachmentFeedback, setAttachmentFeedback] = useState<string | null>(null);
   const [streamStatus, setStreamStatus] = useState<string | null>(null);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
@@ -498,14 +397,15 @@ export default function ExperimentPageClient({
   const [isSearchingAttachments, setIsSearchingAttachments] = useState(false);
   const [attachSearchError, setAttachSearchError] = useState<string | null>(null);
   const messageListEndRef = useRef<HTMLDivElement | null>(null);
-  const accessStateRef = useRef<ExperimentAccessState>(initialAccessState);
-  const viewerUserIdRef = useRef<string | null>(initialViewerUserId);
+
   const activeThreadId = thread?.id ?? null;
   const activeThreadMessageCount = thread?.messages.length ?? 0;
-  const isAccessPending = accessState === "resolving";
-  const isAccessBlocked = isBlockedAccessState(accessState);
-  const canUseThreads = !isAccessPending && accessState === "ready";
-  const accessStateCopy = isAccessBlocked ? getAccessStateCopy(accessState) : null;
+  const isAccessPending = auth.status === "resolving";
+  const isAccessBlocked = auth.status === "blocked";
+  const canUseThreads = auth.status === "ready";
+  const viewerUserId = auth.status === "ready" ? auth.viewerUserId : null;
+  const blockedReason = auth.status === "blocked" ? auth.reason : null;
+  const blockedCopy = blockedReason ? getBlockedAccessCopy(blockedReason) : null;
   const canSendMessage =
     canUseThreads &&
     !isSendingMessage &&
@@ -513,19 +413,71 @@ export default function ExperimentPageClient({
     !isCreatingThread &&
     !isLoadingThread;
 
-  function commitAccessState(nextAccessState: ExperimentAccessState) {
-    accessStateRef.current = nextAccessState;
-    setAccessState(nextAccessState);
+  function handleApiError(error: unknown, fallback: string): boolean {
+    const reason = getBlockedReason(error);
+    if (reason) {
+      markBlocked(reason);
+      return true;
+    }
+    setErrorMessage(getErrorMessage(error, fallback));
+    return false;
   }
 
-  function resetExperimentState(options?: {
-    errorMessage?: string | null;
-    historyLoading?: boolean;
-  }) {
-    setIsCreatingThread(false);
-    setIsLoadingThread(false);
-    setIsLoadingHistory(options?.historyLoading ?? false);
-    setIsSendingMessage(false);
+  function runIfViewerActive(activeViewerUserId: string, fn: () => void) {
+    if (isViewerActive(activeViewerUserId)) {
+      fn();
+    }
+  }
+
+  async function guardedViewerCall<T>(
+    activeViewerUserId: string,
+    request: () => Promise<T>,
+  ): Promise<T | null> {
+    const result = await request();
+    return isViewerActive(activeViewerUserId) ? result : null;
+  }
+
+  async function refreshHistory(activeViewerUserId: string) {
+    setIsLoadingHistory(true);
+    try {
+      const response = await guardedViewerCall(activeViewerUserId, () => listThreadsClient(40));
+      if (!response) {
+        return;
+      }
+      setThreadHistory(response.threads ?? []);
+    } catch (error) {
+      runIfViewerActive(activeViewerUserId, () => {
+        const reason = getBlockedReason(error);
+        if (reason) {
+          markBlocked(reason);
+          return;
+        }
+        setThreadHistory([]);
+      });
+    } finally {
+      runIfViewerActive(activeViewerUserId, () => {
+        setIsLoadingHistory(false);
+      });
+    }
+  }
+
+  function upsertThreadHistory(nextThread: ExperimentThreadRecord) {
+    const nextSummary = toThreadSummary(nextThread);
+    setThreadHistory((current) => {
+      const withoutCurrent = current.filter((item) => item.id !== nextSummary.id);
+      return [nextSummary, ...withoutCurrent];
+    });
+  }
+
+  const loadViewerHistory = useEffectEvent((activeViewerUserId: string) => {
+    void refreshHistory(activeViewerUserId);
+  });
+
+  useEffect(() => {
+    if (auth.status === "ready") {
+      loadViewerHistory(auth.viewerUserId);
+      return;
+    }
     setThread(null);
     setThreadHistory([]);
     setMessageInput("");
@@ -538,185 +490,13 @@ export default function ExperimentPageClient({
     setAttachmentFeedback(null);
     setStreamStatus(null);
     setStreamingMessageId(null);
-    setErrorMessage(options?.errorMessage ?? null);
-  }
-
-  function applyBlockedAccessState(
-    nextAccessState: BlockedExperimentAccessState,
-    options?: {
-      clearViewer?: boolean;
-      errorMessage?: string | null;
-    },
-  ) {
-    if (options?.clearViewer) {
-      viewerUserIdRef.current = null;
-      setViewerUserId(null);
-    }
-    commitAccessState(nextAccessState);
-    resetExperimentState({ errorMessage: options?.errorMessage });
-  }
-
-  function applyViewerReadyState(nextViewerUserId: string) {
-    viewerUserIdRef.current = nextViewerUserId;
-    setViewerUserId(nextViewerUserId);
-    commitAccessState("ready");
-    resetExperimentState({ historyLoading: true });
-  }
-
-  function applyViewerAccessResolution(resolution: ViewerAccessResolution) {
-    if (resolution.accessState === "ready") {
-      if (
-        viewerUserIdRef.current === resolution.viewerUserId &&
-        accessStateRef.current === "ready"
-      ) {
-        setErrorMessage(null);
-        return;
-      }
-      applyViewerReadyState(resolution.viewerUserId);
-      return;
-    }
-
-    applyBlockedAccessState(resolution.accessState, {
-      clearViewer: true,
-      errorMessage: resolution.errorMessage,
-    });
-  }
-
-  function isViewerStillActive(activeViewerUserId: string | null): boolean {
-    return Boolean(activeViewerUserId && viewerUserIdRef.current === activeViewerUserId);
-  }
-
-  const applyBlockedAccessStateFromEffect = useEffectEvent(
-    (
-      nextAccessState: BlockedExperimentAccessState,
-      options?: {
-        clearViewer?: boolean;
-        errorMessage?: string | null;
-      },
-    ) => {
-      applyBlockedAccessState(nextAccessState, options);
-    },
-  );
-
-  const applyViewerAccessResolutionFromEffect = useEffectEvent(
-    (resolution: ViewerAccessResolution) => {
-      applyViewerAccessResolution(resolution);
-    },
-  );
-
-  async function refreshHistory(activeViewerUserId: string | null = viewerUserIdRef.current) {
-    if (!activeViewerUserId) {
-      setIsLoadingHistory(false);
-      return;
-    }
-
-    setIsLoadingHistory(true);
-    try {
-      const response = await listThreadsClient(40);
-      if (viewerUserIdRef.current !== activeViewerUserId) {
-        return;
-      }
-      commitAccessState("ready");
-      setThreadHistory(response.threads ?? []);
-    } catch (error) {
-      if (viewerUserIdRef.current !== activeViewerUserId) {
-        return;
-      }
-      const nextAccessState = getAccessState(error);
-      if (nextAccessState) {
-        applyBlockedAccessState(nextAccessState, {
-          clearViewer: nextAccessState === "auth_required",
-        });
-        return;
-      }
-      setThreadHistory([]);
-    } finally {
-      if (viewerUserIdRef.current === activeViewerUserId) {
-        setIsLoadingHistory(false);
-      }
-    }
-  }
-
-  function upsertThreadHistory(nextThread: ExperimentThreadRecord) {
-    const nextSummary = toThreadSummary(nextThread);
-    setThreadHistory((current) => {
-      const withoutCurrent = current.filter((item) => item.id !== nextSummary.id);
-      return [nextSummary, ...withoutCurrent];
-    });
-  }
-
-  useEffect(() => {
-    if (!shouldResolveViewerOnMount) {
-      return;
-    }
-    if (!supabase) {
-      applyBlockedAccessStateFromEffect("auth_unavailable", { clearViewer: true });
-      return;
-    }
-
-    let isActive = true;
-    commitAccessState("resolving");
-
-    void resolveViewerAccessClient(supabase)
-      .then((resolution) => {
-        if (!isActive) {
-          return;
-        }
-        applyViewerAccessResolutionFromEffect(resolution);
-      });
-
-    return () => {
-      isActive = false;
-    };
-  }, [shouldResolveViewerOnMount, supabase]);
-
-  const handleAuthStateChangeFromEffect = useEffectEvent((nextViewerUser: User | null) => {
-    const nextViewerUserId = resolveViewerUserId(nextViewerUser);
-    if (!nextViewerUserId) {
-      applyBlockedAccessState("auth_required", { clearViewer: true });
-      return;
-    }
-    if (
-      viewerUserIdRef.current === nextViewerUserId &&
-      accessStateRef.current === "ready"
-    ) {
-      setErrorMessage(null);
-      return;
-    }
-
-    applyViewerAccessResolution({
-      accessState: "ready",
-      viewerUserId: nextViewerUserId,
-      errorMessage: null,
-    });
-  });
-
-  useEffect(() => {
-    if (!supabase) {
-      return;
-    }
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      handleAuthStateChangeFromEffect(session?.user ?? null);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
-
-  const loadViewerHistory = useEffectEvent((activeViewerUserId: string) => {
-    void refreshHistory(activeViewerUserId);
-  });
-
-  useEffect(() => {
-    if (!viewerUserId) {
-      return;
-    }
-    loadViewerHistory(viewerUserId);
-  }, [viewerUserId]);
+    setIsCreatingThread(false);
+    setIsLoadingThread(false);
+    setIsLoadingHistory(false);
+    setIsSendingMessage(false);
+    setErrorMessage(auth.status === "blocked" ? auth.error : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.status, viewerUserId]);
 
   useEffect(() => {
     if (!isAttachDialogOpen) {
@@ -771,13 +551,10 @@ export default function ExperimentPageClient({
   }, [activeThreadId, activeThreadMessageCount]);
 
   async function handleNewThread() {
-    if (!canUseThreads) {
+    if (!viewerUserId) {
       return;
     }
-    const activeViewerUserId = viewerUserIdRef.current;
-    if (!activeViewerUserId) {
-      return;
-    }
+    const activeViewerUserId = viewerUserId;
     setErrorMessage(null);
     setAttachmentFeedback(null);
     setStreamStatus(null);
@@ -786,41 +563,28 @@ export default function ExperimentPageClient({
     setIsCreatingThread(true);
 
     try {
-      const response = await createThreadClient();
-      if (!isViewerStillActive(activeViewerUserId)) {
+      const response = await guardedViewerCall(activeViewerUserId, () => createThreadClient());
+      if (!response) {
         return;
       }
-      commitAccessState("ready");
-      const nextThread = normalizeThread(response.thread);
-      setThread(nextThread);
+      setThread(normalizeThread(response.thread));
       await refreshHistory(activeViewerUserId);
     } catch (error) {
-      if (!isViewerStillActive(activeViewerUserId)) {
-        return;
-      }
-      const nextAccessState = getAccessState(error);
-      if (nextAccessState) {
-        applyBlockedAccessState(nextAccessState, {
-          clearViewer: nextAccessState === "auth_required",
-        });
-        return;
-      }
-      setErrorMessage(getErrorMessage(error, "Failed to start a new conversation."));
+      runIfViewerActive(activeViewerUserId, () => {
+        handleApiError(error, "Failed to start a new conversation.");
+      });
     } finally {
-      if (isViewerStillActive(activeViewerUserId)) {
+      runIfViewerActive(activeViewerUserId, () => {
         setIsCreatingThread(false);
-      }
+      });
     }
   }
 
   async function handleSelectThread(threadId: string) {
-    if (!canUseThreads) {
+    if (!viewerUserId) {
       return;
     }
-    const activeViewerUserId = viewerUserIdRef.current;
-    if (!activeViewerUserId) {
-      return;
-    }
+    const activeViewerUserId = viewerUserId;
     const normalizedThreadId = threadId.trim();
     if (!normalizedThreadId) {
       return;
@@ -833,29 +597,21 @@ export default function ExperimentPageClient({
     setPendingAttachments([]);
     setIsLoadingThread(true);
     try {
-      const response = await getThreadClient(normalizedThreadId);
-      if (!isViewerStillActive(activeViewerUserId)) {
+      const response = await guardedViewerCall(activeViewerUserId, () =>
+        getThreadClient(normalizedThreadId),
+      );
+      if (!response) {
         return;
       }
-      commitAccessState("ready");
-      const nextThread = normalizeThread(response.thread);
-      setThread(nextThread);
+      setThread(normalizeThread(response.thread));
     } catch (error) {
-      if (!isViewerStillActive(activeViewerUserId)) {
-        return;
-      }
-      const nextAccessState = getAccessState(error);
-      if (nextAccessState) {
-        applyBlockedAccessState(nextAccessState, {
-          clearViewer: nextAccessState === "auth_required",
-        });
-        return;
-      }
-      setErrorMessage(getErrorMessage(error, "Failed to load conversation."));
+      runIfViewerActive(activeViewerUserId, () => {
+        handleApiError(error, "Failed to load conversation.");
+      });
     } finally {
-      if (isViewerStillActive(activeViewerUserId)) {
+      runIfViewerActive(activeViewerUserId, () => {
         setIsLoadingThread(false);
-      }
+      });
     }
   }
 
@@ -884,13 +640,10 @@ export default function ExperimentPageClient({
 
   async function handleSendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!canUseThreads) {
+    if (!viewerUserId) {
       return;
     }
-    const activeViewerUserId = viewerUserIdRef.current;
-    if (!activeViewerUserId) {
-      return;
-    }
+    const activeViewerUserId = viewerUserId;
     const normalizedMessage = messageInput.trim();
     if (!normalizedMessage) {
       setErrorMessage("Message cannot be empty.");
@@ -907,38 +660,28 @@ export default function ExperimentPageClient({
       setStreamStatus("Starting thread...");
       setIsCreatingThread(true);
       try {
-        const createResponse = await createThreadClient();
-        if (!isViewerStillActive(activeViewerUserId)) {
+        const createResponse = await guardedViewerCall(activeViewerUserId, () =>
+          createThreadClient(),
+        );
+        if (!createResponse) {
           return;
         }
-        commitAccessState("ready");
         activeThread = normalizeThread(createResponse.thread);
         setThread(activeThread);
         upsertThreadHistory(activeThread);
         void refreshHistory(activeViewerUserId);
       } catch (error) {
-        if (!isViewerStillActive(activeViewerUserId)) {
-          return;
-        }
-        const nextAccessState = getAccessState(error);
-        if (nextAccessState) {
-          applyBlockedAccessState(nextAccessState, {
-            clearViewer: nextAccessState === "auth_required",
-          });
+        runIfViewerActive(activeViewerUserId, () => {
+          handleApiError(error, "Failed to start a new conversation.");
           setIsSendingMessage(false);
           setStreamStatus(null);
           setStreamingMessageId(null);
-          return;
-        }
-        setErrorMessage(getErrorMessage(error, "Failed to start a new conversation."));
-        setIsSendingMessage(false);
-        setStreamStatus(null);
-        setStreamingMessageId(null);
+        });
         return;
       } finally {
-        if (isViewerStillActive(activeViewerUserId)) {
+        runIfViewerActive(activeViewerUserId, () => {
           setIsCreatingThread(false);
-        }
+        });
       }
     }
 
@@ -975,12 +718,17 @@ export default function ExperimentPageClient({
     });
 
     try {
-      const response = await streamMessageClient(activeThread.id, {
-        content: normalizedMessage,
-        ...(pendingAttachments.length
-          ? { attach_recipe_ids: pendingAttachments.map((item) => item.id) }
-          : {}),
-      });
+      const response = await guardedViewerCall(activeViewerUserId, () =>
+        streamMessageClient(activeThread.id, {
+          content: normalizedMessage,
+          ...(pendingAttachments.length
+            ? { attach_recipe_ids: pendingAttachments.map((item) => item.id) }
+            : {}),
+        }),
+      );
+      if (!response) {
+        return;
+      }
 
       if (!response.body) {
         throw new BrowserApiError("Streaming response body was empty.", 500);
@@ -1002,7 +750,7 @@ export default function ExperimentPageClient({
       };
 
       const applyStreamEvent = (parsed: ParsedSseEvent) => {
-        if (!isViewerStillActive(activeViewerUserId)) {
+        if (!isViewerActive(activeViewerUserId)) {
           return;
         }
         if (parsed.event === "status") {
@@ -1094,7 +842,7 @@ export default function ExperimentPageClient({
         }
       }
 
-      if (!isViewerStillActive(activeViewerUserId)) {
+      if (!isViewerActive(activeViewerUserId)) {
         return;
       }
 
@@ -1177,41 +925,22 @@ export default function ExperimentPageClient({
       }
       upsertThreadHistory(nextThreadSummary);
     } catch (error) {
-      if (!isViewerStillActive(activeViewerUserId)) {
-        return;
-      }
-      const nextAccessState = getAccessState(error);
-      if (nextAccessState) {
-        applyBlockedAccessState(nextAccessState, {
-          clearViewer: nextAccessState === "auth_required",
-        });
-        return;
-      }
-      setThread(previousThreadSnapshot);
-      setErrorMessage(getErrorMessage(error, "Failed to send message."));
+      runIfViewerActive(activeViewerUserId, () => {
+        const reason = getBlockedReason(error);
+        if (reason) {
+          markBlocked(reason);
+          return;
+        }
+        setThread(previousThreadSnapshot);
+        setErrorMessage(getErrorMessage(error, "Failed to send message."));
+      });
     } finally {
-      if (isViewerStillActive(activeViewerUserId)) {
+      runIfViewerActive(activeViewerUserId, () => {
         setIsSendingMessage(false);
         setStreamStatus(null);
         setStreamingMessageId(null);
-      }
+      });
     }
-  }
-
-  async function handleAccessRetry() {
-    if (isAccessPending) {
-      return;
-    }
-    if (!supabase) {
-      applyBlockedAccessState("auth_unavailable", { clearViewer: true });
-      return;
-    }
-    if (viewerUserIdRef.current) {
-      await refreshHistory(viewerUserIdRef.current);
-      return;
-    }
-    commitAccessState("resolving");
-    applyViewerAccessResolution(await resolveViewerAccessClient(supabase));
   }
 
   const isBusy = isCreatingThread || isLoadingThread || isSendingMessage || isAccessPending;
@@ -1274,22 +1003,9 @@ export default function ExperimentPageClient({
             </CardHeader>
             <CardContent className="h-[calc(82vh-8rem)] space-y-2 overflow-y-auto">
               {isAccessPending ? (
-                <div className="flex h-full flex-col justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Loader2 className="size-4 animate-spin text-primary" />
-                    Checking your account
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Recipe Lab waits for your account before requesting private thread history.
-                  </p>
-                </div>
-              ) : isAccessBlocked && accessStateCopy ? (
-                <div className="flex h-full flex-col justify-center gap-3 rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
-                  <p className="text-sm font-semibold">{accessStateCopy.sidebarTitle}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {accessStateCopy.sidebarDescription}
-                  </p>
-                </div>
+                <AccessSidebar variant="resolving" />
+              ) : blockedReason ? (
+                <AccessSidebar variant="blocked" reason={blockedReason} />
               ) : isLoadingHistory ? (
                 <p className="text-sm text-muted-foreground">Loading…</p>
               ) : threadHistory.length === 0 ? (
@@ -1324,8 +1040,8 @@ export default function ExperimentPageClient({
               <CardTitle>
                 {isAccessPending
                   ? "Checking your Recipe Lab access"
-                  : isAccessBlocked && accessStateCopy
-                  ? accessStateCopy.title
+                  : blockedCopy
+                  ? blockedCopy.title
                   : thread
                   ? thread.title?.trim() || "Untitled conversation"
                   : "Start a new conversation"}
@@ -1333,8 +1049,8 @@ export default function ExperimentPageClient({
               <CardDescription>
                 {isAccessPending
                   ? "Loading your account state before requesting private thread history."
-                  : isAccessBlocked && accessStateCopy
-                  ? accessStateCopy.description
+                  : blockedCopy
+                  ? blockedCopy.description
                   : thread
                   ? "Continue the thread or attach recipes before your next message."
                   : "Type a message to start instantly, or use New Thread."}
@@ -1354,88 +1070,15 @@ export default function ExperimentPageClient({
 
               <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border/70 bg-muted/20">
                 {isAccessPending ? (
-                  <div className="flex h-full items-center justify-center overflow-y-auto p-4 sm:p-6">
-                    <div className="w-full max-w-xl rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm sm:p-6">
-                      <div className="flex items-start gap-4">
-                        <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-                          <Loader2 className="size-5 animate-spin" />
-                        </span>
-                        <div className="space-y-2">
-                          <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                            Loading access
-                          </p>
-                          <h2 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
-                            Checking your Recipe Lab access
-                          </h2>
-                          <p className="max-w-[56ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
-                            Thread history stays hidden until the current account is resolved, so
-                            signed-out visitors do not trigger private history requests.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : isAccessBlocked && accessStateCopy ? (
-                  <div className="flex h-full items-center justify-center overflow-y-auto p-4 sm:p-6">
-                    <div className="w-full max-w-2xl rounded-[1.75rem] border border-border/70 bg-background/90 p-5 shadow-sm sm:p-6">
-                      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-4">
-                          <span className="inline-flex size-11 items-center justify-center rounded-2xl bg-primary/12 text-primary">
-                            <LockKeyhole className="size-5" />
-                          </span>
-                          <div className="space-y-2">
-                            <p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground uppercase">
-                              {accessStateCopy.badgeLabel}
-                            </p>
-                            <h2 className="font-display text-3xl leading-tight tracking-tight sm:text-4xl">
-                              {accessStateCopy.title}
-                            </h2>
-                            <p className="max-w-[56ch] text-sm leading-relaxed text-muted-foreground sm:text-base">
-                              {accessStateCopy.description}
-                            </p>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Badge variant="secondary" className="rounded-full px-3 py-1">
-                              Private history
-                            </Badge>
-                            <Badge variant="secondary" className="rounded-full px-3 py-1">
-                              Saved recipe context
-                            </Badge>
-                            <Badge variant="secondary" className="rounded-full px-3 py-1">
-                              Account-scoped drafts
-                            </Badge>
-                          </div>
-                        </div>
-
-                        <div className="flex shrink-0 flex-col items-start gap-3 lg:items-end">
-                          {accessState === "auth_required" ? (
-                            <>
-                              <AuthProfileButton />
-                              <p className="max-w-xs text-sm text-muted-foreground lg:text-right">
-                                Sign in here or from the header to continue in your personal lab.
-                              </p>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => {
-                                  void handleAccessRetry();
-                                }}
-                              >
-                                Check again
-                              </Button>
-                              <p className="max-w-xs text-sm text-muted-foreground lg:text-right">
-                                Once authentication is configured, reload this view to restore
-                                thread history and messaging.
-                              </p>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                  <AccessPanel variant="resolving" />
+                ) : blockedReason ? (
+                  <AccessPanel
+                    variant="blocked"
+                    reason={blockedReason}
+                    onRetry={() => {
+                      void retry();
+                    }}
+                  />
                 ) : !thread ? (
                   <div className="flex h-full flex-col gap-4 overflow-y-auto p-4 sm:p-5">
                     <div className="rounded-lg border border-border/70 bg-background/90 p-4">
@@ -1541,7 +1184,7 @@ export default function ExperimentPageClient({
                 )}
               </div>
 
-              {!isAccessBlocked ? (
+              {!isAccessBlocked && !isAccessPending ? (
                 <form
                   className="space-y-3 rounded-lg border border-border/70 bg-card/30 p-3"
                   onSubmit={handleSendMessage}

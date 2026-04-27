@@ -97,7 +97,7 @@ export function AuthProfileButton() {
       }
 
       setCurrentUser(session?.user ?? null);
-      setErrorMessage(null);
+      setErrorMessage((current) => (session?.user ? null : current));
       setIsLoading(false);
       if (!session) {
         setIsDialogOpen(false);
