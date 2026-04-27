@@ -54,18 +54,6 @@ class ExperimentService:
         )
 
     @staticmethod
-    def _normalize_mode(mode: str | None) -> str:
-        if mode is None:
-            return "invent_new"
-        normalized_mode = mode.strip().lower()
-        allowed = {"invent_new", "modify_existing"}
-        if normalized_mode not in allowed:
-            raise ExperimentValidationError(
-                "mode must be one of: invent_new, modify_existing"
-            )
-        return normalized_mode
-
-    @staticmethod
     def _normalize_context_recipe_ids(recipe_ids: list[str]) -> list[str]:
         seen = set()
         normalized: list[str] = []
@@ -121,14 +109,12 @@ class ExperimentService:
 
     def create_thread(
         self,
-        mode: str | None = None,
         title: str | None = None,
         context_recipe_ids: list[str] | None = None,
         include_test_data: bool = False,
         is_test: bool = False,
         created_by_user_id: str | None = None,
     ) -> dict:
-        normalized_mode = self._normalize_mode(mode)
         normalized_title = (
             title.strip() if isinstance(title, str) and title.strip() else None
         )
@@ -142,7 +128,6 @@ class ExperimentService:
             metadata["is_test"] = True
 
         return self.experiment_manager.create_thread(
-            mode=normalized_mode,
             title=normalized_title,
             metadata=metadata,
             context_recipe_ids=validated_context_ids,
@@ -262,16 +247,14 @@ class ExperimentService:
             if not recipe:
                 continue
 
-            ingredients = recipe.get("ingredients") or []
-            instructions = recipe.get("instructions") or []
             context_payload.append(
                 {
                     "id": str(recipe.get("id")),
                     "title": recipe.get("title"),
                     "servings": recipe.get("servings"),
                     "total_time": recipe.get("total_time"),
-                    "ingredients_preview": ingredients[:8],
-                    "instructions_preview": instructions[:3],
+                    "ingredients": list(recipe.get("ingredients") or []),
+                    "instructions": list(recipe.get("instructions") or []),
                 }
             )
         return context_payload
@@ -290,7 +273,6 @@ class ExperimentService:
 
     def _build_agent_plan(
         self,
-        mode: str,
         user_message: str,
         context_recipe_ids: list[str],
         prior_messages: list[dict],
@@ -305,7 +287,6 @@ class ExperimentService:
         )
         history_payload = self._build_history_payload(prior_messages)
         return self._agent_graph.execute(
-            mode=mode,
             user_message=user_message,
             context_payload=context_payload,
             history_payload=history_payload,
@@ -342,7 +323,6 @@ class ExperimentService:
 
     def _run_agent_turn(
         self,
-        mode: str,
         user_message: str,
         context_recipe_ids: list[str],
         prior_messages: list[dict],
@@ -350,7 +330,6 @@ class ExperimentService:
         viewer_user_id: str | None = None,
     ) -> str:
         plan = self._build_agent_plan(
-            mode=mode,
             user_message=user_message,
             context_recipe_ids=context_recipe_ids,
             prior_messages=prior_messages,
@@ -459,7 +438,6 @@ class ExperimentService:
             viewer_user_id=viewer_user_id,
         )
         assistant_content = self._run_agent_turn(
-            mode=thread["mode"],
             user_message=normalized_content,
             context_recipe_ids=thread_context_recipe_ids,
             prior_messages=thread_messages,
@@ -598,7 +576,6 @@ class ExperimentService:
             viewer_user_id=viewer_user_id,
         )
         plan = self._build_agent_plan(
-            mode=thread["mode"],
             user_message=normalized_content,
             context_recipe_ids=thread_context_recipe_ids,
             prior_messages=thread_messages,
@@ -634,7 +611,6 @@ class ExperimentService:
                         yield {"event": "delta", "data": {"text": text_chunk}}
                 except Exception:
                     fallback = self._run_agent_turn(
-                        mode=thread["mode"],
                         user_message=normalized_content,
                         context_recipe_ids=thread_context_recipe_ids,
                         prior_messages=thread_messages,

@@ -46,7 +46,6 @@ def create_experiment_thread(
     viewer_user_id = viewer_user_id_from_request(request)
     try:
         thread = experiment_service.create_thread(
-            mode=payload.mode,
             title=payload.title,
             context_recipe_ids=_to_string_ids(payload.context_recipe_ids),
             include_test_data=payload.include_test_data,
