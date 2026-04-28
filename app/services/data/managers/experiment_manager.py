@@ -11,12 +11,11 @@ from .base import BaseManager
 
 THREAD_INSERT_SQL = """
 INSERT INTO experiment_threads (
-    mode,
     title,
     metadata,
     created_by_user_id
 )
-VALUES (%s, %s, %s, %s)
+VALUES (%s, %s, %s)
 RETURNING
     id,
     title,
@@ -205,7 +204,6 @@ TEST_METADATA_SOURCE_VALUES = {
     "ci",
 }
 TRUTHY_FLAG_VALUES = {"1", "true", "yes", "y", "on"}
-DEFAULT_EXPERIMENT_THREAD_MODE = "invent_new"
 
 
 class ExperimentManager(BaseManager):
@@ -341,7 +339,6 @@ class ExperimentManager(BaseManager):
                 cursor.execute(
                     THREAD_INSERT_SQL,
                     (
-                        DEFAULT_EXPERIMENT_THREAD_MODE,
                         title,
                         Json(metadata_payload),
                         created_by_user_id,
