@@ -7,14 +7,20 @@ from app.services.experiment_service import ExperimentService
 
 
 class FakeRecipeManager:
+    def __init__(self, recipes: dict[str, dict] | None = None) -> None:
+        self.recipes = recipes or {}
+
     def get_full_recipe(
         self,
         recipe_id: str,
         include_test_data: bool = False,
         viewer_user_id: str | None = None,
     ):
-        del recipe_id, include_test_data, viewer_user_id
-        return None
+        del include_test_data, viewer_user_id
+        recipe = self.recipes.get(recipe_id)
+        if recipe is None:
+            return None
+        return dict(recipe)
 
     def find_recipes_by_title_query(
         self,
@@ -32,7 +38,6 @@ class FakeExperimentManager:
         now = datetime.now(UTC).isoformat()
         self.thread = {
             "id": "thread-1",
-            "mode": "invent_new",
             "title": None,
             "metadata": {"orchestration": "langgraph-ready"},
             "created_by_user_id": None,
@@ -194,3 +199,66 @@ def test_stream_user_message_blocks_non_recipe_prompt_without_stream_call() -> N
     final_message = final_event["data"]["assistant_message"]["content"]
     assert final_message == EXPERIMENT_AGENT_SCOPE_REFUSAL
     assert stream_call_count == 0
+
+
+def test_build_context_payload_includes_full_recipe_content() -> None:
+    service = ExperimentService(
+        experiment_manager=FakeExperimentManager(),
+        recipe_manager=FakeRecipeManager(
+            recipes={
+                "recipe-1": {
+                    "id": "recipe-1",
+                    "title": "Creamy Tomato Pasta",
+                    "servings": "4",
+                    "total_time": "35 minutes",
+                    "ingredients": [
+                        "12 oz pasta",
+                        "2 tbsp olive oil",
+                        "4 cloves garlic",
+                        "1 onion",
+                        "1 tsp chili flakes",
+                        "28 oz tomatoes",
+                        "1/2 cup cream",
+                        "1/2 cup parmesan",
+                        "1 tbsp butter",
+                    ],
+                    "instructions": [
+                        "Boil the pasta.",
+                        "Saute the aromatics.",
+                        "Simmer the sauce.",
+                        "Finish with cream and cheese.",
+                    ],
+                }
+            }
+        ),
+        text_generation_fn=lambda _user_prompt, _system_prompt: "unused",
+        stream_generation_fn=lambda _user_prompt, _system_prompt: iter(()),
+    )
+
+    payload = service._build_context_payload(["recipe-1"])
+
+    assert payload == [
+        {
+            "id": "recipe-1",
+            "title": "Creamy Tomato Pasta",
+            "servings": "4",
+            "total_time": "35 minutes",
+            "ingredients": [
+                "12 oz pasta",
+                "2 tbsp olive oil",
+                "4 cloves garlic",
+                "1 onion",
+                "1 tsp chili flakes",
+                "28 oz tomatoes",
+                "1/2 cup cream",
+                "1/2 cup parmesan",
+                "1 tbsp butter",
+            ],
+            "instructions": [
+                "Boil the pasta.",
+                "Saute the aromatics.",
+                "Simmer the sauce.",
+                "Finish with cream and cheese.",
+            ],
+        }
+    ]

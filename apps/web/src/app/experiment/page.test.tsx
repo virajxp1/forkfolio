@@ -94,7 +94,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-1",
-            mode: "invent_new",
             title: "Weeknight curry ideas",
             metadata: {},
             context_recipe_ids: [],
@@ -133,7 +132,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-auto",
-            mode: "invent_new",
             title: null,
             metadata: {},
             context_recipe_ids: [],
@@ -151,7 +149,6 @@ describe("/experiment page", () => {
           thread_id: "thread-auto",
           thread: {
             id: "thread-auto",
-            mode: "invent_new",
             title: "Auto start this thread",
             metadata: {},
             context_recipe_ids: [],
@@ -250,7 +247,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-scroll",
-            mode: "invent_new",
             title: null,
             metadata: {},
             context_recipe_ids: [],
@@ -268,7 +264,6 @@ describe("/experiment page", () => {
           thread_id: "thread-scroll",
           thread: {
             id: "thread-scroll",
-            mode: "invent_new",
             title: "Scroll check",
             metadata: {},
             context_recipe_ids: [],
@@ -351,7 +346,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-markdown",
-            mode: "invent_new",
             title: null,
             metadata: {},
             context_recipe_ids: [],
@@ -370,7 +364,6 @@ describe("/experiment page", () => {
           thread_id: "thread-markdown",
           thread: {
             id: "thread-markdown",
-            mode: "invent_new",
             title: "Markdown test",
             metadata: {},
             context_recipe_ids: [],
@@ -452,7 +445,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-1",
-            mode: "invent_new",
             title: null,
             metadata: {},
             context_recipe_ids: [],
@@ -475,7 +467,6 @@ describe("/experiment page", () => {
           thread_id: "thread-1",
           thread: {
             id: "thread-1",
-            mode: "invent_new",
             title: "Make it vegan",
             metadata: {},
             context_recipe_ids: ["recipe-1"],
@@ -603,7 +594,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-1",
-            mode: "invent_new",
             title: "Recover test",
             metadata: {},
             context_recipe_ids: [],
@@ -746,7 +736,6 @@ describe("/experiment page", () => {
           threads: [
             {
               id: "thread-existing",
-              mode: "invent_new",
               title: "Existing draft",
               metadata: {},
               created_at: null,
@@ -763,7 +752,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-existing",
-            mode: "invent_new",
             title: "Existing draft",
             metadata: {},
             context_recipe_ids: [],
@@ -816,7 +804,6 @@ describe("/experiment page", () => {
             ? [
                 {
                   id: "thread-user-1",
-                  mode: "invent_new",
                   title: "User one thread",
                   metadata: {},
                   created_at: null,
@@ -829,7 +816,6 @@ describe("/experiment page", () => {
             : [
                 {
                   id: "thread-user-2",
-                  mode: "invent_new",
                   title: "User two thread",
                   metadata: {},
                   created_at: null,
@@ -872,7 +858,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-draft",
-            mode: "invent_new",
             title: null,
             metadata: {},
             context_recipe_ids: [],
@@ -901,7 +886,6 @@ describe("/experiment page", () => {
           thread_id: "thread-draft",
           thread: {
             id: "thread-draft",
-            mode: "invent_new",
             title: "Recipe draft",
             metadata: {},
             context_recipe_ids: [],
@@ -997,7 +981,6 @@ describe("/experiment page", () => {
           threads: [
             {
               id: "thread-existing",
-              mode: "invent_new",
               title: "Existing draft",
               metadata: {},
               created_at: null,
@@ -1014,7 +997,6 @@ describe("/experiment page", () => {
           success: true,
           thread: {
             id: "thread-existing",
-            mode: "invent_new",
             title: "Existing draft",
             metadata: {},
             context_recipe_ids: [],
@@ -1043,7 +1025,6 @@ describe("/experiment page", () => {
           thread_id: "thread-existing",
           thread: {
             id: "thread-existing",
-            mode: "invent_new",
             title: "Existing draft",
             metadata: {},
             context_recipe_ids: [],
