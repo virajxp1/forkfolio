@@ -297,6 +297,7 @@ def test_create_thread_insert_omits_mode_column(monkeypatch) -> None:
     manager = ExperimentManager()
     cursor = FakeCursor(
         fetchone_results=[
+            {"has_mode": False},
             {
                 "id": "thread-1",
                 "title": "Weeknight curry",
@@ -316,7 +317,7 @@ def test_create_thread_insert_omits_mode_column(monkeypatch) -> None:
     )
 
     assert thread["id"] == "thread-1"
-    query, params = cursor.executed[0]
+    query, params = cursor.executed[1]
     assert "INSERT INTO experiment_threads" in query
     assert "mode" not in query
     assert len(params) == 3
@@ -324,3 +325,38 @@ def test_create_thread_insert_omits_mode_column(monkeypatch) -> None:
     assert isinstance(params[1], Json)
     assert params[1].adapted == {"orchestration": "langgraph-ready"}
     assert params[2] == "user-123"
+
+
+def test_create_thread_insert_includes_mode_column_when_present(monkeypatch) -> None:
+    manager = ExperimentManager()
+    cursor = FakeCursor(
+        fetchone_results=[
+            {"has_mode": True},
+            {
+                "id": "thread-legacy",
+                "title": "Legacy curry",
+                "metadata": {"orchestration": "langgraph-ready"},
+                "created_by_user_id": "user-456",
+                "created_at": None,
+                "updated_at": None,
+            },
+        ]
+    )
+    _patch_db_context(monkeypatch, manager, cursor)
+
+    thread = manager.create_thread(
+        title="Legacy curry",
+        metadata={"orchestration": "langgraph-ready"},
+        created_by_user_id="user-456",
+    )
+
+    assert thread["id"] == "thread-legacy"
+    query, params = cursor.executed[1]
+    assert "INSERT INTO experiment_threads" in query
+    assert "mode" in query
+    assert len(params) == 4
+    assert params[0] == "invent_new"
+    assert params[1] == "Legacy curry"
+    assert isinstance(params[2], Json)
+    assert params[2].adapted == {"orchestration": "langgraph-ready"}
+    assert params[3] == "user-456"

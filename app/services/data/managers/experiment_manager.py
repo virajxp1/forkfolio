@@ -25,6 +25,33 @@ RETURNING
     updated_at
 """
 
+THREAD_INSERT_WITH_MODE_SQL = """
+INSERT INTO experiment_threads (
+    mode,
+    title,
+    metadata,
+    created_by_user_id
+)
+VALUES (%s, %s, %s, %s)
+RETURNING
+    id,
+    title,
+    metadata,
+    created_by_user_id,
+    created_at,
+    updated_at
+"""
+
+THREAD_MODE_COLUMN_EXISTS_SQL = """
+SELECT EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'experiment_threads'
+      AND column_name = 'mode'
+) AS has_mode
+"""
+
 THREAD_OWNER_SCOPE_SQL = """
 (
     (%s IS NULL AND t.created_by_user_id IS NULL)
@@ -204,6 +231,7 @@ TEST_METADATA_SOURCE_VALUES = {
     "ci",
 }
 TRUTHY_FLAG_VALUES = {"1", "true", "yes", "y", "on"}
+DEFAULT_EXPERIMENT_THREAD_MODE = "invent_new"
 
 
 class ExperimentManager(BaseManager):
@@ -281,6 +309,12 @@ class ExperimentManager(BaseManager):
     ) -> tuple[str | None, str | None]:
         return (viewer_user_id, viewer_user_id)
 
+    @staticmethod
+    def _thread_mode_column_exists(cursor) -> bool:
+        cursor.execute(THREAD_MODE_COLUMN_EXISTS_SQL)
+        row = cursor.fetchone() or {}
+        return bool(row.get("has_mode"))
+
     def _thread_exists(
         self,
         cursor,
@@ -336,13 +370,21 @@ class ExperimentManager(BaseManager):
         metadata_payload = metadata if isinstance(metadata, dict) else {}
         try:
             with self.get_db_context() as (_conn, cursor):
+                insert_sql = THREAD_INSERT_SQL
+                insert_params: tuple[Any, ...] = (
+                    title,
+                    Json(metadata_payload),
+                    created_by_user_id,
+                )
+                if self._thread_mode_column_exists(cursor):
+                    insert_sql = THREAD_INSERT_WITH_MODE_SQL
+                    insert_params = (
+                        DEFAULT_EXPERIMENT_THREAD_MODE,
+                        *insert_params,
+                    )
                 cursor.execute(
-                    THREAD_INSERT_SQL,
-                    (
-                        title,
-                        Json(metadata_payload),
-                        created_by_user_id,
-                    ),
+                    insert_sql,
+                    insert_params,
                 )
                 row = cursor.fetchone()
                 if row is None:
