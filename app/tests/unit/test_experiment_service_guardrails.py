@@ -305,7 +305,7 @@ def test_create_thread_insert_omits_mode_column(monkeypatch) -> None:
                 "created_by_user_id": "user-123",
                 "created_at": None,
                 "updated_at": None,
-            }
+            },
         ]
     )
     _patch_db_context(monkeypatch, manager, cursor)
