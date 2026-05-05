@@ -15,6 +15,7 @@ import {
   type ReactNode,
   useEffect,
   useEffectEvent,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -396,6 +397,7 @@ export default function ExperimentPageClient({
   const [isSearchingAttachments, setIsSearchingAttachments] = useState(false);
   const [attachSearchError, setAttachSearchError] = useState<string | null>(null);
   const messageListEndRef = useRef<HTMLDivElement | null>(null);
+  const previousViewerUserIdRef = useRef<string | null>(null);
 
   const activeThreadId = thread?.id ?? null;
   const activeThreadMessageCount = thread?.messages.length ?? 0;
@@ -460,23 +462,10 @@ export default function ExperimentPageClient({
     }
   }
 
-  function upsertThreadHistory(nextThread: ExperimentThreadRecord) {
-    const nextSummary = toThreadSummary(nextThread);
-    setThreadHistory((current) => {
-      const withoutCurrent = current.filter((item) => item.id !== nextSummary.id);
-      return [nextSummary, ...withoutCurrent];
-    });
-  }
-
-  const loadViewerHistory = useEffectEvent((activeViewerUserId: string) => {
-    void refreshHistory(activeViewerUserId);
-  });
-
-  useEffect(() => {
-    if (auth.status === "ready") {
-      loadViewerHistory(auth.viewerUserId);
-      return;
-    }
+  function resetViewerScopedState(
+    nextErrorMessage: string | null,
+    options?: { historyLoading?: boolean },
+  ) {
     setThread(null);
     setThreadHistory([]);
     setMessageInput("");
@@ -491,10 +480,44 @@ export default function ExperimentPageClient({
     setStreamingMessageId(null);
     setIsCreatingThread(false);
     setIsLoadingThread(false);
-    setIsLoadingHistory(false);
+    setIsLoadingHistory(options?.historyLoading ?? false);
     setIsSendingMessage(false);
-    setErrorMessage(auth.status === "blocked" ? auth.error : null);
+    setErrorMessage(nextErrorMessage);
+  }
+
+  function upsertThreadHistory(nextThread: ExperimentThreadRecord) {
+    const nextSummary = toThreadSummary(nextThread);
+    setThreadHistory((current) => {
+      const withoutCurrent = current.filter((item) => item.id !== nextSummary.id);
+      return [nextSummary, ...withoutCurrent];
+    });
+  }
+
+  const loadViewerHistory = useEffectEvent((activeViewerUserId: string) => {
+    void refreshHistory(activeViewerUserId);
+  });
+
+  useLayoutEffect(() => {
+    const previousViewerUserId = previousViewerUserIdRef.current;
+    const viewerChanged = previousViewerUserId !== viewerUserId;
+    previousViewerUserIdRef.current = viewerUserId;
+
+    if (auth.status === "ready") {
+      if (viewerChanged) {
+        resetViewerScopedState(null, { historyLoading: true });
+      }
+      return;
+    }
+
+    resetViewerScopedState(auth.status === "blocked" ? auth.error : null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.status, viewerUserId]);
+
+  useEffect(() => {
+    if (auth.status !== "ready" || !viewerUserId) {
+      return;
+    }
+    loadViewerHistory(viewerUserId);
   }, [auth.status, viewerUserId]);
 
   useEffect(() => {

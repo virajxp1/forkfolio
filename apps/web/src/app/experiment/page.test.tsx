@@ -790,57 +790,99 @@ describe("/experiment page", () => {
     expect(screen.queryByText("Current draft from history.")).not.toBeInTheDocument();
   });
 
-  it("reloads history when auth changes to a different signed-in user", async () => {
+  it("clears the previous viewer state before loading history for a different signed-in user", async () => {
     const fetchMock = vi.mocked(fetch);
     let historyRequestCount = 0;
+    let resolveSecondHistoryRequest: ((response: Response) => void) | null = null;
     fetchMock.mockImplementation(async (input) => {
       const url = toUrl(input);
       if (url.startsWith("/api/experiments/threads?")) {
         historyRequestCount += 1;
+        if (historyRequestCount === 2) {
+          return await new Promise<Response>((resolve) => {
+            resolveSecondHistoryRequest = resolve;
+          });
+        }
         return jsonResponse({
           success: true,
           count: 1,
-          threads: historyRequestCount === 1
-            ? [
-                {
-                  id: "thread-user-1",
-                  title: "User one thread",
-                  metadata: {},
-                  created_at: null,
-                  updated_at: null,
-                  last_message_role: "assistant",
-                  last_message_content: "History for user one.",
-                  last_message_created_at: null,
-                },
-              ]
-            : [
-                {
-                  id: "thread-user-2",
-                  title: "User two thread",
-                  metadata: {},
-                  created_at: null,
-                  updated_at: null,
-                  last_message_role: "assistant",
-                  last_message_content: "History for user two.",
-                  last_message_created_at: null,
-                },
-              ],
+          threads: [
+            {
+              id: "thread-user-1",
+              title: "User one thread",
+              metadata: {},
+              created_at: null,
+              updated_at: null,
+              last_message_role: "assistant",
+              last_message_content: "History for user one.",
+              last_message_created_at: null,
+            },
+          ],
+        });
+      }
+      if (url === "/api/experiments/threads/thread-user-1?message_limit=120") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-user-1",
+            title: "User one thread",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-assistant-user-1",
+                thread_id: "thread-user-1",
+                sequence_no: 1,
+                role: "assistant",
+                content: "History for user one.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
         });
       }
       return jsonResponse({ detail: "Not found" }, 404);
     });
 
+    const user = userEvent.setup();
     await renderAuthenticatedExperimentPage();
     expect(await screen.findByRole("button", { name: /User one thread/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /User one thread/i }));
+    expect(await screen.findAllByText("History for user one.")).not.toHaveLength(0);
 
     await act(async () => {
       supabaseMock.emit("SIGNED_IN", { user: { id: "user-2" } });
     });
 
+    expect(screen.queryByRole("button", { name: /User one thread/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("History for user one.")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+
+    expect(resolveSecondHistoryRequest).not.toBeNull();
+    resolveSecondHistoryRequest?.(
+      jsonResponse({
+        success: true,
+        count: 1,
+        threads: [
+          {
+            id: "thread-user-2",
+            title: "User two thread",
+            metadata: {},
+            created_at: null,
+            updated_at: null,
+            last_message_role: "assistant",
+            last_message_content: "History for user two.",
+            last_message_created_at: null,
+          },
+        ],
+      }),
+    );
+
     expect(await screen.findByRole("button", { name: /User two thread/i })).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.queryByRole("button", { name: /User one thread/i })).not.toBeInTheDocument();
-    });
     expect(
       fetchMock.mock.calls.filter(([input]) => toUrl(input).startsWith("/api/experiments/threads?")),
     ).toHaveLength(2);
@@ -1129,5 +1171,108 @@ describe("/experiment page", () => {
     releaseStream?.();
     const updatedDraftMatches = await screen.findAllByText("Updated draft after send.");
     expect(updatedDraftMatches.length).toBeGreaterThan(1);
+  });
+
+  it("re-enables the composer for a new signed-in viewer when auth changes mid-send", async () => {
+    const fetchMock = vi.mocked(fetch);
+    let releaseStream: (() => void) | null = null;
+    let historyRequestCount = 0;
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = toUrl(input);
+      if (url.startsWith("/api/experiments/threads?")) {
+        historyRequestCount += 1;
+        return jsonResponse({
+          success: true,
+          count: historyRequestCount === 1 ? 1 : 0,
+          threads:
+            historyRequestCount === 1
+              ? [
+                  {
+                    id: "thread-existing",
+                    title: "Existing draft",
+                    metadata: {},
+                    created_at: null,
+                    updated_at: null,
+                    last_message_role: "assistant",
+                    last_message_content: "Current draft from history.",
+                    last_message_created_at: null,
+                  },
+                ]
+              : [],
+        });
+      }
+      if (url === "/api/experiments/threads/thread-existing?message_limit=120") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-existing",
+            title: "Existing draft",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-assistant-existing",
+                thread_id: "thread-existing",
+                sequence_no: 1,
+                role: "assistant",
+                content: "Current draft from history.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+        });
+      }
+      if (
+        url === "/api/experiments/threads/thread-existing/messages/stream" &&
+        init?.method === "POST"
+      ) {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode('event: status\ndata: {"step":"drafting"}\n\n'));
+            releaseStream = () => {
+              controller.close();
+            };
+          },
+        });
+        return new Response(stream, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    const user = userEvent.setup();
+    await renderAuthenticatedExperimentPage();
+
+    await user.click(await screen.findByRole("button", { name: /Existing draft/i }));
+    await user.type(screen.getByLabelText("Your message"), "Keep working this draft");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Your message")).toBeDisabled();
+    });
+
+    await act(async () => {
+      supabaseMock.emit("SIGNED_IN", { user: { id: "user-2" } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Your message")).toBeEnabled();
+    });
+    expect(screen.queryByText("Current draft from history.")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Your message"), "New viewer message");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+    });
+
+    expect(releaseStream).not.toBeNull();
+    releaseStream?.();
   });
 });
