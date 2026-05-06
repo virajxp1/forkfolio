@@ -157,6 +157,63 @@ export type PreviewRecipeFromUrlResponse =
   | PreviewRecipeFromUrlSuccessResponse
   | PreviewRecipeFromUrlFailureResponse;
 
+export type CreateRecipePreviewJobRequest = {
+  url: string;
+};
+
+export type RecipePreviewJobStatus = "queued" | "processing" | "completed" | "failed";
+
+export type CreateRecipePreviewJobResponse = {
+  job_id: string;
+  status: "queued" | "processing";
+  url: string;
+  created_at?: string;
+  updated_at?: string;
+  message?: string;
+};
+
+export type RecipePreviewJobPendingResponse = {
+  job_id: string;
+  status: "queued" | "processing";
+  url: string;
+  created_at?: string;
+  updated_at?: string;
+  message?: string;
+};
+
+export type RecipePreviewJobCompletedResponse = {
+  job_id: string;
+  status: "completed";
+  success: true;
+  created: false;
+  url: string;
+  created_at?: string;
+  updated_at?: string;
+  completed_at?: string;
+  recipe_preview: RecipePreviewRecord;
+  diagnostics?: PreviewRecipeFromUrlDiagnostics;
+  message?: string;
+};
+
+export type RecipePreviewJobFailedResponse = {
+  job_id: string;
+  status: "failed";
+  success: false;
+  created: false;
+  url: string;
+  created_at?: string;
+  updated_at?: string;
+  completed_at?: string;
+  diagnostics?: PreviewRecipeFromUrlDiagnostics;
+  error: string;
+  message?: string;
+};
+
+export type RecipePreviewJobResponse =
+  | RecipePreviewJobPendingResponse
+  | RecipePreviewJobCompletedResponse
+  | RecipePreviewJobFailedResponse;
+
 export type CreateGroceryListRequest = {
   recipe_ids: string[];
 };

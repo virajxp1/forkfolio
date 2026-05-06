@@ -1,6 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Body,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+)
 
 from app.api.schemas import (
     GroceryListCreateRequest,
@@ -19,6 +27,7 @@ from app.core.dependencies import (
     get_grocery_list_aggregation_service,
     get_recipe_embeddings_service,
     get_recipe_manager,
+    get_recipe_preview_job_service,
     get_recipe_processing_service,
     get_recipe_search_reranker_service,
 )
@@ -33,6 +42,7 @@ GROCERY_LIST_BODY = Body()
 # Dependency instances to satisfy Ruff B008
 recipe_manager_dep = Depends(get_recipe_manager)
 recipe_processing_service_dep = Depends(get_recipe_processing_service)
+recipe_preview_job_service_dep = Depends(get_recipe_preview_job_service)
 recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
 recipe_search_reranker_service_dep = Depends(get_recipe_search_reranker_service)
 grocery_list_aggregation_service_dep = Depends(get_grocery_list_aggregation_service)
@@ -201,6 +211,40 @@ def preview_recipe_from_url(
             "Recipe preview generated successfully. No database insertion performed."
         ),
     }
+
+
+@router.post("/preview-from-url/jobs", status_code=202)
+def create_preview_recipe_job(
+    background_tasks: BackgroundTasks,
+    preview_request: RecipeUrlPreviewRequest = RECIPE_BODY,
+    preview_job_service=recipe_preview_job_service_dep,
+    processing_service=recipe_processing_service_dep,
+) -> dict:
+    """Queue an async recipe preview import for a URL."""
+    source_url = str(preview_request.url)
+    job = preview_job_service.create_job(source_url)
+    background_tasks.add_task(
+        preview_job_service.process_job,
+        job["job_id"],
+        source_url,
+        processing_service,
+    )
+    return job
+
+
+@router.get("/preview-from-url/jobs/{job_id}")
+def get_preview_recipe_job(
+    job_id: str,
+    preview_job_service=recipe_preview_job_service_dep,
+) -> dict:
+    """Return async recipe preview job status and payload when complete."""
+    job = preview_job_service.get_job(job_id.strip())
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail="Recipe preview job not found or expired.",
+        )
+    return job
 
 
 @router.get("/")

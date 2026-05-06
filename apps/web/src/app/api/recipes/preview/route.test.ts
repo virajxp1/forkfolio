@@ -3,13 +3,13 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { previewRecipeFromUrlMock, isForkfolioApiErrorMock } = vi.hoisted(() => ({
-  previewRecipeFromUrlMock: vi.fn(),
+const { createRecipePreviewJobMock, isForkfolioApiErrorMock } = vi.hoisted(() => ({
+  createRecipePreviewJobMock: vi.fn(),
   isForkfolioApiErrorMock: vi.fn(),
 }));
 
 vi.mock("@/lib/forkfolio-api", () => ({
-  previewRecipeFromUrl: previewRecipeFromUrlMock,
+  createRecipePreviewJob: createRecipePreviewJobMock,
   isForkfolioApiError: isForkfolioApiErrorMock,
 }));
 
@@ -17,7 +17,7 @@ import { POST } from "./route";
 
 describe("POST /api/recipes/preview", () => {
   beforeEach(() => {
-    previewRecipeFromUrlMock.mockReset();
+    createRecipePreviewJobMock.mockReset();
     isForkfolioApiErrorMock.mockReset();
     isForkfolioApiErrorMock.mockReturnValue(false);
   });
@@ -37,7 +37,7 @@ describe("POST /api/recipes/preview", () => {
     expect(await response.json()).toEqual({
       detail: "Missing url in request payload.",
     });
-    expect(previewRecipeFromUrlMock).not.toHaveBeenCalled();
+    expect(createRecipePreviewJobMock).not.toHaveBeenCalled();
   });
 
   it("returns 422 when url is invalid", async () => {
@@ -55,7 +55,7 @@ describe("POST /api/recipes/preview", () => {
     expect(await response.json()).toEqual({
       detail: "url must be a valid URL.",
     });
-    expect(previewRecipeFromUrlMock).not.toHaveBeenCalled();
+    expect(createRecipePreviewJobMock).not.toHaveBeenCalled();
   });
 
   it("returns 422 when url has unsupported scheme", async () => {
@@ -73,27 +73,15 @@ describe("POST /api/recipes/preview", () => {
     expect(await response.json()).toEqual({
       detail: "url must use http or https.",
     });
-    expect(previewRecipeFromUrlMock).not.toHaveBeenCalled();
+    expect(createRecipePreviewJobMock).not.toHaveBeenCalled();
   });
 
-  it("trims url and forwards preview request", async () => {
-    previewRecipeFromUrlMock.mockResolvedValue({
-      success: true,
-      created: false,
+  it("trims url and queues preview request", async () => {
+    createRecipePreviewJobMock.mockResolvedValue({
+      job_id: "job-123",
+      status: "queued",
       url: "https://example.com/recipe",
-      recipe_preview: {
-        title: "Preview Title",
-        ingredients: ["1 cup sugar"],
-        instructions: ["Mix ingredients."],
-        servings: "2",
-        total_time: "10 minutes",
-      },
-      diagnostics: {
-        raw_html_length: 1000,
-        extracted_text_length: 800,
-        cleaned_text_length: 700,
-      },
-      message: "Recipe preview generated successfully.",
+      message: "Recipe preview import queued.",
     });
 
     const request = new NextRequest("http://localhost:3000/api/recipes/preview", {
@@ -106,9 +94,9 @@ describe("POST /api/recipes/preview", () => {
 
     const response = await POST(request);
 
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(202);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(previewRecipeFromUrlMock).toHaveBeenCalledWith({
+    expect(createRecipePreviewJobMock).toHaveBeenCalledWith({
       url: "https://example.com/recipe",
     });
   });
@@ -120,7 +108,7 @@ describe("POST /api/recipes/preview", () => {
       message: "Blocked outbound URL fetch",
     };
 
-    previewRecipeFromUrlMock.mockRejectedValue(apiError);
+    createRecipePreviewJobMock.mockRejectedValue(apiError);
     isForkfolioApiErrorMock.mockImplementation((error: unknown) => error === apiError);
 
     const request = new NextRequest("http://localhost:3000/api/recipes/preview", {
@@ -137,14 +125,14 @@ describe("POST /api/recipes/preview", () => {
     expect(await response.json()).toEqual({ detail: "Blocked outbound URL fetch" });
   });
 
-  it("maps backend 405 preview method errors to 503 with actionable detail", async () => {
+  it("maps backend errors for failed queue requests", async () => {
     const apiError = {
-      status: 405,
-      detail: "Method Not Allowed",
-      message: "Method Not Allowed",
+      status: 503,
+      detail: "Preview worker unavailable",
+      message: "Preview worker unavailable",
     };
 
-    previewRecipeFromUrlMock.mockRejectedValue(apiError);
+    createRecipePreviewJobMock.mockRejectedValue(apiError);
     isForkfolioApiErrorMock.mockImplementation((error: unknown) => error === apiError);
 
     const request = new NextRequest("http://localhost:3000/api/recipes/preview", {
@@ -158,9 +146,6 @@ describe("POST /api/recipes/preview", () => {
     const response = await POST(request);
 
     expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({
-      detail:
-        "URL preview is not available on the configured backend deployment yet. Deploy the latest backend with POST /api/v1/recipes/preview-from-url.",
-    });
+    expect(await response.json()).toEqual({ detail: "Preview worker unavailable" });
   });
 });

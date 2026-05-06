@@ -85,6 +85,12 @@ SEMANTIC_SEARCH_CACHE_TTL_SECONDS = float(
 SEMANTIC_SEARCH_CACHE_MAX_ITEMS = int(
     os.getenv("SEMANTIC_SEARCH_CACHE_MAX_ITEMS", "512")
 )
+RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS = float(
+    os.getenv("RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS", "1800")
+)
+RECIPE_PREVIEW_JOB_CACHE_MAX_ITEMS = int(
+    os.getenv("RECIPE_PREVIEW_JOB_CACHE_MAX_ITEMS", "1024")
+)
 
 llm_text_cache: TTLCache[str] = TTLCache(
     ttl_seconds=LLM_CACHE_TTL_SECONDS, max_items=LLM_CACHE_MAX_ITEMS
@@ -99,4 +105,8 @@ embedding_cache: TTLCache[list[float]] = TTLCache(
 semantic_search_cache: TTLCache[dict] = TTLCache(
     ttl_seconds=SEMANTIC_SEARCH_CACHE_TTL_SECONDS,
     max_items=SEMANTIC_SEARCH_CACHE_MAX_ITEMS,
+)
+recipe_preview_job_cache: TTLCache[dict] = TTLCache(
+    ttl_seconds=RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS,
+    max_items=RECIPE_PREVIEW_JOB_CACHE_MAX_ITEMS,
 )

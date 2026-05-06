@@ -13,6 +13,7 @@ Core capabilities:
 
 - Process and store recipes from raw text.
 - Preview recipe extraction from URL before saving.
+- Queue async URL imports, poll for preview completion, then save on confirmation.
 - Semantic search over recipes.
 - Recipe books (create/list/detail/add/remove).
 - Grocery list aggregation from selected recipes.
