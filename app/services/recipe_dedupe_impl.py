@@ -11,7 +11,6 @@ from app.services.llm_generation_service import (
     make_embedding,
     make_llm_call_structured_output_generic,
 )
-from app.services.recipe_dedupe import RecipeDedupeService
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 
 logger = get_logger(__name__)
@@ -30,10 +29,10 @@ class DedupeDecision(BaseModel):
     reason: str = ""
 
 
-class RecipeDedupeServiceImpl(RecipeDedupeService):
+class RecipeDedupeServiceImpl:
     """Deduplicate recipes using embeddings + LLM adjudication."""
 
-    def __init__(self, recipe_manager: RecipeManager = None):
+    def __init__(self, recipe_manager: RecipeManager | None = None):
         self.recipe_manager = recipe_manager or RecipeManager()
         (
             self.distance_threshold,
@@ -42,7 +41,10 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
         ) = _get_dedupe_settings()
 
     def find_duplicate(
-        self, recipe: Recipe
+        self,
+        recipe: Recipe,
+        include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> tuple[bool, Optional[str], Optional[list[float]]]:
         embedding_text = RecipeEmbeddingsServiceImpl._build_title_ingredients_text(
             recipe.title, recipe.ingredients
@@ -51,6 +53,8 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
         nearest = self.recipe_manager.find_nearest_embedding(
             embedding=embedding,
             embedding_type=self.embedding_type,
+            include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
         )
         if not nearest:
             return False, None, embedding
@@ -65,7 +69,11 @@ class RecipeDedupeServiceImpl(RecipeDedupeService):
         if distance > self.distance_threshold:
             return False, None, embedding
 
-        existing_recipe = self.recipe_manager.get_full_recipe(nearest["recipe_id"])
+        existing_recipe = self.recipe_manager.get_full_recipe(
+            nearest["recipe_id"],
+            include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
+        )
         if not existing_recipe:
             return False, None, embedding
 

@@ -1,14 +1,13 @@
 """
 Client for Recipes router endpoints.
-Maps to: app/routers/recipes.py
+Maps to: app/api/v1/endpoints/recipes.py
 
 This contains the main recipe functionality endpoints.
 """
 
-from urllib.parse import urlencode
 from typing import Any, Dict, Optional
-
 from app.core.config import settings
+
 from .base_client import BaseAPIClient
 
 
@@ -17,7 +16,10 @@ class RecipesClient(BaseAPIClient):
 
     # Endpoint paths - centralized in one place
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/process-and-store"
+    LIST_RECIPES_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/"
+    PREVIEW_FROM_URL_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/preview-from-url"
     SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/search/semantic"
+    GROCERY_LIST_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/grocery-list"
 
     def process_and_store_recipe(
         self,
@@ -34,39 +36,73 @@ class RecipesClient(BaseAPIClient):
         4. Return database ID
 
         Endpoint: POST /api/v1/recipes/process-and-store
-        Router: app.routers.recipes:process_and_store_recipe
+        Router: app.api.v1.endpoints.recipes:process_and_store_recipe
         """
         payload = {"raw_input": raw_input, "isTest": is_test}
         if enforce_deduplication is not None:
             payload["enforce_deduplication"] = enforce_deduplication
         return self.post(self.PROCESS_AND_STORE_ENDPOINT, json_data=payload)
 
-    def get_recipe(self, recipe_id: str) -> Dict[str, Any]:
+    def get_recipe(
+        self,
+        recipe_id: str,
+        include_test_data: bool = True,
+    ) -> Dict[str, Any]:
         """
         Get a complete recipe by its UUID.
 
         Endpoint: GET /api/v1/recipes/{recipe_id}
-        Router: app.routers.recipes:get_recipe
+        Router: app.api.v1.endpoints.recipes:get_recipe
         """
         endpoint = f"{settings.API_BASE_PATH}/recipes/{recipe_id}"
-        return self.get(endpoint)
+        return self.get(endpoint, params={"include_test_data": include_test_data})
 
-    def get_recipe_all(self, recipe_id: str) -> Dict[str, Any]:
+    def list_recipes(
+        self,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+        include_test_data: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        List recipes with cursor-based pagination.
+
+        Endpoint: GET /api/v1/recipes/
+        Router: app.api.v1.endpoints.recipes:list_recipes
+        """
+        query_params = {"limit": limit, "include_test_data": include_test_data}
+        if cursor is not None:
+            query_params["cursor"] = cursor
+        return self.get(self.LIST_RECIPES_ENDPOINT, params=query_params)
+
+    def preview_recipe_from_url(self, url: str) -> Dict[str, Any]:
+        """
+        Preview recipe extraction from URL without storing.
+
+        Endpoint: POST /api/v1/recipes/preview-from-url
+        Router: app.api.v1.endpoints.recipes:preview_recipe_from_url
+        """
+        return self.post(self.PREVIEW_FROM_URL_ENDPOINT, json_data={"url": url})
+
+    def get_recipe_all(
+        self,
+        recipe_id: str,
+        include_test_data: bool = True,
+    ) -> Dict[str, Any]:
         """
         Get a complete recipe by its UUID, including embeddings.
 
         Endpoint: GET /api/v1/recipes/{recipe_id}/all
-        Router: app.routers.recipes:get_recipe_all
+        Router: app.api.v1.endpoints.recipes:get_recipe_all
         """
         endpoint = f"{settings.API_BASE_PATH}/recipes/{recipe_id}/all"
-        return self.get(endpoint)
+        return self.get(endpoint, params={"include_test_data": include_test_data})
 
     def delete_recipe(self, recipe_id: str) -> Dict[str, Any]:
         """
         Delete a recipe by its UUID.
 
         Endpoint: DELETE /api/v1/recipes/delete/{recipe_id}
-        Router: app.routers.recipes:delete_recipe
+        Router: app.api.v1.endpoints.recipes:delete_recipe
         """
         endpoint = f"{settings.API_BASE_PATH}/recipes/delete/{recipe_id}"
         return self.delete(endpoint)
@@ -75,6 +111,7 @@ class RecipesClient(BaseAPIClient):
         self,
         query: str,
         limit: int = 10,
+        include_test_data: bool = True,
     ) -> Dict[str, Any]:
         """
         Semantic search over recipes using vector similarity.
@@ -82,11 +119,29 @@ class RecipesClient(BaseAPIClient):
         Endpoint: GET /api/v1/recipes/search/semantic
         Router: app.api.v1.endpoints.recipes:semantic_search_recipes
         """
-        query_string = urlencode(
-            {
+        return self.get(
+            self.SEMANTIC_SEARCH_ENDPOINT,
+            params={
                 "query": query,
                 "limit": limit,
-            }
+                "include_test_data": include_test_data,
+            },
         )
-        endpoint = f"{self.SEMANTIC_SEARCH_ENDPOINT}?{query_string}"
-        return self.get(endpoint)
+
+    def create_grocery_list(
+        self,
+        recipe_ids: list[str],
+        include_test_data: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Aggregate ingredients from a set of recipe IDs into a grocery list.
+
+        Endpoint: POST /api/v1/recipes/grocery-list
+        Router: app.api.v1.endpoints.recipes:create_grocery_list
+        """
+        payload = {"recipe_ids": recipe_ids}
+        return self.post(
+            self.GROCERY_LIST_ENDPOINT,
+            json_data=payload,
+            params={"include_test_data": include_test_data},
+        )

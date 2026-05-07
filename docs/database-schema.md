@@ -11,6 +11,15 @@ The ForkFolio database uses **PostgreSQL** (via Supabase) with a relational sche
 - **Step-by-Step Instructions**: Sequential cooking instructions
 - **Vector Embeddings**: Recipe embeddings for similarity search and recommendations
 
+Related schema extensions:
+
+- `docs/recipe-books-schema.sql` for recipe book tables and relationships
+- `docs/supabase-auth-profile-schema.sql` for `public.profiles` and auth-user sync triggers
+- `docs/recipe-ownership-schema.sql` for recipe visibility and creator ownership
+
+If you include `created_by_user_id` in the base `recipes` table definition, create
+`public.profiles` first by running `docs/supabase-auth-profile-schema.sql`.
+
 ## Table Schemas
 
 ### 1. `recipes` (Main Table)
@@ -24,6 +33,8 @@ The primary table storing core recipe information and metadata.
 | `servings` | VARCHAR | NULL | Number of servings (e.g., "4 servings", "6-8 people") |
 | `total_time` | VARCHAR | NULL | Total preparation and cooking time (e.g., "30 minutes", "1 hour 15 minutes") |
 | `source_url` | VARCHAR | NULL | Optional URL where the recipe was sourced from |
+| `is_public` | BOOLEAN | DEFAULT TRUE | Whether the recipe is public or private |
+| `created_by_user_id` | UUID | NULL, FK -> `public.profiles.id` | Signed-in user that created the recipe |
 | `is_test_data` | BOOLEAN | DEFAULT FALSE | Marks records created from testing scripts |
 | `created_at` | TIMESTAMP | DEFAULT NOW() | Timestamp when the recipe was created |
 | `updated_at` | TIMESTAMP | DEFAULT NOW() | Timestamp when the recipe was last updated |
@@ -33,6 +44,7 @@ The primary table storing core recipe information and metadata.
 - Consider adding index on `created_at` for efficient ordering queries
 
 **Relationships:**
+- Many-to-one with `public.profiles` via `created_by_user_id` (`ON DELETE SET NULL`)
 - One-to-many with `recipe_ingredients` (CASCADE DELETE)
 - One-to-many with `recipe_instructions` (CASCADE DELETE)
 - One-to-many with `recipe_embeddings` (CASCADE DELETE)
@@ -153,7 +165,7 @@ Use the following SQL commands to create the tables in your Supabase database. E
 
 1. **Enable UUID Extension** (if not already enabled):
    ```sql
-   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+   CREATE EXTENSION IF NOT EXISTS pgcrypto;
    ```
 
 2. **Enable pgvector Extension** (required for `recipe_embeddings` table):
@@ -172,6 +184,8 @@ CREATE TABLE IF NOT EXISTS recipes (
     servings VARCHAR,
     total_time VARCHAR,
     source_url VARCHAR,
+    is_public BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by_user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     is_test_data BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -182,6 +196,10 @@ CREATE INDEX IF NOT EXISTS idx_recipes_created_at ON recipes(created_at DESC);
 
 -- Create index on title for search operations
 CREATE INDEX IF NOT EXISTS idx_recipes_title ON recipes(title);
+
+-- Create indexes for ownership and visibility lookups
+CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
+CREATE INDEX IF NOT EXISTS idx_recipes_created_by_user_id ON recipes(created_by_user_id);
 ```
 
 #### 2. Create `recipe_ingredients` Table
@@ -282,7 +300,7 @@ Here's a complete script that creates all tables, indexes, and triggers in the c
 -- ============================================
 
 -- Enable required extensions
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- ============================================
@@ -294,6 +312,8 @@ CREATE TABLE IF NOT EXISTS recipes (
     servings VARCHAR,
     total_time VARCHAR,
     source_url VARCHAR,
+    is_public BOOLEAN NOT NULL DEFAULT TRUE,
+    created_by_user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     is_test_data BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT NOW(),
     updated_at TIMESTAMP DEFAULT NOW()
@@ -301,6 +321,8 @@ CREATE TABLE IF NOT EXISTS recipes (
 
 CREATE INDEX IF NOT EXISTS idx_recipes_created_at ON recipes(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_recipes_title ON recipes(title);
+CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
+CREATE INDEX IF NOT EXISTS idx_recipes_created_by_user_id ON recipes(created_by_user_id);
 
 -- ============================================
 -- 2. Create recipe_ingredients table
@@ -379,7 +401,7 @@ CREATE TRIGGER update_recipes_updated_at
 
 ### UUID Generation
 - Supabase uses `gen_random_uuid()` for UUID generation
-- Alternative: `uuid_generate_v4()` if using `uuid-ossp` extension
+- Alternative: `uuid_generate_v4()` if using the `uuid-ossp` extension
 
 ### Timestamps
 - `NOW()` function sets default timestamps

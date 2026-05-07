@@ -1,11 +1,10 @@
 from app.core.logging import get_logger
 from app.services.llm_generation_service import make_embedding
-from app.services.recipe_embeddings import RecipeEmbeddingsService
 
 logger = get_logger(__name__)
 
 
-class RecipeEmbeddingsServiceImpl(RecipeEmbeddingsService):
+class RecipeEmbeddingsServiceImpl:
     """Generate embeddings for recipes."""
 
     def embed_title_ingredients(

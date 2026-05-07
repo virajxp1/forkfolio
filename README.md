@@ -1,41 +1,194 @@
 # ForkFolio
 
-A production-ready recipe management API that transforms raw recipe text into structured, searchable data using AI-powered processing pipelines.
+ForkFolio is a production-oriented recipe platform with:
 
-## What It Does
+- A Python/FastAPI backend (`app/`) for ingestion, extraction, storage, search, books, and grocery-list aggregation.
+- A Next.js frontend (`apps/web`) for browse, recipe detail, books, bag, experiment chat, Google sign-in, and URL/manual recipe import flows.
 
-ForkFolio helps teams ingest messy recipe content and turn it into clean API-accessible records.
+This README is the release runbook for local setup, quality gates, and deploy.
 
-- Accepts raw recipe text and returns structured recipe data.
-- Stores recipes, ingredients, instructions, and embeddings.
-- Supports semantic search across recipes.
-- Supports recipe book creation and recipe-to-book organization.
+## System Overview
 
-## API Documentation
+Core capabilities:
 
-ForkFolio includes generated OpenAPI documentation:
+- Process and store recipes from raw text.
+- Preview recipe extraction from URL before saving.
+- Semantic search over recipes.
+- Recipe books (create/list/detail/add/remove).
+- Grocery list aggregation from selected recipes.
+- Recipe deletion and custom not-found UX on the frontend.
+- Supabase-backed Google OAuth sign-in with profile-aware session state.
 
-- Swagger UI: `/docs`
-- ReDoc: `/redoc`
+Primary docs:
 
-For endpoint-by-endpoint documentation, request/response examples, and auth details, see:
+- API reference: [docs/api-reference.md](docs/api-reference.md)
+- Engineering architecture: [docs/engineering-architecture.md](docs/engineering-architecture.md)
+- Frontend design notes: [docs/frontend-design.md](docs/frontend-design.md)
+- Frontend API contract notes: [docs/frontend-api-contract.md](docs/frontend-api-contract.md)
+- Frontend-specific setup/deploy: [apps/web/README.md](apps/web/README.md)
+- Supabase auth profile SQL: [docs/supabase-auth-profile-schema.sql](docs/supabase-auth-profile-schema.sql)
 
-- [Detailed API Reference](docs/api-reference.md)
+## Runtime Pinning
 
-## Authentication
+Python is pinned to `3.11` for consistency across local, CI, and deploy:
 
-Protected routes accept either:
+- `.python-version` => `3.11`
+- CI workflows use Python `3.11`
+- Docker uses `python:3.11-slim`
+- Deployed environments should use Python `3.11.x`
+
+## Dependency Locking
+
+Backend Python dependencies are managed as:
+
+- `requirements.in` for top-level intent.
+- `requirements.txt` as the compiled lockfile used by CI and deploy.
+
+Refresh the lockfile after dependency changes:
+
+```bash
+make sync-requirements
+```
+
+## Local Setup
+
+### 1) Backend
+
+Bootstrap Python environment:
+
+```bash
+make setup-python
+```
+
+Run API:
+
+```bash
+make run
+```
+
+API base path defaults to:
+
+- `http://localhost:8000/api/v1`
+
+### 2) Frontend
+
+Install and run:
+
+```bash
+cd apps/web
+npm ci
+npm run dev
+```
+
+Frontend reads env from repo-root `.env` via `apps/web/scripts/run-with-root-env.mjs`.
+
+## Environment Variables
+
+Backend (required in deployed environments):
+
+- `API_AUTH_TOKEN`
+- `OPEN_ROUTER_API_KEY`
+- `SUPABASE_PASSWORD`
+
+Backend (optional behavior controls):
+
+- `RECIPE_UNIT_SYSTEM` (`us`, `metric`, or `both`; default from `config/app.config.ini`)
+- `SEARCH_KEYWORDS_FILE` (path to search heuristic keyword JSON; defaults to `config/search_keywords.json`)
+- `BRAINTRUST_PROJECT_ID` (Braintrust project ID override; defaults to config `observability.braintrust_project_id`)
+- `BRAINTRUST_APP_URL` (Braintrust app URL override; defaults to config `observability.braintrust_app_url`)
+- `BRAINTRUST_API_KEY` (required when Braintrust tracing is enabled)
+
+Frontend runtime vars:
+
+- `FORKFOLIO_API_BASE_URL` (example: `https://api.your-domain.com`)
+- `FORKFOLIO_API_BASE_PATH` (usually `/api/v1`)
+- `FORKFOLIO_API_TOKEN` (required when backend token middleware is enabled)
+- `NEXT_PUBLIC_SUPABASE_URL` (required for Google sign-in)
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (required for Google sign-in)
+- `FORKFOLIO_APP_ORIGIN` (optional but recommended in production; canonical web origin for auth callback redirects)
+
+## Quality Gates (Release Criteria)
+
+Backend:
+
+```bash
+make lint
+make test
+make test-e2e
+```
+
+Frontend:
+
+```bash
+npm --prefix apps/web run lint
+npm --prefix apps/web run test
+npm --prefix apps/web run test:coverage
+npm --prefix apps/web run build
+```
+
+CI workflows:
+
+- `.github/workflows/lint.yml`
+- `.github/workflows/test.yml`
+
+## Deployment
+
+### Backend
+
+Use any Python host that can run these commands:
+
+- Build: `pip install -r requirements.txt`
+- Start: `python3 scripts/run.py`
+- Health check path: `/api/v1/health`
+
+Set required backend env vars before startup:
+
+- `API_AUTH_TOKEN`
+- `OPEN_ROUTER_API_KEY`
+- `SUPABASE_PASSWORD`
+
+### Frontend
+
+Deploy `apps/web` on any Node host with:
+
+- Build: `npm ci && npm run build`
+- Start: `npm run start`
+- Health check path: `/`
+
+Canonical FE deploy steps (commands, env vars, health check) are documented in:
+
+- [apps/web/README.md](apps/web/README.md)
+
+## Release Checklist
+
+1. Branch is synced with `main`.
+2. All backend and frontend quality gates pass.
+3. OpenAPI contract validation passes (`make validate-openapi` or `make lint`).
+4. Production env vars are present and correct for backend and frontend services.
+5. Smoke-test key user flows on deployed FE:
+   - Browse + open recipe
+   - Add recipe (manual and URL preview)
+   - Books add/remove
+   - Bag -> grocery list generation
+   - Google sign-in -> callback -> profile menu -> sign-out
+   - Delete recipe -> custom not-found page
+
+## Auth + Public Endpoints
+
+Protected endpoints support both:
 
 - `X-API-Token: <API_AUTH_TOKEN>`
 - `Authorization: Bearer <API_AUTH_TOKEN>`
 
-Public routes:
+Public endpoints:
 
 - `GET /api/v1/`
 - `GET /api/v1/health`
 
-## Engineering Documentation
+## API Docs (Runtime)
 
-Architecture and implementation details are documented separately:
+Available from backend service:
 
-- [Engineering Architecture](docs/engineering-architecture.md)
+- Swagger: `/docs`
+- ReDoc: `/redoc`
+- OpenAPI JSON: `/openapi.json`

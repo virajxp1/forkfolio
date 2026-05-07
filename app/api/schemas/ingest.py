@@ -1,4 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from uuid import UUID
+
+from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field
 
 
 # Request model for ingestion
@@ -19,6 +21,12 @@ class RecipeIngestionRequest(BaseModel):
             )
         },
     )
+    source_url: AnyHttpUrl | None = Field(
+        None,
+        description="Optional source URL where the recipe was sourced from.",
+        alias="sourceUrl",
+        json_schema_extra={"example": "https://example.com/chocolate-chip-cookies"},
+    )
     enforce_deduplication: bool = Field(
         True,
         description=(
@@ -30,4 +38,26 @@ class RecipeIngestionRequest(BaseModel):
         False,
         description="Mark the resulting recipe as test data.",
         alias="isTest",
+    )
+    is_public: bool = Field(
+        True,
+        description="Whether the saved recipe is public or private.",
+        alias="isPublic",
+    )
+    created_by_user_id: UUID | None = Field(
+        None,
+        description="User id that created the recipe.",
+        alias="createdByUserId",
+    )
+
+
+class RecipeUrlPreviewRequest(BaseModel):
+    """Request model for recipe preview extraction from a source URL."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    url: AnyHttpUrl = Field(
+        ...,
+        description="Recipe page URL to fetch and parse for preview extraction.",
+        json_schema_extra={"example": "https://example.com/chocolate-chip-cookies"},
     )

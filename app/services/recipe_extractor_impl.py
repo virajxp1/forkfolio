@@ -1,4 +1,5 @@
 import logging
+import re
 from typing import Optional
 
 from app.core.prompts import RECIPE_EXTRACTION_SYSTEM_PROMPT
@@ -6,15 +7,169 @@ from app.api.schemas import Recipe
 from app.services.llm_generation_service import (
     make_llm_call_structured_output_generic,
 )
-from app.services.recipe_extractor import RecipeExtractorService
 
 logger = logging.getLogger(__name__)
 
 
-class RecipeExtractorImpl(RecipeExtractorService):
+TITLE_SECTION_PREFIXES = (
+    "ingredients",
+    "instructions",
+    "directions",
+    "method",
+    "servings",
+    "total time",
+    "prep time",
+    "cook time",
+)
+INSTRUCTION_SECTION_PREFIXES = ("instructions", "directions", "method", "steps")
+INSTRUCTION_SECTION_STOP_PREFIXES = (
+    "ingredients",
+    "servings",
+    "total time",
+    "prep time",
+    "cook time",
+)
+INGREDIENT_METADATA_PREFIXES = (
+    "servings",
+    "total time",
+    "prep time",
+    "cook time",
+    "yield",
+)
+
+
+def _normalize_lines(values: list[str]) -> list[str]:
+    return [value.strip() for value in values if value and value.strip()]
+
+
+def _clean_list_item(line: str) -> str:
+    stripped = line.strip()
+    if not stripped:
+        return ""
+    bullet_item = re.match(r"^[-*]\s*(.+)$", stripped)
+    if bullet_item:
+        return bullet_item.group(1).strip()
+    numbered_item = re.match(r"^\d+[.)]\s*(.+)$", stripped)
+    if numbered_item:
+        return numbered_item.group(1).strip()
+    return stripped
+
+
+def _fallback_title(raw_text: str) -> str:
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lowered = stripped.lower().removesuffix(":")
+        if lowered.startswith("ingredients"):
+            # If input starts at the ingredients section, we do not have a safe
+            # deterministic title and should defer to the LLM extraction path.
+            break
+        if any(lowered.startswith(prefix) for prefix in TITLE_SECTION_PREFIXES):
+            continue
+        if re.match(r"^[-*]\s+\S", stripped) or re.match(r"^\d+[.)]\s+\S", stripped):
+            continue
+        return stripped
+    return ""
+
+
+def _fallback_instructions(raw_text: str) -> list[str]:
+    fallback_steps: list[str] = []
+    in_instructions_section = False
+
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        lowered = stripped.lower().removesuffix(":")
+        if not in_instructions_section:
+            if any(
+                lowered.startswith(prefix) for prefix in INSTRUCTION_SECTION_PREFIXES
+            ):
+                in_instructions_section = True
+            continue
+
+        if any(
+            lowered.startswith(prefix) for prefix in INSTRUCTION_SECTION_STOP_PREFIXES
+        ):
+            break
+
+        numbered_step = re.match(r"^\d+[.)]\s*(.+)$", stripped)
+        if numbered_step:
+            step = numbered_step.group(1).strip()
+            if step:
+                fallback_steps.append(step)
+
+    return fallback_steps
+
+
+def _fallback_ingredients(raw_text: str) -> list[str]:
+    fallback_items: list[str] = []
+    in_ingredients_section = False
+
+    for line in raw_text.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        lowered = stripped.lower().removesuffix(":")
+        if lowered.startswith("ingredients"):
+            in_ingredients_section = True
+            continue
+
+        if in_ingredients_section and any(
+            lowered.startswith(prefix) for prefix in INSTRUCTION_SECTION_PREFIXES
+        ):
+            break
+
+        if not in_ingredients_section:
+            continue
+
+        if any(
+            lowered == prefix or lowered.startswith(f"{prefix}:")
+            for prefix in INGREDIENT_METADATA_PREFIXES
+        ):
+            continue
+
+        item = _clean_list_item(stripped)
+        if item:
+            fallback_items.append(item)
+
+    return fallback_items
+
+
+def _fallback_scalar_field(raw_text: str, label: str) -> str:
+    match = re.search(
+        rf"(?im)^\s*{re.escape(label)}\s*:\s*(.+?)\s*$",
+        raw_text,
+    )
+    if not match:
+        return ""
+    return match.group(1).strip()
+
+
+def _fallback_recipe(raw_text: str) -> Optional[Recipe]:
+    title = _fallback_title(raw_text)
+    ingredients = _fallback_ingredients(raw_text)
+    instructions = _fallback_instructions(raw_text)
+
+    # Only accept deterministic fallback when we can recover core recipe sections.
+    if not title or not ingredients or not instructions:
+        return None
+
+    return Recipe(
+        title=title,
+        ingredients=ingredients,
+        instructions=instructions,
+        servings=_fallback_scalar_field(raw_text, "servings"),
+        total_time=_fallback_scalar_field(raw_text, "total time"),
+    )
+
+
+class RecipeExtractorImpl:
     """
-    Implementation of RecipeExtractorService that uses LLM to extract recipe data
-    from raw text input.
+    LLM-backed extractor for structured recipe data from raw text input.
     """
 
     def extract_recipe_from_raw_text(
@@ -34,6 +189,13 @@ class RecipeExtractorImpl(RecipeExtractorService):
         if not raw_text or not raw_text.strip():
             return None, "Input text is empty or contains only whitespace"
 
+        fallback_recipe = _fallback_recipe(raw_text)
+        if fallback_recipe:
+            logger.info(
+                "Using deterministic parser for structured recipe input; skipping LLM extraction."
+            )
+            return fallback_recipe, None
+
         # Use the LLM to extract structured recipe data
         result, error = make_llm_call_structured_output_generic(
             user_prompt=raw_text,
@@ -42,4 +204,35 @@ class RecipeExtractorImpl(RecipeExtractorService):
             schema_name="recipe_extraction",
         )
 
-        return result, error
+        if error or not result:
+            fallback_recipe = _fallback_recipe(raw_text)
+            if fallback_recipe:
+                logger.warning(
+                    "LLM extraction failed; using deterministic fallback parser. error=%s",
+                    error,
+                )
+                return fallback_recipe, None
+            return result, error
+
+        title = result.title.strip()
+        ingredients = _normalize_lines(result.ingredients)
+        instructions = _normalize_lines(result.instructions)
+        servings = result.servings.strip()
+        total_time = result.total_time.strip()
+
+        if not title:
+            title = _fallback_title(raw_text)
+        if not ingredients:
+            ingredients = _fallback_ingredients(raw_text)
+        if not instructions:
+            instructions = _fallback_instructions(raw_text)
+
+        normalized_recipe = Recipe(
+            title=title,
+            ingredients=ingredients,
+            instructions=instructions,
+            servings=servings,
+            total_time=total_time,
+        )
+
+        return normalized_recipe, None
