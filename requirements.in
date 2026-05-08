@@ -17,3 +17,4 @@ httpx~=0.28.1
 psycopg2-binary
 pgvector
 openapi-spec-validator
+redis>=5.0.0
