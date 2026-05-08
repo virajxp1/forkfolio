@@ -97,6 +97,7 @@ Backend (optional behavior controls):
 - `BRAINTRUST_PROJECT_ID` (Braintrust project ID override; defaults to config `observability.braintrust_project_id`)
 - `BRAINTRUST_APP_URL` (Braintrust app URL override; defaults to config `observability.braintrust_app_url`)
 - `BRAINTRUST_API_KEY` (required when Braintrust tracing is enabled)
+- `REDIS_URL` (when set, `app.core.redis_client.get_redis_client()` returns a connected client; otherwise it returns `None` and callers fall back to in-process behavior)
 
 Frontend runtime vars:
 
@@ -133,6 +134,12 @@ CI workflows:
 
 ## Deployment
 
+ForkFolio is a monorepo but the backend and frontend deploy as independent
+services. Production runs on Render as `forkfolio-be` and `forkfolio-fe`,
+both managed manually in the Render dashboard. The repo-root `render.yaml`
+Blueprint is intentionally narrow and only provisions the managed Key Value
+(Redis) service `forkfolio-redis`.
+
 ### Backend
 
 Use any Python host that can run these commands:
@@ -146,6 +153,7 @@ Set required backend env vars before startup:
 - `API_AUTH_TOKEN`
 - `OPEN_ROUTER_API_KEY`
 - `SUPABASE_PASSWORD`
+- `REDIS_URL` (optional; see Redis section below)
 
 ### Frontend
 
@@ -158,6 +166,20 @@ Deploy `apps/web` on any Node host with:
 Canonical FE deploy steps (commands, env vars, health check) are documented in:
 
 - [apps/web/README.md](apps/web/README.md)
+
+### Redis (Render)
+
+`render.yaml` provisions a managed Key Value (Redis-compatible) service named
+`forkfolio-redis` on Render. Apply once from the dashboard:
+
+1. Render dashboard -> New + -> Blueprint -> point at this repo on `main`.
+2. Apply. `forkfolio-redis` is created (free plan, internal-only, `noeviction`).
+3. Wire it into `forkfolio-be` manually:
+   - `forkfolio-redis` -> Connect -> copy the Internal Connection String.
+   - `forkfolio-be` -> Environment -> add `REDIS_URL = <connection string>` -> save.
+
+The backend pulls the client lazily via `app.core.redis_client.get_redis_client()`,
+so the API still boots when `REDIS_URL` is unset (callers receive `None`).
 
 ## Release Checklist
 
