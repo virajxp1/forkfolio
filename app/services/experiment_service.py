@@ -13,6 +13,8 @@ from app.services.llm_generation_service import (
     make_llm_call_text_generation,
     stream_llm_call_text_generation,
 )
+from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
+from app.services.recipe_hybrid_search_impl import RecipeHybridSearchServiceImpl
 
 
 class ExperimentThreadNotFoundError(Exception):
@@ -39,12 +41,20 @@ class ExperimentService:
         self,
         experiment_manager: ExperimentManager | None = None,
         recipe_manager: RecipeManager | None = None,
+        recipe_embeddings_service: RecipeEmbeddingsServiceImpl | None = None,
+        recipe_hybrid_search_service: RecipeHybridSearchServiceImpl | None = None,
         text_generation_fn: Callable[[str, str], str] | None = None,
         stream_generation_fn: Callable[[str, str], Iterator[str]] | None = None,
         agent_graph: ExperimentAgentGraph | None = None,
     ):
         self.experiment_manager = experiment_manager or ExperimentManager()
         self.recipe_manager = recipe_manager or RecipeManager()
+        self.recipe_embeddings_service = (
+            recipe_embeddings_service or RecipeEmbeddingsServiceImpl()
+        )
+        self.recipe_hybrid_search_service = (
+            recipe_hybrid_search_service or RecipeHybridSearchServiceImpl()
+        )
         self._text_generation_fn = text_generation_fn or make_llm_call_text_generation
         self._stream_generation_fn = (
             stream_generation_fn or stream_llm_call_text_generation
@@ -159,15 +169,48 @@ class ExperimentService:
         unresolved_names: list[str] = []
 
         for recipe_name in self._normalize_attach_recipe_names(recipe_names):
-            matches = self.recipe_manager.find_recipes_by_title_query(
+            exact_match = self.recipe_manager.find_recipe_by_exact_title(
                 recipe_name,
+                include_test_data=include_test_data,
+            )
+            if exact_match is not None:
+                attached_recipes.append(exact_match)
+                continue
+
+            prefix_match = self.recipe_manager.find_recipe_by_title_prefix(
+                recipe_name,
+                include_test_data=include_test_data,
+            )
+            if prefix_match is not None:
+                attached_recipes.append(prefix_match)
+                continue
+
+            query_embedding = self.recipe_embeddings_service.embed_search_query(
+                recipe_name
+            )
+            matches = self.recipe_hybrid_search_service.search(
+                query=recipe_name,
+                query_embedding=query_embedding,
                 limit=1,
                 include_test_data=include_test_data,
             )
             if not matches:
                 unresolved_names.append(recipe_name)
                 continue
-            attached_recipes.append(matches[0])
+
+            top = matches[0]
+            recipe_id = str(top.get("id") or "").strip()
+            if not recipe_id:
+                unresolved_names.append(recipe_name)
+                continue
+
+            attached_recipes.append(
+                {
+                    "id": recipe_id,
+                    "title": top.get("name"),
+                    "created_at": top.get("created_at"),
+                }
+            )
         return attached_recipes, unresolved_names
 
     def _resolve_attach_recipe_ids(
@@ -179,20 +222,14 @@ class ExperimentService:
         unresolved_ids: list[str] = []
 
         for recipe_id in self._normalize_attach_recipe_ids(recipe_ids):
-            recipe = self.recipe_manager.get_full_recipe(
+            recipe = self.recipe_manager.get_recipe_metadata(
                 recipe_id,
                 include_test_data=include_test_data,
             )
             if not recipe:
                 unresolved_ids.append(recipe_id)
                 continue
-            attached_recipes.append(
-                {
-                    "id": str(recipe.get("id") or recipe_id),
-                    "title": recipe.get("title"),
-                    "created_at": recipe.get("created_at"),
-                }
-            )
+            attached_recipes.append(recipe)
         return attached_recipes, unresolved_ids
 
     def _resolve_attach_recipes(

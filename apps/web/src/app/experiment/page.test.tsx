@@ -445,7 +445,7 @@ describe("/experiment page", () => {
           },
         });
       }
-      if (url.startsWith("/api/search/names?")) {
+      if (url.startsWith("/api/search?")) {
         return jsonResponse({
           success: true,
           query: "chicken",
