@@ -1,0 +1,26 @@
+services:
+  - type: redis
+    name: forkfolio-redis
+    plan: free
+    region: ohio
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
+  - type: web
+    name: forkfolio
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 scripts/run.py
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: forkfolio-redis
+          property: connectionString
+      - key: SUPABASE_PASSWORD
+        sync: false
+      - key: OPEN_ROUTER_API_KEY
+        sync: false
+      - key: API_AUTH_TOKEN
+        sync: false
