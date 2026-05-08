@@ -1,22 +1,39 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 from datetime import UTC, datetime
 
+from psycopg2.extras import Json
+
 from app.core.prompts import EXPERIMENT_AGENT_SCOPE_REFUSAL
+from app.services.data.managers.experiment_manager import ExperimentManager
 from app.services.experiment_service import ExperimentService
 
 
 class FakeRecipeManager:
-    def __init__(self) -> None:
-        self.recipes_by_id: dict[str, dict] = {}
+    def __init__(self, recipes: dict[str, dict] | None = None) -> None:
+        self.recipes: dict[str, dict] = recipes or {}
 
-    def get_full_recipe(self, recipe_id: str, include_test_data: bool = False):
-        del include_test_data
-        return self.recipes_by_id.get(recipe_id)
+    def get_full_recipe(
+        self,
+        recipe_id: str,
+        include_test_data: bool = False,
+        viewer_user_id: str | None = None,
+    ):
+        del include_test_data, viewer_user_id
+        recipe = self.recipes.get(recipe_id)
+        if recipe is None:
+            return None
+        return dict(recipe)
 
-    def get_recipe_metadata(self, recipe_id: str, include_test_data: bool = False):
-        del include_test_data
-        recipe = self.recipes_by_id.get(recipe_id)
+    def get_recipe_metadata(
+        self,
+        recipe_id: str,
+        include_test_data: bool = False,
+        viewer_user_id: str | None = None,
+    ):
+        del include_test_data, viewer_user_id
+        recipe = self.recipes.get(recipe_id)
         if not recipe:
             return None
         return {
@@ -30,7 +47,7 @@ class FakeRecipeManager:
     ) -> dict | None:
         del include_test_data
         normalized = title.strip().lower()
-        for recipe in self.recipes_by_id.values():
+        for recipe in self.recipes.values():
             if str(recipe.get("title") or "").strip().lower() == normalized:
                 return self.get_recipe_metadata(recipe["id"])
         return None
@@ -42,7 +59,7 @@ class FakeRecipeManager:
         normalized = title_prefix.strip().lower()
         matches = [
             recipe
-            for recipe in self.recipes_by_id.values()
+            for recipe in self.recipes.values()
             if str(recipe.get("title") or "").strip().lower().startswith(normalized)
         ]
         if not matches:
@@ -98,9 +115,9 @@ class FakeExperimentManager:
         now = datetime.now(UTC).isoformat()
         self.thread = {
             "id": "thread-1",
-            "mode": "invent_new",
             "title": None,
             "metadata": {"orchestration": "langgraph-ready"},
+            "created_by_user_id": None,
             "context_recipe_ids": [],
             "messages": [],
             "created_at": now,
@@ -114,8 +131,9 @@ class FakeExperimentManager:
         thread_id: str,
         message_limit: int = 100,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict | None:
-        del include_test_data
+        del include_test_data, viewer_user_id
         if thread_id != self.thread["id"]:
             return None
         payload = dict(self.thread)
@@ -124,8 +142,12 @@ class FakeExperimentManager:
         return payload
 
     def set_context_recipe_ids(
-        self, thread_id: str, context_recipe_ids: list[str]
+        self,
+        thread_id: str,
+        context_recipe_ids: list[str],
+        viewer_user_id: str | None = None,
     ) -> None:
+        del viewer_user_id
         if thread_id == self.thread["id"]:
             self.thread["context_recipe_ids"] = list(context_recipe_ids)
 
@@ -136,8 +158,9 @@ class FakeExperimentManager:
         content: str,
         tool_name=None,
         tool_call=None,
+        viewer_user_id: str | None = None,
     ) -> dict | None:
-        del tool_name, tool_call
+        del tool_name, tool_call, viewer_user_id
         if thread_id != self.thread["id"]:
             return None
         self._sequence += 1
@@ -154,14 +177,26 @@ class FakeExperimentManager:
         self.messages.append(message)
         return message
 
-    def set_thread_title_if_empty(self, thread_id: str, title: str) -> bool:
+    def set_thread_title_if_empty(
+        self,
+        thread_id: str,
+        title: str,
+        viewer_user_id: str | None = None,
+    ) -> bool:
+        del viewer_user_id
         if thread_id != self.thread["id"]:
             return False
         if not self.thread["title"]:
             self.thread["title"] = title
         return True
 
-    def list_messages(self, thread_id: str, limit: int = 100) -> list[dict]:
+    def list_messages(
+        self,
+        thread_id: str,
+        limit: int = 100,
+        viewer_user_id: str | None = None,
+    ) -> list[dict]:
+        del viewer_user_id
         if thread_id != self.thread["id"]:
             return []
         return list(self.messages[-max(1, limit) :])
@@ -170,16 +205,46 @@ class FakeExperimentManager:
         self,
         thread_id: str,
         include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> list[str]:
-        del include_test_data
+        del include_test_data, viewer_user_id
         if thread_id != self.thread["id"]:
             return []
         return list(self.thread["context_recipe_ids"])
 
-    def list_threads(self, limit: int = 20, include_test: bool = False) -> list[dict]:
-        del include_test
-        del limit
+    def list_threads(
+        self,
+        limit: int = 20,
+        include_test: bool = False,
+        viewer_user_id: str | None = None,
+    ) -> list[dict]:
+        del include_test, limit, viewer_user_id
         return [dict(self.thread)]
+
+
+class FakeCursor:
+    def __init__(self, *, fetchone_results=None):
+        self._fetchone_results = list(fetchone_results or [])
+        self.executed = []
+
+    def execute(self, query, params=None):
+        self.executed.append((query, params))
+
+    def fetchone(self):
+        if not self._fetchone_results:
+            return None
+        return self._fetchone_results.pop(0)
+
+
+def _patch_db_context(monkeypatch, manager, cursor):
+    def fake_get_db_context():
+        @contextmanager
+        def _ctx():
+            yield None, cursor
+
+        return _ctx()
+
+    monkeypatch.setattr(manager, "get_db_context", fake_get_db_context)
 
 
 def test_send_user_message_blocks_non_recipe_prompt_without_llm_call() -> None:
@@ -238,13 +303,112 @@ def test_stream_user_message_blocks_non_recipe_prompt_without_stream_call() -> N
     assert stream_call_count == 0
 
 
+def test_build_context_payload_includes_full_recipe_content() -> None:
+    service = ExperimentService(
+        experiment_manager=FakeExperimentManager(),
+        recipe_manager=FakeRecipeManager(
+            recipes={
+                "recipe-1": {
+                    "id": "recipe-1",
+                    "title": "Creamy Tomato Pasta",
+                    "servings": "4",
+                    "total_time": "35 minutes",
+                    "ingredients": [
+                        "12 oz pasta",
+                        "2 tbsp olive oil",
+                        "4 cloves garlic",
+                        "1 onion",
+                        "1 tsp chili flakes",
+                        "28 oz tomatoes",
+                        "1/2 cup cream",
+                        "1/2 cup parmesan",
+                        "1 tbsp butter",
+                    ],
+                    "instructions": [
+                        "Boil the pasta.",
+                        "Saute the aromatics.",
+                        "Simmer the sauce.",
+                        "Finish with cream and cheese.",
+                    ],
+                }
+            }
+        ),
+        text_generation_fn=lambda _user_prompt, _system_prompt: "unused",
+        stream_generation_fn=lambda _user_prompt, _system_prompt: iter(()),
+    )
+
+    payload = service._build_context_payload(["recipe-1"])
+
+    assert payload == [
+        {
+            "id": "recipe-1",
+            "title": "Creamy Tomato Pasta",
+            "servings": "4",
+            "total_time": "35 minutes",
+            "ingredients": [
+                "12 oz pasta",
+                "2 tbsp olive oil",
+                "4 cloves garlic",
+                "1 onion",
+                "1 tsp chili flakes",
+                "28 oz tomatoes",
+                "1/2 cup cream",
+                "1/2 cup parmesan",
+                "1 tbsp butter",
+            ],
+            "instructions": [
+                "Boil the pasta.",
+                "Saute the aromatics.",
+                "Simmer the sauce.",
+                "Finish with cream and cheese.",
+            ],
+        }
+    ]
+
+
+def test_create_thread_insert_omits_mode_column(monkeypatch) -> None:
+    manager = ExperimentManager()
+    cursor = FakeCursor(
+        fetchone_results=[
+            {
+                "id": "thread-1",
+                "title": "Weeknight curry",
+                "metadata": {"orchestration": "langgraph-ready"},
+                "created_by_user_id": "user-123",
+                "created_at": None,
+                "updated_at": None,
+            },
+        ]
+    )
+    _patch_db_context(monkeypatch, manager, cursor)
+
+    thread = manager.create_thread(
+        title="Weeknight curry",
+        metadata={"orchestration": "langgraph-ready"},
+        created_by_user_id="user-123",
+    )
+
+    assert thread["id"] == "thread-1"
+    query, params = cursor.executed[0]
+    assert "INSERT INTO experiment_threads" in query
+    assert "mode" not in query
+    assert len(params) == 3
+    assert params[0] == "Weeknight curry"
+    assert isinstance(params[1], Json)
+    assert params[1].adapted == {"orchestration": "langgraph-ready"}
+    assert params[2] == "user-123"
+
+
 def test_resolve_attach_recipe_names_uses_exact_title_match_before_embedding() -> None:
-    recipe_manager = FakeRecipeManager()
-    recipe_manager.recipes_by_id["recipe-1"] = {
-        "id": "recipe-1",
-        "title": "Chicken Tikka Masala",
-        "created_at": "2026-04-26T00:00:00+00:00",
-    }
+    recipe_manager = FakeRecipeManager(
+        recipes={
+            "recipe-1": {
+                "id": "recipe-1",
+                "title": "Chicken Tikka Masala",
+                "created_at": "2026-04-26T00:00:00+00:00",
+            }
+        }
+    )
     embeddings_service = FakeEmbeddingsService()
     hybrid_search_service = FakeHybridSearchService(
         {
@@ -283,12 +447,15 @@ def test_resolve_attach_recipe_names_uses_exact_title_match_before_embedding() -
 
 
 def test_resolve_attach_recipe_names_uses_prefix_title_match_before_embedding() -> None:
-    recipe_manager = FakeRecipeManager()
-    recipe_manager.recipes_by_id["recipe-1"] = {
-        "id": "recipe-1",
-        "title": "Chicken Tikka Masala",
-        "created_at": "2026-04-26T00:00:00+00:00",
-    }
+    recipe_manager = FakeRecipeManager(
+        recipes={
+            "recipe-1": {
+                "id": "recipe-1",
+                "title": "Chicken Tikka Masala",
+                "created_at": "2026-04-26T00:00:00+00:00",
+            }
+        }
+    )
     embeddings_service = FakeEmbeddingsService()
     hybrid_search_service = FakeHybridSearchService()
     service = ExperimentService(

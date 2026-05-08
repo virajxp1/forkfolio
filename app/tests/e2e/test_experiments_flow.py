@@ -85,7 +85,6 @@ def test_experiment_thread_crud_lifecycle(api_client: APIClient) -> None:
         )
 
         create_thread_response = api_client.experiments.create_thread(
-            mode="modify_existing",
             title=f"Experiment E2E {run_id}",
             context_recipe_ids=[context_recipe_id],
         )
@@ -139,7 +138,6 @@ def test_experiment_thread_crud_lifecycle(api_client: APIClient) -> None:
 def test_experiment_stream_emits_events_and_persists(api_client: APIClient) -> None:
     run_id = uuid.uuid4().hex[:8]
     create_thread_response = api_client.experiments.create_thread(
-        mode="invent_new",
         title=f"Stream E2E {run_id}",
     )
     assert create_thread_response["status_code"] == HTTP_OK
@@ -202,7 +200,6 @@ def test_experiment_attach_ids_uses_exact_recipe(api_client: APIClient) -> None:
         assert recipe_id_a != recipe_id_b
 
         create_thread_response = api_client.experiments.create_thread(
-            mode="modify_existing",
             title=f"Attach E2E {run_id}",
         )
         assert create_thread_response["status_code"] == HTTP_OK
@@ -244,7 +241,6 @@ def test_experiment_attach_ids_uses_exact_recipe(api_client: APIClient) -> None:
 def test_experiment_blocks_non_recipe_prompt(api_client: APIClient) -> None:
     run_id = uuid.uuid4().hex[:8]
     create_thread_response = api_client.experiments.create_thread(
-        mode="invent_new",
         title=f"Guardrail E2E {run_id}",
     )
     assert create_thread_response["status_code"] == HTTP_OK

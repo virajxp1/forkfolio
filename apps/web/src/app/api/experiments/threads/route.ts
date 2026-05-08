@@ -5,14 +5,13 @@ import {
   isForkfolioApiError,
   listExperimentThreads,
 } from "@/lib/forkfolio-api";
+import { getRequiredViewerUserId } from "@/lib/supabase/viewer";
 import type {
   CreateExperimentThreadRequest,
-  ExperimentMode,
   ExperimentThreadSummary,
 } from "@/lib/forkfolio-types";
 
 type ThreadsRoutePayload = {
-  mode?: unknown;
   title?: unknown;
   context_recipe_ids?: unknown;
   is_test?: unknown;
@@ -98,21 +97,6 @@ function normalizeContextRecipeIds(rawContextIds: unknown): string[] | null {
 }
 
 function normalizePayload(payload: ThreadsRoutePayload): NormalizedPayloadResult {
-  const modeRaw = typeof payload.mode === "string" ? payload.mode.trim() : "invent_new";
-  if (!modeRaw) {
-    return {
-      detail: "mode must be one of: invent_new, modify_existing.",
-      status: 422,
-    };
-  }
-  const mode = modeRaw as ExperimentMode;
-  if (mode !== "invent_new" && mode !== "modify_existing") {
-    return {
-      detail: "mode must be one of: invent_new, modify_existing.",
-      status: 422,
-    };
-  }
-
   const contextRecipeIds = normalizeContextRecipeIds(payload.context_recipe_ids);
   if (contextRecipeIds === null) {
     return {
@@ -137,7 +121,6 @@ function normalizePayload(payload: ThreadsRoutePayload): NormalizedPayloadResult
 
   return {
     payload: {
-      mode,
       ...(title ? { title } : {}),
       ...(contextRecipeIds.length ? { context_recipe_ids: contextRecipeIds } : {}),
       ...(isTest === true ? { is_test: true } : {}),
@@ -204,8 +187,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const viewerResult = await getRequiredViewerUserId(
+    "Experiment threads",
+    "Sign in to use experiment threads.",
+  );
+  if (!viewerResult.viewerUserId) {
+    return NextResponse.json(
+      { detail: viewerResult.detail },
+      { status: viewerResult.status },
+    );
+  }
+
   try {
-    const response = await createExperimentThread(normalizedPayload.payload);
+    const response = await createExperimentThread(
+      normalizedPayload.payload,
+      viewerResult.viewerUserId,
+    );
     return NextResponse.json(response, {
       status: 200,
       headers: {
@@ -232,8 +229,22 @@ export async function GET(request: NextRequest) {
   const includeTest = parseIncludeTest(
     request.nextUrl.searchParams.get("include_test"),
   );
+  const viewerResult = await getRequiredViewerUserId(
+    "Experiment threads",
+    "Sign in to use experiment threads.",
+  );
+  if (!viewerResult.viewerUserId) {
+    return NextResponse.json(
+      { detail: viewerResult.detail },
+      { status: viewerResult.status },
+    );
+  }
   try {
-    const response = await listExperimentThreads(limit, includeTest);
+    const response = await listExperimentThreads(
+      limit,
+      includeTest,
+      viewerResult.viewerUserId,
+    );
     const listedThreads = Array.isArray(response.threads) ? response.threads : [];
     const filteredThreads = includeTest
       ? listedThreads.slice(0, limit)

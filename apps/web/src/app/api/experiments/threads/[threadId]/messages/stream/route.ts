@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getRequiredViewerUserId } from "@/lib/supabase/viewer";
+
 const DEFAULT_API_BASE_URL = "https://forkfolio-be.onrender.com";
 const DEFAULT_API_BASE_PATH = "/api/v1";
 
@@ -119,10 +121,11 @@ async function readErrorDetail(response: Response): Promise<string | null> {
   }
 }
 
-function buildUpstreamHeaders(): Headers {
+function buildUpstreamHeaders(viewerUserId: string): Headers {
   const headers = new Headers({
     Accept: "text/event-stream",
     "Content-Type": "application/json",
+    "X-Viewer-User-Id": viewerUserId,
   });
   if (API_TOKEN) {
     headers.set("X-API-Token", API_TOKEN);
@@ -159,13 +162,24 @@ export async function POST(
     );
   }
 
+  const viewerResult = await getRequiredViewerUserId(
+    "Experiment threads",
+    "Sign in to use experiment threads.",
+  );
+  if (!viewerResult.viewerUserId) {
+    return NextResponse.json(
+      { detail: viewerResult.detail },
+      { status: viewerResult.status },
+    );
+  }
+
   const upstreamUrl = `${API_BASE_URL}${API_BASE_PATH}/experiments/threads/${encodeURIComponent(
     normalizedThreadId,
   )}/messages/stream`;
 
   const upstreamResponse = await fetch(upstreamUrl, {
     method: "POST",
-    headers: buildUpstreamHeaders(),
+    headers: buildUpstreamHeaders(viewerResult.viewerUserId),
     body: JSON.stringify(normalizedPayload.payload),
     cache: "no-store",
   });

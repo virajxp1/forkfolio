@@ -231,8 +231,6 @@ export type RemoveRecipeFromBookResponse = {
 
 export type DeleteRecipeResponse = boolean;
 
-export type ExperimentMode = "invent_new" | "modify_existing";
-
 export type ExperimentMessageRole = "system" | "user" | "assistant" | "tool";
 
 export type ExperimentMessageRecord = {
@@ -248,9 +246,9 @@ export type ExperimentMessageRecord = {
 
 export type ExperimentThreadRecord = {
   id: string;
-  mode: ExperimentMode;
   title: string | null;
   metadata: Record<string, unknown>;
+  created_by_user_id?: string | null;
   context_recipe_ids: string[];
   messages: ExperimentMessageRecord[];
   created_at: string | null;
@@ -258,7 +256,6 @@ export type ExperimentThreadRecord = {
 };
 
 export type CreateExperimentThreadRequest = {
-  mode: ExperimentMode;
   title?: string;
   context_recipe_ids?: string[];
   is_test?: boolean;
@@ -284,9 +281,9 @@ export type CreateExperimentMessageRequest = {
 
 export type ExperimentThreadSummary = {
   id: string;
-  mode: ExperimentMode;
   title: string | null;
   metadata: Record<string, unknown>;
+  created_by_user_id?: string | null;
   created_at: string | null;
   updated_at: string | null;
   last_message_role: ExperimentMessageRole | null;

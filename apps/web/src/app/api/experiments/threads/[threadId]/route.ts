@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getExperimentThread, isForkfolioApiError } from "@/lib/forkfolio-api";
+import { getRequiredViewerUserId } from "@/lib/supabase/viewer";
 
 const DEFAULT_MESSAGE_LIMIT = 120;
 
@@ -27,9 +28,23 @@ export async function GET(
   }
 
   const messageLimit = parseMessageLimit(request.nextUrl.searchParams.get("message_limit"));
+  const viewerResult = await getRequiredViewerUserId(
+    "Experiment threads",
+    "Sign in to use experiment threads.",
+  );
+  if (!viewerResult.viewerUserId) {
+    return NextResponse.json(
+      { detail: viewerResult.detail },
+      { status: viewerResult.status },
+    );
+  }
 
   try {
-    const response = await getExperimentThread(normalizedThreadId, messageLimit);
+    const response = await getExperimentThread(
+      normalizedThreadId,
+      messageLimit,
+      viewerResult.viewerUserId,
+    );
     return NextResponse.json(response, {
       status: 200,
       headers: {

@@ -103,7 +103,6 @@ _CODE_REQUEST_PATTERN = re.compile(
 
 
 class ExperimentAgentState(TypedDict, total=False):
-    mode: str
     user_message: str
     context_payload: list[dict]
     history_payload: list[dict]
@@ -172,7 +171,6 @@ class ExperimentAgentGraph:
     def _build_user_prompt(state: ExperimentAgentState) -> str:
         return json.dumps(
             {
-                "mode": state["mode"],
                 "user_request": state["user_message"],
                 "thread_context_recipes": state["context_payload"],
                 "recent_history": state["history_payload"],
@@ -277,14 +275,12 @@ class ExperimentAgentGraph:
     def execute(
         self,
         *,
-        mode: str,
         user_message: str,
         context_payload: list[dict],
         history_payload: list[dict],
         stream_requested: bool,
     ) -> ExperimentAgentPlan:
         initial_state: ExperimentAgentState = {
-            "mode": mode,
             "user_message": user_message,
             "context_payload": context_payload,
             "history_payload": history_payload,
