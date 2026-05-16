@@ -24,10 +24,12 @@ import { consumeExperimentRecipeDraft } from "@/lib/experiment-recipe-draft";
 import {
   MIN_RECIPE_INPUT_LENGTH,
   type PreviewRecipeFromUrlResponse,
-  type RecipePreviewRecord,
   type ProcessRecipeResponse,
   type ProcessRecipeSuccessResponse,
+  type RecipePreviewRecord,
 } from "@/lib/forkfolio-types";
+import { capturePostHogEvent } from "@/lib/posthog/client";
+import { POSTHOG_EVENT } from "@/lib/posthog/events";
 
 type ErrorPayload = {
   detail?: string;
@@ -158,6 +160,22 @@ function formatRecipePreviewAsRawInput(preview: RecipePreviewRecord): string {
   ].join("\n");
 }
 
+function captureRecipeImportEvent(options: {
+  created?: boolean;
+  inputMode: "text" | "url_preview";
+  isPublic: boolean;
+  sourceUrlPresent: boolean;
+  success: boolean;
+}) {
+  capturePostHogEvent(POSTHOG_EVENT.RecipeImported, {
+    created: options.created ?? false,
+    input_mode: options.inputMode,
+    is_public: options.isPublic,
+    source_url_present: options.sourceUrlPresent,
+    success: options.success,
+  });
+}
+
 function SuccessState({
   result,
   onStartOver,
@@ -276,10 +294,23 @@ export default function NewRecipePage() {
         textModeSourceUrl ?? undefined,
       );
       setResult(response);
+      captureRecipeImportEvent({
+        created: response.success ? response.created : false,
+        inputMode: "text",
+        isPublic,
+        sourceUrlPresent: Boolean(textModeSourceUrl),
+        success: response.success,
+      });
       if (!response.success) {
         setErrorMessage(response.error || "Recipe processing failed.");
       }
     } catch (error) {
+      captureRecipeImportEvent({
+        inputMode: "text",
+        isPublic,
+        sourceUrlPresent: Boolean(textModeSourceUrl),
+        success: false,
+      });
       setErrorMessage(getSaveErrorMessage(error, "Recipe processing failed."));
     } finally {
       setIsSubmitting(false);
@@ -302,10 +333,18 @@ export default function NewRecipePage() {
     try {
       const response = await previewRecipeFromUrlClient(normalizedSourceUrl);
       setPreviewResult(response);
+      capturePostHogEvent(POSTHOG_EVENT.RecipePreviewFetched, {
+        ingredient_count: response.success ? response.recipe_preview.ingredients.length : 0,
+        instruction_count: response.success ? response.recipe_preview.instructions.length : 0,
+        success: response.success,
+      });
       if (!response.success) {
         setPreviewErrorMessage(response.error || "Recipe preview failed.");
       }
     } catch (error) {
+      capturePostHogEvent(POSTHOG_EVENT.RecipePreviewFetched, {
+        success: false,
+      });
       setPreviewErrorMessage(
         getErrorMessage(error, "Failed to fetch recipe preview from URL."),
       );
@@ -328,6 +367,13 @@ export default function NewRecipePage() {
         sourceUrlForSave,
       );
       setResult(response);
+      captureRecipeImportEvent({
+        created: response.success ? response.created : false,
+        inputMode: "url_preview",
+        isPublic,
+        sourceUrlPresent: Boolean(sourceUrlForSave),
+        success: response.success,
+      });
       if (response.success) {
         setPreviewResult(null);
         setSourceUrl("");
@@ -336,6 +382,12 @@ export default function NewRecipePage() {
         setErrorMessage(response.error || "Recipe processing failed.");
       }
     } catch (error) {
+      captureRecipeImportEvent({
+        inputMode: "url_preview",
+        isPublic,
+        sourceUrlPresent: Boolean(sourceUrlForSave),
+        success: false,
+      });
       setErrorMessage(getSaveErrorMessage(error, "Recipe processing failed."));
     } finally {
       setIsSavingPreview(false);

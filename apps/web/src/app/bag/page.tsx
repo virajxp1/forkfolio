@@ -17,6 +17,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { CreateGroceryListResponse } from "@/lib/forkfolio-types";
+import { capturePostHogEvent } from "@/lib/posthog/client";
+import { POSTHOG_EVENT } from "@/lib/posthog/events";
 
 type ErrorPayload = {
   detail?: string;
@@ -114,6 +116,10 @@ export default function GroceryBagPage() {
         return;
       }
       setGeneratedList(response);
+      capturePostHogEvent(POSTHOG_EVENT.GroceryListGenerated, {
+        ingredient_count: response.count,
+        recipe_count: response.recipe_ids.length,
+      });
     } catch (error) {
       if (generationRequestIdRef.current !== requestId) {
         return;
