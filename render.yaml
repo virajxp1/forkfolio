@@ -1,0 +1,17 @@
+# Render Blueprint.
+#
+# Only provisions the managed Key Value (Redis) service. The backend
+# (`forkfolio-be`) and frontend (`forkfolio-fe`) services are created and
+# managed manually in the Render dashboard, not via Blueprint, to avoid
+# adoption / config-drift issues.
+#
+# Wire `REDIS_URL` onto `forkfolio-be` manually from the Render dashboard:
+#   forkfolio-redis -> Connect -> copy Internal Connection String, then
+#   forkfolio-be -> Environment -> add REDIS_URL = <that string>.
+services:
+  - type: redis
+    name: forkfolio-redis
+    plan: free
+    region: ohio
+    ipAllowList: []
+    maxmemoryPolicy: noeviction

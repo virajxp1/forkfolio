@@ -251,7 +251,7 @@ def test_create_experiment_thread_rejects_invalid_viewer_header() -> None:
     response = client.post(
         "/api/v1/experiments/threads",
         headers={"X-Viewer-User-Id": "not-a-uuid"},
-        json={"mode": "invent_new"},
+        json={},
     )
 
     assert response.status_code == 400

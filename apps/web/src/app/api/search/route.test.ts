@@ -58,7 +58,7 @@ describe("GET /api/search", () => {
     expect(response.headers.get("Cache-Control")).toBe(
       "public, max-age=60, stale-while-revalidate=300",
     );
-    expect(searchRecipesMock).toHaveBeenCalledWith("pasta", 50, false, null);
+    expect(searchRecipesMock).toHaveBeenCalledWith("pasta", 50, null);
   });
 
   it("uses default limit when limit is invalid", async () => {
@@ -75,24 +75,7 @@ describe("GET /api/search", () => {
 
     await GET(request);
 
-    expect(searchRecipesMock).toHaveBeenCalledWith("soup", 12, false, null);
-  });
-
-  it("passes rerank flag through when explicitly enabled", async () => {
-    searchRecipesMock.mockResolvedValue({
-      query: "salad",
-      count: 0,
-      results: [],
-      success: true,
-    });
-
-    const request = new NextRequest(
-      "http://localhost:3000/api/search?query=salad&rerank=true",
-    );
-
-    await GET(request);
-
-    expect(searchRecipesMock).toHaveBeenCalledWith("salad", 12, true, null);
+    expect(searchRecipesMock).toHaveBeenCalledWith("soup", 12, null);
   });
 
   it("forwards viewer user id and disables shared caching", async () => {
@@ -109,7 +92,7 @@ describe("GET /api/search", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(searchRecipesMock).toHaveBeenCalledWith("salad", 12, false, "viewer-123");
+    expect(searchRecipesMock).toHaveBeenCalledWith("salad", 12, "viewer-123");
   });
 
   it("maps Forkfolio API errors", async () => {
