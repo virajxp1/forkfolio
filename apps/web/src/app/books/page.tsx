@@ -25,6 +25,8 @@ import type {
   RecipeBookRecord,
   RecipeBookStats,
 } from "@/lib/forkfolio-types";
+import { capturePostHogEvent } from "@/lib/posthog/client";
+import { POSTHOG_EVENT } from "@/lib/posthog/events";
 
 type ErrorPayload = {
   detail?: string;
@@ -209,6 +211,11 @@ export default function RecipeBooksPage() {
 
     try {
       const response = await createRecipeBookClient(trimmedName, description.trim());
+      capturePostHogEvent(POSTHOG_EVENT.RecipeBookCreated, {
+        has_description: Boolean(description.trim()),
+        recipe_book_id: response.recipe_book.id,
+        returned_existing: !response.created,
+      });
       setCreateResult({
         created: response.created,
         id: response.recipe_book.id,

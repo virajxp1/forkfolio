@@ -8,6 +8,8 @@ import type {
   RecipeRecord,
   SearchRecipeResult,
 } from "@/lib/forkfolio-types";
+import { capturePostHogEvent } from "@/lib/posthog/client";
+import { POSTHOG_EVENT } from "@/lib/posthog/events";
 
 import {
   MIN_QUERY_LENGTH,
@@ -424,6 +426,12 @@ export function useBrowseData() {
       return;
     }
 
+    if (normalizedQuery.length >= MIN_QUERY_LENGTH) {
+      capturePostHogEvent(POSTHOG_EVENT.RecipesSearched, {
+        query_length: normalizedQuery.length,
+      });
+    }
+
     setBrowseUrl(normalizedQuery, undefined, "push");
   }
 
@@ -436,6 +444,11 @@ export function useBrowseData() {
   }
 
   function openRecipeModal(recipeId: string) {
+    capturePostHogEvent(POSTHOG_EVENT.RecipeViewed, {
+      recipe_id: recipeId,
+      searched: Boolean(queryFromUrl),
+      source: "browse_modal",
+    });
     setBrowseUrl(queryFromUrl, recipeId, "push");
   }
 

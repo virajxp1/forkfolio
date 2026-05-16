@@ -14,6 +14,14 @@ Search-first frontend for ForkFolio, built with Next.js + `shadcn/ui`.
    - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (required for Google sign-in)
    - `FORKFOLIO_APP_ORIGIN` (optional but recommended in production; canonical app origin for auth callback redirects)
 
+PostHog is wired conservatively:
+- the frontend PostHog project token and app identity are checked into the web app, so analytics does not require extra `.env` entries
+- automatic pageviews are enabled
+- broad autocapture is disabled to avoid noisy or sensitive form data from recipe imports
+- session replay is disabled by default
+- custom events include sign-in, search, recipe import, bag actions, recipe books, and grocery-list generation
+- every event carries app-level properties so dashboards can filter this app inside a shared PostHog project
+
 ## Run
 
 ```bash

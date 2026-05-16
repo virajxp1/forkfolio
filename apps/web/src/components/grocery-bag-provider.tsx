@@ -11,6 +11,8 @@ import {
 } from "react";
 
 import type { GroceryBagItem, GroceryBagRecipe } from "@/lib/forkfolio-types";
+import { capturePostHogEvent } from "@/lib/posthog/client";
+import { POSTHOG_EVENT } from "@/lib/posthog/events";
 
 const GROCERY_BAG_STORAGE_KEY = "forkfolio.grocery-bag.v1";
 
@@ -133,6 +135,15 @@ export function GroceryBagProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      if (items.some((item) => item.id === normalizedRecipeId)) {
+        return;
+      }
+
+      capturePostHogEvent(POSTHOG_EVENT.RecipeAddedToBag, {
+        bag_size: items.length + 1,
+        recipe_id: normalizedRecipeId,
+      });
+
       setItems((prev) => {
         if (prev.some((item) => item.id === normalizedRecipeId)) {
           return prev;
@@ -157,10 +168,28 @@ export function GroceryBagProvider({ children }: { children: ReactNode }) {
       if (!normalizedRecipeId) {
         return;
       }
+
+      if (!items.some((item) => item.id === normalizedRecipeId)) {
+        return;
+      }
+
+      capturePostHogEvent(POSTHOG_EVENT.RecipeRemovedFromBag, {
+        bag_size: Math.max(0, items.length - 1),
+        recipe_id: normalizedRecipeId,
+      });
+
       setItems((prev) => prev.filter((item) => item.id !== normalizedRecipeId));
     }
 
     function clearBag(): void {
+      if (items.length === 0) {
+        return;
+      }
+
+      capturePostHogEvent(POSTHOG_EVENT.BagCleared, {
+        previous_bag_size: items.length,
+      });
+
       setItems([]);
     }
 
