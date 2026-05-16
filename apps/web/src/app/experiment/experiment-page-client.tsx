@@ -181,7 +181,7 @@ async function searchRecipesClient(
 ): Promise<RecipeSearchResult[]> {
   const params = new URLSearchParams({ query: query.trim(), limit: "10" });
   const response = await browserFetch<SearchRecipesResponse>(
-    `/api/search/names?${params.toString()}`,
+    `/api/search?${params.toString()}`,
     { signal },
   );
   const normalized: RecipeSearchResult[] = [];
@@ -406,6 +406,7 @@ export default function ExperimentPageClient({
   const canUseThreads = auth.status === "ready";
   const viewerUserId = auth.status === "ready" ? auth.viewerUserId : null;
   const blockedReason = auth.status === "blocked" ? auth.reason : null;
+  const blockedError = auth.status === "blocked" ? auth.error : null;
   const blockedCopy = blockedReason ? getBlockedAccessCopy(blockedReason) : null;
   const canSendMessage =
     canUseThreads &&
@@ -509,9 +510,8 @@ export default function ExperimentPageClient({
       return;
     }
 
-    resetViewerScopedState(auth.status === "blocked" ? auth.error : null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.status, viewerUserId]);
+    resetViewerScopedState(blockedError);
+  }, [auth.status, viewerUserId, blockedReason, blockedError]);
 
   useEffect(() => {
     if (auth.status !== "ready" || !viewerUserId) {

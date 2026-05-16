@@ -725,6 +725,25 @@ describe("/experiment page", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("clears stale blocked auth errors when auth stays blocked but the reason changes", async () => {
+    supabaseMock.signOutUser();
+
+    render(
+      <ExperimentPageClient
+        initialAccess={{
+          accessState: "auth_unavailable",
+          viewerUserId: null,
+          errorMessage: "Failed to reach auth service.",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to open Recipe Lab" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Failed to reach auth service.")).not.toBeInTheDocument();
+  });
+
   it("clears loaded private state when auth changes to signed out", async () => {
     const fetchMock = vi.mocked(fetch);
     fetchMock.mockImplementation(async (input) => {
