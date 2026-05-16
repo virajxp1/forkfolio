@@ -18,19 +18,9 @@ function parseLimit(rawLimit: string | null): number {
   return Math.min(parsed, 50);
 }
 
-function parseRerank(rawRerank: string | null): boolean {
-  if (!rawRerank) {
-    return false;
-  }
-
-  const normalized = rawRerank.trim().toLowerCase();
-  return normalized === "1" || normalized === "true";
-}
-
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("query")?.trim() ?? "";
   const limit = parseLimit(request.nextUrl.searchParams.get("limit"));
-  const rerank = parseRerank(request.nextUrl.searchParams.get("rerank"));
   const viewerUserId = await getOptionalViewerUserId();
 
   if (!query) {
@@ -41,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const response = await searchRecipes(query, limit, rerank, viewerUserId);
+    const response = await searchRecipes(query, limit, viewerUserId);
     return NextResponse.json(response, {
       status: 200,
       headers: {

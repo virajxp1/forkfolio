@@ -114,7 +114,7 @@ class RecipesClient(BaseAPIClient):
         include_test_data: bool = True,
     ) -> Dict[str, Any]:
         """
-        Semantic search over recipes using vector similarity.
+        Hybrid semantic search over recipes using Postgres-native ranking.
 
         Endpoint: GET /api/v1/recipes/search/semantic
         Router: app.api.v1.endpoints.recipes:semantic_search_recipes

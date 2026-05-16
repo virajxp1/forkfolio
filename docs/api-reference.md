@@ -293,7 +293,8 @@ Validation error payload (`422` example):
 
 Auth: Required
 
-Performs semantic similarity search over recipe embeddings.
+Performs hybrid recipe search using PostgreSQL full-text search, `pg_trgm`,
+and `pgvector`.
 
 Query parameters:
 

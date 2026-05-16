@@ -9,6 +9,7 @@ The ForkFolio database uses **PostgreSQL** (via Supabase) with a relational sche
 - **Recipe Management**: Core recipe metadata and information
 - **Ordered Ingredients**: Preserved ingredient order for each recipe
 - **Step-by-Step Instructions**: Sequential cooking instructions
+- **Hybrid Search**: Postgres-native FTS + `pg_trgm` + `pgvector` ranking
 - **Vector Embeddings**: Recipe embeddings for similarity search and recommendations
 
 Related schema extensions:
@@ -173,6 +174,11 @@ Use the following SQL commands to create the tables in your Supabase database. E
    CREATE EXTENSION IF NOT EXISTS vector;
    ```
 
+3. **Enable pg_trgm Extension** (required for typo-tolerant lexical search):
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+   ```
+
 ### Table Creation Scripts
 
 #### 1. Create `recipes` Table
@@ -196,6 +202,10 @@ CREATE INDEX IF NOT EXISTS idx_recipes_created_at ON recipes(created_at DESC);
 
 -- Create index on title for search operations
 CREATE INDEX IF NOT EXISTS idx_recipes_title ON recipes(title);
+CREATE INDEX IF NOT EXISTS idx_recipes_title_fts
+    ON recipes USING gin (to_tsvector('english', COALESCE(title, '')));
+CREATE INDEX IF NOT EXISTS idx_recipes_title_trgm
+    ON recipes USING gin (lower(title) gin_trgm_ops);
 
 -- Create indexes for ownership and visibility lookups
 CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
@@ -220,6 +230,10 @@ CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe_order
 -- Create index on recipe_id (though FK index is usually auto-created)
 CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe_id 
     ON recipe_ingredients(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_text_fts
+    ON recipe_ingredients USING gin (to_tsvector('english', COALESCE(ingredient_text, '')));
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_text_trgm
+    ON recipe_ingredients USING gin (lower(ingredient_text) gin_trgm_ops);
 ```
 
 #### 3. Create `recipe_instructions` Table
@@ -302,6 +316,7 @@ Here's a complete script that creates all tables, indexes, and triggers in the c
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS vector;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- ============================================
 -- 1. Create recipes table
@@ -321,6 +336,10 @@ CREATE TABLE IF NOT EXISTS recipes (
 
 CREATE INDEX IF NOT EXISTS idx_recipes_created_at ON recipes(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_recipes_title ON recipes(title);
+CREATE INDEX IF NOT EXISTS idx_recipes_title_fts
+    ON recipes USING gin (to_tsvector('english', COALESCE(title, '')));
+CREATE INDEX IF NOT EXISTS idx_recipes_title_trgm
+    ON recipes USING gin (lower(title) gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_recipes_is_public ON recipes(is_public);
 CREATE INDEX IF NOT EXISTS idx_recipes_created_by_user_id ON recipes(created_by_user_id);
 
@@ -339,6 +358,10 @@ CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe_order
     ON recipe_ingredients(recipe_id, order_index);
 CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe_id 
     ON recipe_ingredients(recipe_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_text_fts
+    ON recipe_ingredients USING gin (to_tsvector('english', COALESCE(ingredient_text, '')));
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_text_trgm
+    ON recipe_ingredients USING gin (lower(ingredient_text) gin_trgm_ops);
 
 -- ============================================
 -- 3. Create recipe_instructions table

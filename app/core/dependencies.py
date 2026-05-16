@@ -8,8 +8,8 @@ from app.services.data.managers.recipe_book_manager import RecipeBookManager
 from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.grocery_list_aggregation_impl import GroceryListAggregationServiceImpl
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
+from app.services.recipe_hybrid_search_impl import RecipeHybridSearchServiceImpl
 from app.services.recipe_processing_service import RecipeProcessingService
-from app.services.recipe_search_reranker_impl import RecipeSearchRerankerServiceImpl
 
 
 def get_recipe_manager() -> RecipeManager:
@@ -42,9 +42,9 @@ def get_recipe_embeddings_service() -> RecipeEmbeddingsServiceImpl:
     return RecipeEmbeddingsServiceImpl()
 
 
-def get_recipe_search_reranker_service() -> RecipeSearchRerankerServiceImpl:
-    """Dependency provider for RecipeSearchRerankerServiceImpl."""
-    return RecipeSearchRerankerServiceImpl()
+def get_recipe_hybrid_search_service() -> RecipeHybridSearchServiceImpl:
+    """Dependency provider for the Postgres hybrid search service."""
+    return RecipeHybridSearchServiceImpl()
 
 
 def get_grocery_list_aggregation_service() -> GroceryListAggregationServiceImpl:
@@ -62,4 +62,6 @@ def get_experiment_service() -> ExperimentService:
     return ExperimentService(
         experiment_manager=get_experiment_manager(),
         recipe_manager=get_recipe_manager(),
+        recipe_embeddings_service=get_recipe_embeddings_service(),
+        recipe_hybrid_search_service=get_recipe_hybrid_search_service(),
     )

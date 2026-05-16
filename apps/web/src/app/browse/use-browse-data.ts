@@ -11,24 +11,18 @@ import type {
 
 import {
   MIN_QUERY_LENGTH,
-  MIN_TEXT_MATCH_QUERY_LENGTH,
   getErrorMessage,
   getRecipeClient,
   listRecipesClient,
   searchRecipesClient,
-  searchRecipesByNameClient,
 } from "./browse-api";
 import { buildBrowseHref, normalizeParam } from "./browse-utils";
 
 const SEARCH_LIMIT = 12;
 
 type NavigationMode = "push" | "replace";
-type SearchMatchSource = "browse" | "text" | "semantic";
 
-export type BrowseSearchResult = SearchRecipeResult & {
-  matchSource: SearchMatchSource;
-  semanticDistance: number | null;
-};
+export type BrowseSearchResult = SearchRecipeResult;
 
 type DefaultListCache = {
   results: BrowseSearchResult[];
@@ -37,8 +31,7 @@ type DefaultListCache = {
 };
 
 type SearchCacheEntry = {
-  baseResults: BrowseSearchResult[];
-  relatedResults: BrowseSearchResult[];
+  results: BrowseSearchResult[];
 };
 
 function toBrowseResults(recipes: RecipeListItem[]): BrowseSearchResult[] {
@@ -46,8 +39,6 @@ function toBrowseResults(recipes: RecipeListItem[]): BrowseSearchResult[] {
     id: recipe.id,
     name: recipe.title,
     distance: null,
-    matchSource: "browse",
-    semanticDistance: null,
   }));
 }
 
@@ -55,9 +46,9 @@ function getSearchResultKey(result: Pick<SearchRecipeResult, "id" | "name" | "di
   return result.id ?? `${result.name ?? ""}-${result.distance ?? ""}`;
 }
 
-function dedupeSearchResults(results: SearchRecipeResult[]): SearchRecipeResult[] {
+function dedupeSearchResults(results: SearchRecipeResult[]): BrowseSearchResult[] {
   const seen = new Set<string>();
-  const deduped: SearchRecipeResult[] = [];
+  const deduped: BrowseSearchResult[] = [];
   for (const result of results) {
     const key = getSearchResultKey(result);
     if (seen.has(key)) {
@@ -67,17 +58,6 @@ function dedupeSearchResults(results: SearchRecipeResult[]): SearchRecipeResult[
     deduped.push(result);
   }
   return deduped;
-}
-
-function toMatchSourceResults(
-  results: SearchRecipeResult[],
-  source: "text" | "semantic",
-): BrowseSearchResult[] {
-  return dedupeSearchResults(results).map((result) => ({
-    ...result,
-    matchSource: source,
-    semanticDistance: source === "semantic" ? result.distance ?? null : null,
-  }));
 }
 
 function mergeBrowseResults(
@@ -97,41 +77,6 @@ function mergeBrowseResults(
   return merged;
 }
 
-function getRelatedSemanticResults(
-  baseResults: BrowseSearchResult[],
-  semanticResults: BrowseSearchResult[],
-): BrowseSearchResult[] {
-  const baseKeys = new Set(baseResults.map((result) => getSearchResultKey(result)));
-  return semanticResults.filter((result) => !baseKeys.has(getSearchResultKey(result)));
-}
-
-function areBrowseResultsEqual(
-  left: BrowseSearchResult[],
-  right: BrowseSearchResult[],
-): boolean {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  for (let index = 0; index < left.length; index += 1) {
-    const leftItem = left[index];
-    const rightItem = right[index];
-    if (!rightItem) {
-      return false;
-    }
-    if (
-      leftItem.id !== rightItem.id ||
-      leftItem.name !== rightItem.name ||
-      leftItem.distance !== rightItem.distance ||
-      leftItem.matchSource !== rightItem.matchSource
-    ) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 export function useBrowseData() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -141,12 +86,8 @@ export function useBrowseData() {
 
   const [queryInput, setQueryInput] = useState(queryFromUrl);
   const [results, setResults] = useState<BrowseSearchResult[]>([]);
-  const [relatedResults, setRelatedResults] = useState<BrowseSearchResult[]>([]);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
-  const [isLoadingRelated, setIsLoadingRelated] = useState(false);
-  const [isRefiningResults, setIsRefiningResults] = useState(false);
-  const [hasLoadedRelated, setHasLoadedRelated] = useState(false);
   const [defaultListNextCursor, setDefaultListNextCursor] = useState<string | null>(
     null,
   );
@@ -268,29 +209,22 @@ export function useBrowseData() {
     async (query: string) => {
       const requestId = searchRequestIdRef.current + 1;
       searchRequestIdRef.current = requestId;
-      setIsRefiningResults(false);
 
       if (!query) {
         const cachedDefault = defaultListCacheRef.current;
         if (cachedDefault) {
           setResults(cachedDefault.results);
-          setRelatedResults([]);
-          setHasLoadedRelated(false);
           setDefaultListNextCursor(cachedDefault.nextCursor);
           setDefaultListHasMore(cachedDefault.hasMore);
           setSearchError(null);
           setIsSearching(false);
-          setIsLoadingRelated(false);
           prefetchResultDetails(cachedDefault.results);
           return;
         }
 
         setIsSearching(true);
-        setIsLoadingRelated(false);
         setSearchError(null);
         setResults([]);
-        setRelatedResults([]);
-        setHasLoadedRelated(false);
         setDefaultListNextCursor(null);
         setDefaultListHasMore(false);
 
@@ -330,11 +264,8 @@ export function useBrowseData() {
 
       if (query.length < MIN_QUERY_LENGTH) {
         setResults([]);
-        setRelatedResults([]);
-        setHasLoadedRelated(false);
         setDefaultListNextCursor(null);
         setDefaultListHasMore(false);
-        setIsLoadingRelated(false);
         setSearchError("Search query must be at least 2 characters.");
         setIsSearching(false);
         return;
@@ -342,158 +273,39 @@ export function useBrowseData() {
 
       const cachedSearch = searchCacheRef.current[query];
       if (cachedSearch) {
-        setResults(cachedSearch.baseResults);
-        setRelatedResults(cachedSearch.relatedResults);
-        setHasLoadedRelated(false);
+        setResults(cachedSearch.results);
         setDefaultListNextCursor(null);
         setDefaultListHasMore(false);
         setSearchError(null);
         setIsSearching(false);
-        setIsLoadingRelated(false);
-        prefetchResultDetails(cachedSearch.baseResults);
-        if (cachedSearch.relatedResults.length > 0) {
-          prefetchResultDetails(cachedSearch.relatedResults);
-        }
+        prefetchResultDetails(cachedSearch.results);
         return;
       }
 
       setIsSearching(true);
-      setIsLoadingRelated(false);
       setSearchError(null);
       setResults([]);
-      setRelatedResults([]);
-      setHasLoadedRelated(false);
       setDefaultListNextCursor(null);
       setDefaultListHasMore(false);
 
-      let baseResults: BrowseSearchResult[] = [];
-      let useSemanticAsPrimary = query.length < MIN_TEXT_MATCH_QUERY_LENGTH;
-
-      if (!useSemanticAsPrimary) {
-        try {
-          const textResponse = await searchRecipesByNameClient(query, SEARCH_LIMIT);
-          if (searchRequestIdRef.current !== requestId) {
-            return;
-          }
-
-          baseResults = toMatchSourceResults(textResponse.results ?? [], "text");
-          setResults(baseResults);
-          setIsSearching(false);
-          prefetchResultDetails(baseResults);
-        } catch {
-          if (searchRequestIdRef.current !== requestId) {
-            return;
-          }
-          useSemanticAsPrimary = true;
-        }
-      }
-
-      if (!useSemanticAsPrimary) {
-        setIsLoadingRelated(true);
-      }
-
-      const runSemanticRerankInBackground = (
-        semanticResults: BrowseSearchResult[],
-      ): void => {
-        if (query.length < MIN_TEXT_MATCH_QUERY_LENGTH || semanticResults.length < 2) {
-          return;
-        }
-
-        setIsRefiningResults(true);
-        void (async () => {
-          try {
-            const rerankedResponse = await searchRecipesClient(query, SEARCH_LIMIT, true);
-            if (searchRequestIdRef.current !== requestId) {
-              return;
-            }
-
-            const rerankedSemanticResults = toMatchSourceResults(
-              rerankedResponse.results ?? [],
-              "semantic",
-            );
-            if (rerankedSemanticResults.length === 0) {
-              return;
-            }
-            if (areBrowseResultsEqual(semanticResults, rerankedSemanticResults)) {
-              return;
-            }
-
-            searchCacheRef.current[query] = {
-              baseResults: rerankedSemanticResults,
-              relatedResults: [],
-            };
-
-            setResults(rerankedSemanticResults);
-            setRelatedResults([]);
-            prefetchResultDetails(rerankedSemanticResults);
-          } catch {
-            // Best-effort refinement; keep fast semantic ordering on any rerank failure.
-          } finally {
-            if (searchRequestIdRef.current === requestId) {
-              setIsRefiningResults(false);
-            }
-          }
-        })();
-      };
-
       try {
-        const semanticResponse = await searchRecipesClient(query, SEARCH_LIMIT, false);
+        const searchResponse = await searchRecipesClient(query, SEARCH_LIMIT);
         if (searchRequestIdRef.current !== requestId) {
           return;
         }
 
-        const semanticResults = toMatchSourceResults(
-          semanticResponse.results ?? [],
-          "semantic",
-        );
-
-        if (useSemanticAsPrimary) {
-          searchCacheRef.current[query] = {
-            baseResults: semanticResults,
-            relatedResults: [],
-          };
-
-          setResults(semanticResults);
-          setRelatedResults([]);
-          setIsSearching(false);
-          setIsLoadingRelated(false);
-          prefetchResultDetails(semanticResults);
-          runSemanticRerankInBackground(semanticResults);
-          return;
-        }
-
-        const relatedOnly = getRelatedSemanticResults(baseResults, semanticResults);
-        searchCacheRef.current[query] = {
-          baseResults,
-          relatedResults: relatedOnly,
-        };
-
-        setRelatedResults(relatedOnly);
-        setIsLoadingRelated(false);
-        if (relatedOnly.length > 0) {
-          prefetchResultDetails(relatedOnly);
-        }
+        const nextResults = dedupeSearchResults(searchResponse.results ?? []);
+        searchCacheRef.current[query] = { results: nextResults };
+        setResults(nextResults);
+        setIsSearching(false);
+        prefetchResultDetails(nextResults);
       } catch (error) {
         if (searchRequestIdRef.current !== requestId) {
           return;
         }
-
-        const semanticErrorMessage = getErrorMessage(error, "Search request failed.");
-        setIsLoadingRelated(false);
-
-        if (!useSemanticAsPrimary && baseResults.length > 0) {
-          searchCacheRef.current[query] = {
-            baseResults,
-            relatedResults: [],
-          };
-          setIsSearching(false);
-          return;
-        }
-
         setResults([]);
-        setRelatedResults([]);
         setIsSearching(false);
-        setSearchError(semanticErrorMessage);
+        setSearchError(getErrorMessage(error, "Search request failed."));
       }
     },
     [prefetchResultDetails],
@@ -542,7 +354,6 @@ export function useBrowseData() {
   }, [recipeIdFromUrl, loadRecipeDetails]);
 
   useEffect(() => {
-    // Invalidate pending retry callbacks whenever the selected modal recipe changes.
     retrySelectedRecipeRequestIdRef.current += 1;
   }, [recipeIdFromUrl]);
 
@@ -556,11 +367,8 @@ export function useBrowseData() {
   const hasQuery = Boolean(queryFromUrl);
   const hasModal = Boolean(recipeIdFromUrl);
   const showInitialPrompt = false;
-  const showLoadRelated =
-    hasQuery && !searchError && relatedResults.length > 0 && !hasLoadedRelated;
   const showLoadingGrid = isSearching && !results.length;
-  const showNoResults =
-    !searchError && !isSearching && !results.length && !isLoadingRelated && !showLoadRelated;
+  const showNoResults = !searchError && !isSearching && !results.length;
   const showLoadMore = !hasQuery && !searchError && results.length > 0 && defaultListHasMore;
   const retrySearch = useCallback(() => {
     void runSearch(queryFromUrl);
@@ -635,15 +443,6 @@ export function useBrowseData() {
     setBrowseUrl(queryFromUrl, undefined, "replace");
   }
 
-  function handleLoadRelated() {
-    if (!showLoadRelated) {
-      return;
-    }
-
-    setResults((prev) => mergeBrowseResults(prev, relatedResults));
-    setHasLoadedRelated(true);
-  }
-
   async function handleLoadMore() {
     if (hasQuery || isLoadingMore || !defaultListHasMore || !defaultListNextCursor) {
       return;
@@ -687,12 +486,8 @@ export function useBrowseData() {
     queryFromUrl,
     queryInput,
     results,
-    relatedResultCount: relatedResults.length,
     searchError,
     isSearching,
-    isLoadingRelated,
-    isRefiningResults,
-    showLoadRelated,
     recipeById,
     recipeLoadingById,
     recipeIdFromUrl,
@@ -709,7 +504,6 @@ export function useBrowseData() {
     retrySelectedRecipe,
     handleSearchSubmit,
     handleQueryInputChange,
-    handleLoadRelated,
     handleLoadMore,
     openRecipeModal,
     closeRecipeModal,

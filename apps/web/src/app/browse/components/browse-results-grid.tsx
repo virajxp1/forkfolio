@@ -2,7 +2,6 @@ import { ArrowRight } from "lucide-react";
 
 import { RecipeBagToggleButton } from "@/components/recipe-bag-toggle-button";
 import { RecipeMetadataBadges } from "@/components/recipe-metadata-badges";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -86,10 +85,6 @@ function SearchCard({
         </CardTitle>
 
         <CardDescription className="flex min-h-6 min-w-0 flex-wrap items-center gap-2 text-sm">
-          {result.matchSource === "semantic" ? (
-            <Badge variant="secondary">Related recipe</Badge>
-          ) : null}
-
           {recipe ? (
             hasRecipeMetadata ? (
               <RecipeMetadataBadges
@@ -171,11 +166,7 @@ function SearchCard({
 type BrowseResultsGridProps = {
   queryFromUrl: string;
   results: BrowseSearchResult[];
-  relatedResultCount: number;
   searchError: string | null;
-  isLoadingRelated: boolean;
-  isRefiningResults: boolean;
-  showLoadRelated: boolean;
   showInitialPrompt: boolean;
   showLoadingGrid: boolean;
   showNoResults: boolean;
@@ -183,7 +174,6 @@ type BrowseResultsGridProps = {
   isLoadingMore: boolean;
   recipeById: Record<string, RecipeRecord>;
   recipeLoadingById: Record<string, boolean>;
-  onLoadRelated: () => void;
   onLoadMore: () => void;
   onRetrySearch: () => void;
   onCardOpen: (recipeId: string) => void;
@@ -192,11 +182,7 @@ type BrowseResultsGridProps = {
 export function BrowseResultsGrid({
   queryFromUrl,
   results,
-  relatedResultCount,
   searchError,
-  isLoadingRelated,
-  isRefiningResults,
-  showLoadRelated,
   showInitialPrompt,
   showLoadingGrid,
   showNoResults,
@@ -204,7 +190,6 @@ export function BrowseResultsGrid({
   isLoadingMore,
   recipeById,
   recipeLoadingById,
-  onLoadRelated,
   onLoadMore,
   onRetrySearch,
   onCardOpen,
@@ -216,9 +201,6 @@ export function BrowseResultsGrid({
       <h2 className="font-display text-[clamp(1.8rem,3vw,2.4rem)] tracking-tight">
         {queryFromUrl ? `Results for "${queryFromUrl}"` : "Browse Recipes"}
       </h2>
-      {isQueryMode && isRefiningResults ? (
-        <p className="text-sm text-muted-foreground">Refining results...</p>
-      ) : null}
 
       {searchError ? (
         <Card className="border-destructive/35 bg-destructive/5 shadow-none">
@@ -305,26 +287,6 @@ export function BrowseResultsGrid({
             </div>
           ) : null}
         </>
-      ) : null}
-
-      {isQueryMode && (isLoadingRelated || showLoadRelated) ? (
-        <Card className="border-border/70 bg-muted/20 shadow-none">
-          <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <CardTitle className="text-lg">Related Recipes</CardTitle>
-              <CardDescription>
-                {isLoadingRelated
-                  ? "Finding related recipes in the background..."
-                  : `${relatedResultCount} related recipes are ready to add.`}
-              </CardDescription>
-            </div>
-            {showLoadRelated ? (
-              <Button type="button" variant="outline" onClick={onLoadRelated}>
-                Load related recipes ({relatedResultCount})
-              </Button>
-            ) : null}
-          </CardHeader>
-        </Card>
       ) : null}
     </section>
   );

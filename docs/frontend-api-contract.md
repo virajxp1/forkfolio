@@ -50,13 +50,10 @@ client.
       "id": "uuid",
       "name": "Herby Pasta",
       "distance": 0.09,
-      "rerank_score": 0.97,
-      "embedding_score": 0.91,
       "combined_score": 0.95,
-      "raw_rerank_score": 0.9,
-      "rerank_mode": "fallback",
-      "cuisine_boost": 0.15,
-      "family_boost": 0.1
+      "fts_score": 0.88,
+      "trigram_score": 0.81,
+      "vector_score": 0.91
     }
   ],
   "success": true
@@ -65,9 +62,8 @@ client.
 
 Notes:
 - Always expected from search formatter: `id`, `name`, `distance`.
-- Optional rerank fields: `rerank_score`, `embedding_score`,
-  `combined_score`, `raw_rerank_score`, `rerank_mode`, `cuisine_boost`,
-  `family_boost`.
+- Optional hybrid scoring fields: `combined_score`, `fts_score`,
+  `trigram_score`, `vector_score`.
 
 ### 2) Recipe Detail
 

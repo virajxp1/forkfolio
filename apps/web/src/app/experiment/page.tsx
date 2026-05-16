@@ -170,7 +170,7 @@ async function searchRecipesClient(
 ): Promise<RecipeSearchResult[]> {
   const params = new URLSearchParams({ query: query.trim(), limit: "10" });
   const response = await browserFetch<SearchRecipesResponse>(
-    `/api/search/names?${params.toString()}`,
+    `/api/search?${params.toString()}`,
     { signal },
   );
   const normalized: RecipeSearchResult[] = [];

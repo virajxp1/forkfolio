@@ -7,20 +7,16 @@ from app.api.schemas import (
     RecipeIngestionRequest,
     RecipeUrlPreviewRequest,
 )
-from app.api.v1.helpers.recipe_search import (
-    apply_rerank,
-    build_rerank_candidates,
-    normalize_search_query,
-)
+from app.api.v1.helpers.recipe_search import normalize_search_query
 from app.api.v1.helpers.recipe_pagination import RecipePaginationCursor
 from app.core.cache import hash_cache_key, semantic_search_cache
 from app.core.config import settings
 from app.core.dependencies import (
     get_grocery_list_aggregation_service,
     get_recipe_embeddings_service,
+    get_recipe_hybrid_search_service,
     get_recipe_manager,
     get_recipe_processing_service,
-    get_recipe_search_reranker_service,
 )
 from app.core.logging import get_logger
 
@@ -34,7 +30,7 @@ GROCERY_LIST_BODY = Body()
 recipe_manager_dep = Depends(get_recipe_manager)
 recipe_processing_service_dep = Depends(get_recipe_processing_service)
 recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
-recipe_search_reranker_service_dep = Depends(get_recipe_search_reranker_service)
+recipe_hybrid_search_service_dep = Depends(get_recipe_hybrid_search_service)
 grocery_list_aggregation_service_dep = Depends(get_grocery_list_aggregation_service)
 
 
@@ -42,23 +38,22 @@ def _semantic_search_cache_key(
     normalized_query: str,
     limit: int,
     include_test_data: bool,
-    rerank_enabled: bool,
     viewer_user_id: str | None,
+    weights: tuple[float, float, float],
 ) -> str:
+    fts_weight, trigram_weight, vector_weight = weights
     return hash_cache_key(
         "semantic_search",
         normalized_query,
         str(limit),
         str(include_test_data),
         viewer_user_id or "public-only",
-        str(settings.SEMANTIC_SEARCH_MAX_DISTANCE),
-        str(rerank_enabled),
-        str(settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT),
-        str(settings.SEMANTIC_SEARCH_RERANK_MIN_SCORE),
-        str(settings.SEMANTIC_SEARCH_RERANK_FALLBACK_MIN_SCORE),
-        str(settings.SEMANTIC_SEARCH_RERANK_WEIGHT),
-        str(settings.SEMANTIC_SEARCH_RERANK_CUISINE_BOOST),
-        str(settings.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST),
+        str(settings.SEMANTIC_SEARCH_V2_MAX_DISTANCE),
+        str(settings.SEMANTIC_SEARCH_V2_TRIGRAM_THRESHOLD),
+        str(settings.SEMANTIC_SEARCH_V2_MIN_SCORE),
+        str(fts_weight),
+        str(trigram_weight),
+        str(vector_weight),
     )
 
 
@@ -278,7 +273,7 @@ def semantic_search_recipes(
     query: str = Query(
         ...,
         min_length=2,
-        description="Free-text recipe query for vector similarity search.",
+        description="Free-text recipe query for hybrid Postgres-native search.",
     ),
     limit: int = Query(
         10,
@@ -290,22 +285,14 @@ def semantic_search_recipes(
         default=False,
         description="Include recipes marked as test data.",
     ),
-    rerank: bool | None = Query(
-        default=None,
-        description=(
-            "Override reranking for this request. Set false for the fastest path, "
-            "or true to force LLM reranking."
-        ),
-    ),
-    recipe_manager=recipe_manager_dep,
     embeddings_service=recipe_embeddings_service_dep,
-    reranker_service=recipe_search_reranker_service_dep,
+    search_service=recipe_hybrid_search_service_dep,
 ) -> dict:
     """
-    Semantic search over recipes using title+ingredients embeddings.
+    Hybrid recipe search backed by PostgreSQL.
 
-    Uses a server-side cosine distance threshold and returns nearest recipe hits
-    with lightweight metadata and cosine distance.
+    Combines FTS, pg_trgm, and pgvector in one ranking pass while keeping
+    Postgres as the only search backend.
     """
     normalized_query = normalize_search_query(query)
     if len(normalized_query) < 2:
@@ -313,83 +300,40 @@ def semantic_search_recipes(
             status_code=422,
             detail="Query must contain at least 2 non-whitespace characters.",
         )
-    rerank_enabled = (
-        settings.SEMANTIC_SEARCH_RERANK_ENABLED if rerank is None else rerank
-    )
     viewer_user_id = _viewer_user_id_from_request(request)
+    normalized_weights = search_service.normalized_weights()
     cache_key = _semantic_search_cache_key(
         normalized_query=normalized_query,
         limit=limit,
         include_test_data=include_test_data,
-        rerank_enabled=rerank_enabled,
         viewer_user_id=viewer_user_id,
+        weights=normalized_weights,
     )
     cached_response = semantic_search_cache.get(cache_key)
     if cached_response is not None:
         logger.info(
-            "Semantic recipe search cache hit query='%s' limit=%s rerank=%s",
-            normalized_query,
-            limit,
-            rerank_enabled,
+            "Semantic search cache hit query='%s' limit=%s", normalized_query, limit
         )
         return cached_response
 
     logger.info(
-        "Semantic recipe search query='%s' limit=%s rerank=%s max_distance=%.3f",
+        "Semantic search query='%s' limit=%s weights=(fts=%.2f trigram=%.2f vector=%.2f)",
         normalized_query,
         limit,
-        rerank_enabled,
-        settings.SEMANTIC_SEARCH_MAX_DISTANCE,
+        normalized_weights[0],
+        normalized_weights[1],
+        normalized_weights[2],
     )
     try:
         query_embedding = embeddings_service.embed_search_query(normalized_query)
-        candidate_limit = limit
-        if rerank_enabled:
-            candidate_limit = max(
-                limit, settings.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT
-            )
-        matches = recipe_manager.search_recipes_by_embedding(
-            embedding=query_embedding,
-            embedding_type="title_ingredients",
-            limit=candidate_limit,
-            max_distance=settings.SEMANTIC_SEARCH_MAX_DISTANCE,
+        matches = search_service.search(
+            query=normalized_query,
+            query_embedding=query_embedding,
+            limit=limit,
+            weights=normalized_weights,
             include_test_data=include_test_data,
             viewer_user_id=viewer_user_id,
         )
-        if rerank_enabled and len(matches) > 1:
-            ranked_items = []
-            try:
-                rerank_candidates = build_rerank_candidates(
-                    matches,
-                    recipe_manager,
-                    include_test_data=include_test_data,
-                    viewer_user_id=viewer_user_id,
-                )
-                ranked_items = reranker_service.rerank(
-                    query=normalized_query,
-                    candidates=rerank_candidates,
-                    max_results=limit,
-                )
-            except Exception as exc:
-                logger.warning(
-                    "Rerank execution failed; falling back to embedding order. Error: %s",
-                    exc,
-                )
-            matches = apply_rerank(
-                matches,
-                ranked_items,
-                limit,
-                min_rerank_score=settings.SEMANTIC_SEARCH_RERANK_MIN_SCORE,
-                fallback_min_rerank_score=(
-                    settings.SEMANTIC_SEARCH_RERANK_FALLBACK_MIN_SCORE
-                ),
-                rerank_weight=settings.SEMANTIC_SEARCH_RERANK_WEIGHT,
-                query=normalized_query,
-                cuisine_boost=settings.SEMANTIC_SEARCH_RERANK_CUISINE_BOOST,
-                family_boost=settings.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST,
-            )
-        else:
-            matches = matches[:limit]
         response_payload = {
             "query": normalized_query,
             "count": len(matches),
@@ -399,67 +343,10 @@ def semantic_search_recipes(
         semantic_search_cache.set(cache_key, response_payload)
         return response_payload
     except Exception as e:
-        logger.error(f"Error performing semantic recipe search: {e!s}")
+        logger.error(f"Error performing semantic search: {e!s}")
         raise HTTPException(
             status_code=500,
             detail=f"Error performing semantic search: {e!s}",
-        ) from e
-
-
-@router.get("/search/by-name")
-def search_recipes_by_name(
-    request: Request,
-    query: str = Query(
-        ...,
-        min_length=3,
-        description="Case-insensitive substring match against recipe titles.",
-    ),
-    limit: int = Query(
-        10,
-        ge=1,
-        le=10,
-        description="Maximum number of title matches to return.",
-    ),
-    include_test_data: bool = Query(
-        default=False,
-        description="Include recipes marked as test data.",
-    ),
-    recipe_manager=recipe_manager_dep,
-) -> dict:
-    normalized_query = normalize_search_query(query)
-    viewer_user_id = _viewer_user_id_from_request(request)
-    if len(normalized_query) < 3:
-        raise HTTPException(
-            status_code=422,
-            detail="Query must contain at least 3 non-whitespace characters.",
-        )
-
-    try:
-        matches = recipe_manager.find_recipes_by_title_query(
-            title_query=normalized_query,
-            limit=limit,
-            include_test_data=include_test_data,
-            viewer_user_id=viewer_user_id,
-        )
-        results = [
-            {
-                "id": match["id"],
-                "name": match["title"],
-                "distance": None,
-            }
-            for match in matches
-        ]
-        return {
-            "query": normalized_query,
-            "count": len(results),
-            "results": results,
-            "success": True,
-        }
-    except Exception as e:
-        logger.error(f"Error performing recipe title search: {e!s}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error performing recipe title search: {e!s}",
         ) from e
 
 
@@ -626,6 +513,7 @@ def delete_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> bool:
         if not deleted:
             logger.warning(f"Recipe not found for delete: {recipe_id}")
             raise HTTPException(status_code=404, detail="Recipe not found")
+        semantic_search_cache.clear()
         return True
     except HTTPException:
         raise

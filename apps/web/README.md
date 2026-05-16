@@ -60,7 +60,6 @@ App pages:
 Auth and internal API routes:
 - `/auth/callback` Supabase OAuth code exchange route
 - `/api/search` semantic search proxy route
-- `/api/search/names` name-search proxy route
 - `/api/recipes` recipe list proxy route
 - `/api/recipes/[recipeId]` recipe detail proxy route
 - `/api/recipes/process` process-and-store proxy route
