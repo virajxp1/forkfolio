@@ -11,13 +11,10 @@ export type SearchRecipeResult = {
   id: string | null;
   name: string | null;
   distance: number | null;
-  rerank_score?: number;
-  embedding_score?: number;
   combined_score?: number;
-  raw_rerank_score?: number;
-  rerank_mode?: string;
-  cuisine_boost?: number;
-  family_boost?: number;
+  fts_score?: number;
+  trigram_score?: number;
+  vector_score?: number;
 };
 
 export type SearchRecipesResponse = {

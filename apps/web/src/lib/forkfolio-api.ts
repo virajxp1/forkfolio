@@ -141,35 +141,15 @@ async function forkfolioFetch<T>(
 export async function searchRecipes(
   query: string,
   limit = 12,
-  rerank = false,
   viewerUserId?: string | null,
 ): Promise<SearchRecipesResponse> {
   const params = new URLSearchParams({
     query: query.trim(),
     limit: String(limit),
-    rerank: String(rerank),
   });
 
   return forkfolioFetch<SearchRecipesResponse>(
     `/recipes/search/semantic?${params.toString()}`,
-    {
-      headers: buildViewerHeaders(viewerUserId),
-    },
-  );
-}
-
-export async function searchRecipesByName(
-  query: string,
-  limit = 10,
-  viewerUserId?: string | null,
-): Promise<SearchRecipesResponse> {
-  const params = new URLSearchParams({
-    query: query.trim(),
-    limit: String(limit),
-  });
-
-  return forkfolioFetch<SearchRecipesResponse>(
-    `/recipes/search/by-name?${params.toString()}`,
     {
       headers: buildViewerHeaders(viewerUserId),
     },

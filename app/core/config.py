@@ -45,46 +45,6 @@ class Settings:
             "api", "request_timeout_seconds", fallback=120.0
         )
         self.API_AUTH_TOKEN: str = os.getenv("API_AUTH_TOKEN", "").strip()
-        self.SEMANTIC_SEARCH_MAX_DISTANCE: float = self._cfg.getfloat(
-            "api", "semantic_search_max_distance", fallback=0.22
-        )
-        self.SEMANTIC_SEARCH_RERANK_ENABLED: bool = self._cfg.getboolean(
-            "api", "semantic_search_rerank_enabled", fallback=True
-        )
-        self.SEMANTIC_SEARCH_RERANK_CANDIDATE_COUNT: int = self._cfg.getint(
-            "api", "semantic_search_rerank_candidate_count", fallback=15
-        )
-        rerank_min_score = self._cfg.getfloat(
-            "api", "semantic_search_rerank_min_score", fallback=0.40
-        )
-        self.SEMANTIC_SEARCH_RERANK_MIN_SCORE: float = min(
-            max(rerank_min_score, 0.0), 1.0
-        )
-        rerank_fallback_min_score = self._cfg.getfloat(
-            "api", "semantic_search_rerank_fallback_min_score", fallback=0.25
-        )
-        self.SEMANTIC_SEARCH_RERANK_FALLBACK_MIN_SCORE: float = min(
-            max(rerank_fallback_min_score, 0.0), 1.0
-        )
-        rerank_weight = self._cfg.getfloat(
-            "api", "semantic_search_rerank_weight", fallback=0.70
-        )
-        self.SEMANTIC_SEARCH_RERANK_WEIGHT: float = min(max(rerank_weight, 0.0), 1.0)
-        rerank_cuisine_boost = self._cfg.getfloat(
-            "api", "semantic_search_rerank_cuisine_boost", fallback=0.15
-        )
-        self.SEMANTIC_SEARCH_RERANK_CUISINE_BOOST: float = min(
-            max(rerank_cuisine_boost, 0.0), 1.0
-        )
-        rerank_family_boost = self._cfg.getfloat(
-            "api", "semantic_search_rerank_family_boost", fallback=0.10
-        )
-        self.SEMANTIC_SEARCH_RERANK_FAMILY_BOOST: float = min(
-            max(rerank_family_boost, 0.0), 1.0
-        )
-        self.SEMANTIC_SEARCH_HEURISTICS_ENABLED: bool = self._cfg.getboolean(
-            "api", "semantic_search_heuristics_enabled", fallback=True
-        )
 
         # Observability
         self.BRAINTRUST_TRACING_ENABLED = self._cfg.getboolean(
@@ -172,17 +132,35 @@ class Settings:
         )
 
         # Search behavior
-        default_keywords_path = repo_root / "config" / "search_keywords.json"
-        configured_keywords_file = os.getenv(
-            "SEARCH_KEYWORDS_FILE", ""
-        ).strip() or self._cfg.get(
+        hybrid_v2_max_distance = self._cfg.getfloat(
             "search",
-            "keywords_file",
-            fallback=str(default_keywords_path.relative_to(repo_root)),
+            "hybrid_v2_max_distance",
+            fallback=0.32,
         )
-        self.SEARCH_KEYWORDS_FILE: Path = self._resolve_repo_path(
-            configured_keywords_file,
-            default_keywords_path,
+        self.SEMANTIC_SEARCH_V2_MAX_DISTANCE: float = max(hybrid_v2_max_distance, 0.0)
+        hybrid_v2_min_score = self._cfg.getfloat(
+            "search", "hybrid_v2_min_score", fallback=0.1
+        )
+        self.SEMANTIC_SEARCH_V2_MIN_SCORE: float = min(
+            max(hybrid_v2_min_score, 0.0), 1.0
+        )
+        hybrid_v2_trigram_threshold = self._cfg.getfloat(
+            "search", "hybrid_v2_trigram_threshold", fallback=0.18
+        )
+        self.SEMANTIC_SEARCH_V2_TRIGRAM_THRESHOLD: float = min(
+            max(hybrid_v2_trigram_threshold, 0.0), 1.0
+        )
+        self.SEMANTIC_SEARCH_V2_FTS_WEIGHT: float = max(
+            self._cfg.getfloat("search", "hybrid_v2_fts_weight", fallback=0.45),
+            0.0,
+        )
+        self.SEMANTIC_SEARCH_V2_TRIGRAM_WEIGHT: float = max(
+            self._cfg.getfloat("search", "hybrid_v2_trigram_weight", fallback=0.2),
+            0.0,
+        )
+        self.SEMANTIC_SEARCH_V2_VECTOR_WEIGHT: float = max(
+            self._cfg.getfloat("search", "hybrid_v2_vector_weight", fallback=0.35),
+            0.0,
         )
 
         # Secrets: environment-only.
@@ -206,15 +184,6 @@ class Settings:
             normalized = f"/{normalized}"
         normalized = normalized.rstrip("/")
         return normalized or "/api/v1"
-
-    def _resolve_repo_path(self, raw_path: str, fallback: Path) -> Path:
-        normalized = (raw_path or "").strip()
-        if not normalized:
-            return fallback
-        candidate = Path(normalized).expanduser()
-        if not candidate.is_absolute():
-            candidate = self._repo_root / candidate
-        return candidate
 
 
 settings = Settings()
