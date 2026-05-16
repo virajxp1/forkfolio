@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Playfair_Display, Source_Sans_3 } from "next/font/google";
 
 import { GroceryBagProvider } from "@/components/grocery-bag-provider";
+import { PostHogAuthTracker } from "@/components/posthog-auth-tracker";
 
 import "./globals.css";
 
@@ -28,7 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${sourceSans.variable} ${playfair.variable} antialiased`}>
-        <GroceryBagProvider>{children}</GroceryBagProvider>
+        <PostHogAuthTracker>
+          <GroceryBagProvider>{children}</GroceryBagProvider>
+        </PostHogAuthTracker>
       </body>
     </html>
   );

@@ -16,6 +16,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { capturePostHogEvent } from "@/lib/posthog/client";
+import { POSTHOG_EVENT } from "@/lib/posthog/events";
 import { createClient } from "@/lib/supabase/client";
 import { hasSupabaseAuthConfig } from "@/lib/supabase/config";
 
@@ -137,7 +139,17 @@ export function AuthProfileButton() {
 
     setErrorMessage(null);
 
+    const authProvider =
+      typeof currentUser?.app_metadata?.provider === "string"
+        ? currentUser.app_metadata.provider
+        : "supabase";
+
     startTransition(() => {
+      capturePostHogEvent(POSTHOG_EVENT.UserSignedOut, {
+        auth_provider: authProvider,
+        current_path: pathname,
+      });
+
       void supabase.auth.signOut().then(({ error }) => {
         if (error) {
           setErrorMessage(error.message);

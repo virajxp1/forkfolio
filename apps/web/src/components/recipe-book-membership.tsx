@@ -21,6 +21,8 @@ import type {
   RecipeBookRecord,
   RemoveRecipeFromBookResponse,
 } from "@/lib/forkfolio-types";
+import { capturePostHogEvent } from "@/lib/posthog/client";
+import { POSTHOG_EVENT } from "@/lib/posthog/events";
 
 type ErrorPayload = {
   detail?: string;
@@ -172,6 +174,12 @@ export function RecipeBookMembership({ recipeId }: { recipeId: string }) {
       } else {
         await addRecipeToBookClient(recipeBookId, recipeId);
       }
+
+      capturePostHogEvent(POSTHOG_EVENT.RecipeBookMembershipUpdated, {
+        action: isMember ? "removed" : "added",
+        recipe_book_id: recipeBookId,
+        recipe_id: recipeId,
+      });
 
       setMemberBookIds((prev) => {
         const next = new Set(prev);
