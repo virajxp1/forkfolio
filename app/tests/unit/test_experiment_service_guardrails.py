@@ -13,6 +13,8 @@ from app.services.experiment_service import ExperimentService
 class FakeRecipeManager:
     def __init__(self, recipes: dict[str, dict] | None = None) -> None:
         self.recipes: dict[str, dict] = recipes or {}
+        self.exact_calls: list[dict] = []
+        self.prefix_calls: list[dict] = []
 
     def get_full_recipe(
         self,
@@ -43,19 +45,41 @@ class FakeRecipeManager:
         }
 
     def find_recipe_by_exact_title(
-        self, title: str, include_test_data: bool = False
+        self,
+        title: str,
+        include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict | None:
-        del include_test_data
+        self.exact_calls.append(
+            {
+                "title": title,
+                "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
+            }
+        )
         normalized = title.strip().lower()
         for recipe in self.recipes.values():
             if str(recipe.get("title") or "").strip().lower() == normalized:
-                return self.get_recipe_metadata(recipe["id"])
+                return self.get_recipe_metadata(
+                    recipe["id"],
+                    include_test_data=include_test_data,
+                    viewer_user_id=viewer_user_id,
+                )
         return None
 
     def find_recipe_by_title_prefix(
-        self, title_prefix: str, include_test_data: bool = False
+        self,
+        title_prefix: str,
+        include_test_data: bool = False,
+        viewer_user_id: str | None = None,
     ) -> dict | None:
-        del include_test_data
+        self.prefix_calls.append(
+            {
+                "title_prefix": title_prefix,
+                "include_test_data": include_test_data,
+                "viewer_user_id": viewer_user_id,
+            }
+        )
         normalized = title_prefix.strip().lower()
         matches = [
             recipe
@@ -70,7 +94,11 @@ class FakeRecipeManager:
                 str(recipe.get("created_at") or ""),
             )
         )
-        return self.get_recipe_metadata(matches[0]["id"])
+        return self.get_recipe_metadata(
+            matches[0]["id"],
+            include_test_data=include_test_data,
+            viewer_user_id=viewer_user_id,
+        )
 
 
 class FakeEmbeddingsService:
@@ -545,3 +573,57 @@ def test_resolve_attach_recipe_names_marks_unresolved_when_hybrid_search_finds_n
 
     assert attached == []
     assert unresolved == ["Missing Recipe"]
+
+
+def test_resolve_attach_recipe_names_forwards_viewer_to_exact_and_prefix_lookups() -> (
+    None
+):
+    recipe_manager = FakeRecipeManager(
+        recipes={
+            "recipe-1": {
+                "id": "recipe-1",
+                "title": "Chicken Tikka Masala",
+                "created_at": "2026-04-26T00:00:00+00:00",
+            }
+        }
+    )
+    embeddings_service = FakeEmbeddingsService()
+    hybrid_search_service = FakeHybridSearchService()
+    service = ExperimentService(
+        experiment_manager=FakeExperimentManager(),
+        recipe_manager=recipe_manager,
+        recipe_embeddings_service=embeddings_service,
+        recipe_hybrid_search_service=hybrid_search_service,
+        text_generation_fn=lambda _user_prompt, _system_prompt: "unused",
+        stream_generation_fn=lambda _user_prompt, _system_prompt: iter(()),
+    )
+
+    attached, unresolved = service._resolve_attach_recipe_names(
+        ["Chicken Tikka"],
+        viewer_user_id="11111111-1111-1111-1111-111111111111",
+    )
+
+    assert attached == [
+        {
+            "id": "recipe-1",
+            "title": "Chicken Tikka Masala",
+            "created_at": "2026-04-26T00:00:00+00:00",
+        }
+    ]
+    assert unresolved == []
+    assert recipe_manager.exact_calls == [
+        {
+            "title": "Chicken Tikka",
+            "include_test_data": False,
+            "viewer_user_id": "11111111-1111-1111-1111-111111111111",
+        }
+    ]
+    assert recipe_manager.prefix_calls == [
+        {
+            "title_prefix": "Chicken Tikka",
+            "include_test_data": False,
+            "viewer_user_id": "11111111-1111-1111-1111-111111111111",
+        }
+    ]
+    assert embeddings_service.calls == []
+    assert hybrid_search_service.calls == []

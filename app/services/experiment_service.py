@@ -169,6 +169,7 @@ class ExperimentService:
             exact_match = self.recipe_manager.find_recipe_by_exact_title(
                 recipe_name,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
             if exact_match is not None:
                 attached_recipes.append(exact_match)
@@ -177,6 +178,7 @@ class ExperimentService:
             prefix_match = self.recipe_manager.find_recipe_by_title_prefix(
                 recipe_name,
                 include_test_data=include_test_data,
+                viewer_user_id=viewer_user_id,
             )
             if prefix_match is not None:
                 attached_recipes.append(prefix_match)
