@@ -7,7 +7,7 @@ This document contains implementation-focused details that are intentionally sep
 ForkFolio is a FastAPI service with three main concerns:
 
 - API routing and request protection middleware.
-- AI-powered recipe ingestion and semantic retrieval.
+- AI-powered recipe ingestion and hybrid retrieval.
 - PostgreSQL-backed persistence (Supabase) with connection pooling.
 
 The web frontend (`apps/web`) consumes these APIs and includes Supabase Google
@@ -35,7 +35,7 @@ OAuth session handling for profile-aware UI state.
 ## Data and Processing Notes
 
 - Recipe ingestion pipeline combines cleanup, extraction, deduplication, embedding generation, and storage.
-- Semantic search is backed by embedding similarity checks against stored recipe vectors.
+- Recipe search combines PostgreSQL full-text search, `pg_trgm`, and stored embedding vectors in one hybrid ranking pass.
 - Health endpoint is lightweight by design and avoids DB/LLM dependencies.
 
 ## Related Docs

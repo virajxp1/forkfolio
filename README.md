@@ -13,7 +13,7 @@ Core capabilities:
 
 - Process and store recipes from raw text.
 - Preview recipe extraction from URL before saving.
-- Semantic search over recipes.
+- Hybrid search over recipes.
 - Recipe books (create/list/detail/add/remove).
 - Grocery list aggregation from selected recipes.
 - Recipe deletion and custom not-found UX on the frontend.
