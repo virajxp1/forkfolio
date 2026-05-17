@@ -49,7 +49,7 @@ const FEATURE_CARDS = [
   {
     id: "browse",
     title: "Browse & Search",
-    description: "Use semantic search to find recipes by ingredients, cuisines, or meal type.",
+    description: "Use hybrid search to find recipes by ingredients, cuisines, or meal type.",
     href: "/browse",
     cta: "Open Search",
   },

@@ -18,7 +18,7 @@ class RecipesClient(BaseAPIClient):
     PROCESS_AND_STORE_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/process-and-store"
     LIST_RECIPES_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/"
     PREVIEW_FROM_URL_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/preview-from-url"
-    SEMANTIC_SEARCH_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/search/semantic"
+    HYBRID_SEARCH_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/search/semantic"
     GROCERY_LIST_ENDPOINT = f"{settings.API_BASE_PATH}/recipes/grocery-list"
 
     def process_and_store_recipe(
@@ -107,20 +107,20 @@ class RecipesClient(BaseAPIClient):
         endpoint = f"{settings.API_BASE_PATH}/recipes/delete/{recipe_id}"
         return self.delete(endpoint)
 
-    def search_semantic(
+    def search_hybrid(
         self,
         query: str,
         limit: int = 10,
         include_test_data: bool = True,
     ) -> Dict[str, Any]:
         """
-        Hybrid semantic search over recipes using Postgres-native ranking.
+        Hybrid recipe search over recipes using Postgres-native ranking.
 
         Endpoint: GET /api/v1/recipes/search/semantic
-        Router: app.api.v1.endpoints.recipes:semantic_search_recipes
+        Router: app.api.v1.endpoints.recipes:hybrid_search_recipes
         """
         return self.get(
-            self.SEMANTIC_SEARCH_ENDPOINT,
+            self.HYBRID_SEARCH_ENDPOINT,
             params={
                 "query": query,
                 "limit": limit,

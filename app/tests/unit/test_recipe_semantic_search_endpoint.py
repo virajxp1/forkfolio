@@ -71,7 +71,7 @@ def build_client(
     search_service: FakeHybridSearchService | None = None,
     embeddings_service: FakeEmbeddingsService | None = None,
 ) -> TestClient:
-    recipes.semantic_search_cache.clear()
+    recipes.hybrid_search_cache.clear()
     app = FastAPI()
     app.include_router(recipes.router)
     if embeddings_service is not None:
@@ -132,7 +132,7 @@ def test_semantic_search_reuses_cached_response(monkeypatch) -> None:
     fake_embeddings = FakeEmbeddingsService(embedding=[0.4, 0.5, 0.6])
     monkeypatch.setattr(
         recipes,
-        "semantic_search_cache",
+        "hybrid_search_cache",
         TTLCache[dict](ttl_seconds=300, max_items=32),
     )
     client = build_client(
@@ -156,7 +156,7 @@ def test_semantic_search_cache_key_uses_normalized_weights(monkeypatch) -> None:
     fake_embeddings = FakeEmbeddingsService(embedding=[0.4, 0.5, 0.6])
     monkeypatch.setattr(
         recipes,
-        "semantic_search_cache",
+        "hybrid_search_cache",
         TTLCache[dict](ttl_seconds=300, max_items=32),
     )
     client = build_client(
@@ -249,7 +249,7 @@ def test_semantic_search_returns_500_on_embedding_error() -> None:
 
     assert response.status_code == 500
     assert (
-        response.json()["detail"] == "Error performing semantic search: embeddings down"
+        response.json()["detail"] == "Error performing hybrid search: embeddings down"
     )
 
 
@@ -263,7 +263,7 @@ def test_semantic_search_returns_500_on_search_error() -> None:
     response = client.get(SEARCH_PATH, params={"query": "lasagna"})
 
     assert response.status_code == 500
-    assert response.json()["detail"] == "Error performing semantic search: search down"
+    assert response.json()["detail"] == "Error performing hybrid search: search down"
 
 
 def test_semantic_search_strips_wrapping_quotes() -> None:

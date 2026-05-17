@@ -38,7 +38,7 @@ client.
 
 ### 1) Semantic Search
 
-- Endpoint: `GET /api/v1/recipes/search/semantic?query=<string>&limit=<int>`
+- Endpoint: `GET /api/v1/recipes/search/semantic?query=<string>&limit=<int>` (legacy path name, hybrid behavior)
 - Response shape consumed by frontend:
 
 ```json
