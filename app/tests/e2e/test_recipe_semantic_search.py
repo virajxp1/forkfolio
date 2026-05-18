@@ -1,4 +1,4 @@
-"""E2E coverage for semantic recipe search."""
+"""E2E coverage for hybrid recipe search."""
 
 import uuid
 
@@ -7,7 +7,7 @@ from app.tests.utils.constants import HTTP_OK
 from app.tests.utils.helpers import maybe_throttle
 
 
-def test_semantic_search_finds_newly_stored_recipe(api_client: APIClient) -> None:
+def test_hybrid_search_finds_newly_stored_recipe(api_client: APIClient) -> None:
     run_id = uuid.uuid4().hex[:8]
     input_text = (
         f"Semantic Citrus Pasta {run_id}\n\n"
@@ -40,7 +40,7 @@ def test_semantic_search_finds_newly_stored_recipe(api_client: APIClient) -> Non
 
         # Quote-wrapped query also validates endpoint-side query normalization.
         maybe_throttle()
-        search_response = api_client.recipes.search_semantic(
+        search_response = api_client.recipes.search_hybrid(
             query=f'"{stored_title}"',
             limit=10,
         )
@@ -53,7 +53,7 @@ def test_semantic_search_finds_newly_stored_recipe(api_client: APIClient) -> Non
 
         result_ids = [result.get("id") for result in results]
         assert recipe_id in result_ids, (
-            f"Expected recipe {recipe_id} in semantic results for '{stored_title}', "
+            f"Expected recipe {recipe_id} in hybrid search results for '{stored_title}', "
             f"got ids={result_ids}"
         )
     finally:

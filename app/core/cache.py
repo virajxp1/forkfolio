@@ -102,7 +102,7 @@ embedding_cache: TTLCache[list[float]] = TTLCache(
     ttl_seconds=EMBEDDING_CACHE_TTL_SECONDS,
     max_items=EMBEDDING_CACHE_MAX_ITEMS,
 )
-semantic_search_cache: TTLCache[dict] = TTLCache(
+hybrid_search_cache: TTLCache[dict] = TTLCache(
     ttl_seconds=SEMANTIC_SEARCH_CACHE_TTL_SECONDS,
     max_items=SEMANTIC_SEARCH_CACHE_MAX_ITEMS,
 )

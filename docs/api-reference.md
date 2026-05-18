@@ -296,6 +296,8 @@ Auth: Required
 Performs hybrid recipe search using PostgreSQL full-text search, `pg_trgm`,
 and `pgvector`.
 
+The route keeps the `/search/semantic` path for backward compatibility.
+
 Query parameters:
 
 - `query` (string, required, minimum 2 non-whitespace chars)

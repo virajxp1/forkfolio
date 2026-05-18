@@ -352,7 +352,7 @@ class RecipeManager(BaseManager):
         return embeddings
 
     @staticmethod
-    def _format_semantic_search_row(row: dict) -> dict:
+    def _format_hybrid_search_row(row: dict) -> dict:
         recipe_id = row.get("recipe_id")
         distance_value = row.get("distance")
         distance = float(distance_value) if distance_value is not None else None
@@ -700,7 +700,7 @@ class RecipeManager(BaseManager):
                     ),
                 )
                 rows = cursor.fetchall()
-                return [self._format_semantic_search_row(dict(row)) for row in rows]
+                return [self._format_hybrid_search_row(dict(row)) for row in rows]
         except Exception as e:
             raise DatabaseError(
                 f"Failed to search recipes by hybrid ranking: {e!s}"

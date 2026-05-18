@@ -17,7 +17,7 @@ from app.api.schemas import (
 )
 from app.api.v1.helpers.recipe_search import normalize_search_query
 from app.api.v1.helpers.recipe_pagination import RecipePaginationCursor
-from app.core.cache import hash_cache_key, semantic_search_cache
+from app.core.cache import hash_cache_key, hybrid_search_cache
 from app.core.config import settings
 from app.core.dependencies import (
     get_grocery_list_aggregation_service,
@@ -44,7 +44,7 @@ recipe_hybrid_search_service_dep = Depends(get_recipe_hybrid_search_service)
 grocery_list_aggregation_service_dep = Depends(get_grocery_list_aggregation_service)
 
 
-def _semantic_search_cache_key(
+def _hybrid_search_cache_key(
     normalized_query: str,
     limit: int,
     include_test_data: bool,
@@ -53,7 +53,7 @@ def _semantic_search_cache_key(
 ) -> str:
     fts_weight, trigram_weight, vector_weight = weights
     return hash_cache_key(
-        "semantic_search",
+        "hybrid_search",
         normalized_query,
         str(limit),
         str(include_test_data),
@@ -154,7 +154,7 @@ def process_and_store_recipe(
             status_code=500,
             detail="Recipe stored but could not be retrieved",
         )
-    semantic_search_cache.clear()
+    hybrid_search_cache.clear()
 
     return {
         "recipe_id": recipe_id,
@@ -312,7 +312,7 @@ def list_recipes(
 
 
 @router.get("/search/semantic")
-def semantic_search_recipes(
+def hybrid_search_recipes(
     request: Request,
     query: str = Query(
         ...,
@@ -346,22 +346,22 @@ def semantic_search_recipes(
         )
     viewer_user_id = _viewer_user_id_from_request(request)
     normalized_weights = search_service.normalized_weights()
-    cache_key = _semantic_search_cache_key(
+    cache_key = _hybrid_search_cache_key(
         normalized_query=normalized_query,
         limit=limit,
         include_test_data=include_test_data,
         viewer_user_id=viewer_user_id,
         weights=normalized_weights,
     )
-    cached_response = semantic_search_cache.get(cache_key)
+    cached_response = hybrid_search_cache.get(cache_key)
     if cached_response is not None:
         logger.info(
-            "Semantic search cache hit query='%s' limit=%s", normalized_query, limit
+            "Hybrid search cache hit query='%s' limit=%s", normalized_query, limit
         )
         return cached_response
 
     logger.info(
-        "Semantic search query='%s' limit=%s weights=(fts=%.2f trigram=%.2f vector=%.2f)",
+        "Hybrid search query='%s' limit=%s weights=(fts=%.2f trigram=%.2f vector=%.2f)",
         normalized_query,
         limit,
         normalized_weights[0],
@@ -384,13 +384,13 @@ def semantic_search_recipes(
             "results": matches,
             "success": True,
         }
-        semantic_search_cache.set(cache_key, response_payload)
+        hybrid_search_cache.set(cache_key, response_payload)
         return response_payload
     except Exception as e:
-        logger.error(f"Error performing semantic search: {e!s}")
+        logger.error(f"Error performing hybrid search: {e!s}")
         raise HTTPException(
             status_code=500,
-            detail=f"Error performing semantic search: {e!s}",
+            detail=f"Error performing hybrid search: {e!s}",
         ) from e
 
 
@@ -557,7 +557,7 @@ def delete_recipe(recipe_id: str, recipe_manager=recipe_manager_dep) -> bool:
         if not deleted:
             logger.warning(f"Recipe not found for delete: {recipe_id}")
             raise HTTPException(status_code=404, detail="Recipe not found")
-        semantic_search_cache.clear()
+        hybrid_search_cache.clear()
         return True
     except HTTPException:
         raise
