@@ -39,7 +39,11 @@ class RecipePreviewJobService:
     _update_lock = threading.Lock()
 
     def __init__(self, timeout_seconds: float | None = None) -> None:
-        self._timeout_seconds = timeout_seconds if timeout_seconds is not None else _DEFAULT_JOB_TIMEOUT_SECONDS
+        self._timeout_seconds = (
+            timeout_seconds
+            if timeout_seconds is not None
+            else _DEFAULT_JOB_TIMEOUT_SECONDS
+        )
 
     def create_job(self, source_url: str) -> dict[str, Any]:
         job_id = str(uuid4())
@@ -77,7 +81,9 @@ class RecipePreviewJobService:
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(service.preview_recipe_from_url, source_url)
             try:
-                recipe, error, diagnostics = future.result(timeout=self._timeout_seconds)
+                recipe, error, diagnostics = future.result(
+                    timeout=self._timeout_seconds
+                )
             except concurrent.futures.TimeoutError:
                 logger.warning(
                     "Recipe preview job timed out after %.0fs. job_id=%s url=%s",
@@ -141,7 +147,9 @@ class RecipePreviewJobService:
         with self._update_lock:
             current_job = recipe_preview_job_store.get(job_id)
             if current_job is None:
-                logger.warning("Recipe preview job missing from store. job_id=%s", job_id)
+                logger.warning(
+                    "Recipe preview job missing from store. job_id=%s", job_id
+                )
                 return
 
             now = _utc_now_iso()

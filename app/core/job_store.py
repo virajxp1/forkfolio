@@ -4,7 +4,10 @@ import json
 from copy import deepcopy
 from typing import Any, Optional
 
-from app.core.cache import RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS, recipe_preview_job_cache
+from app.core.cache import (
+    RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS,
+    recipe_preview_job_cache,
+)
 from app.core.logging import get_logger
 from app.core.redis_client import get_redis_client
 
@@ -18,7 +21,9 @@ class InMemoryJobStore:
         job = recipe_preview_job_cache.get(key)
         return deepcopy(job) if job is not None else None
 
-    def set(self, key: str, value: dict[str, Any], ttl_seconds: Optional[float] = None) -> None:
+    def set(
+        self, key: str, value: dict[str, Any], ttl_seconds: Optional[float] = None
+    ) -> None:
         recipe_preview_job_cache.set(key, deepcopy(value), ttl_seconds=ttl_seconds)
 
 
@@ -39,7 +44,9 @@ class RedisJobStore:
             logger.warning("RedisJobStore.get failed. job_id=%s error=%s", key, exc)
             return None
 
-    def set(self, key: str, value: dict[str, Any], ttl_seconds: Optional[float] = None) -> None:
+    def set(
+        self, key: str, value: dict[str, Any], ttl_seconds: Optional[float] = None
+    ) -> None:
         ttl = int(ttl_seconds) if ttl_seconds is not None else self._default_ttl
         try:
             self._client.setex(f"{self._KEY_PREFIX}{key}", ttl, json.dumps(value))
