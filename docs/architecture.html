@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ForkFolio — System Architecture</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0d0f1a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+
+    .app { display: flex; min-height: 100vh; }
+
+    .diagram-area {
+      flex: 1;
+      padding: 32px;
+      overflow-y: auto;
+      transition: margin-right 0.3s ease;
+      max-width: 1100px;
+    }
+
+    .diagram-area.sidebar-open { margin-right: 400px; }
+
+    /* ── Header ── */
+    .header { margin-bottom: 28px; }
+
+    .header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: -0.4px;
+    }
+
+    .header-meta {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-top: 8px;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .header-meta code {
+      font-family: 'Monaco', 'Menlo', monospace;
+      background: #1a1d2e;
+      padding: 1px 6px;
+      border-radius: 3px;
+      color: #818cf8;
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      display: inline-block;
+      margin-right: 5px;
+      animation: pulse 2.5s infinite;
+    }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    .legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    .legend-dot {
+      width: 9px; height: 9px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    /* ── Layer wrapper ── */
+    .layer { margin-bottom: 0; }
+
+    /* ── Arrow between layers ── */
+    .layer-connector {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0;
+      gap: 0;
+    }
+
+    .connector-line {
+      width: 1px;
+      height: 20px;
+      background: linear-gradient(to bottom, #2d3148, #4f46e5);
+    }
+
+    .connector-label {
+      font-size: 10px;
+      color: #475569;
+      background: #0d0f1a;
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid #1e293b;
+      margin: 4px 0;
+    }
+
+    .connector-arrow {
+      width: 0; height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-top: 6px solid #4f46e5;
+    }
+
+    /* ── Node group (labeled container) ── */
+    .node-group {
+      border: 1px solid var(--gc, #2d3148);
+      border-radius: 12px;
+      padding: 16px;
+      background: #10131e;
+      position: relative;
+      flex: 1;
+    }
+
+    .node-group-label {
+      position: absolute;
+      top: -9px;
+      left: 14px;
+      background: #0d0f1a;
+      padding: 0 8px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--gc, #64748b);
+    }
+
+    /* ── Clickable node ── */
+    .node {
+      background: #1a1d2e;
+      border: 1px solid #252840;
+      border-radius: 8px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .node:hover {
+      border-color: var(--nc, #4f46e5);
+      background: #1e2140;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+    }
+
+    .node.active {
+      border-color: var(--nc, #4f46e5);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--nc, #4f46e5) 25%, transparent);
+    }
+
+    .node-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: #f1f5f9;
+    }
+
+    .node-sub {
+      font-size: 10px;
+      color: #475569;
+      margin-top: 2px;
+      font-family: 'Monaco', 'Menlo', monospace;
+    }
+
+    .node-tags {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin-top: 8px;
+    }
+
+    .tag {
+      font-size: 9px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      background: #252840;
+      color: #64748b;
+      font-family: monospace;
+    }
+
+    /* ── Row layouts ── */
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .row.col { flex-direction: column; }
+
+    .row .node { flex: 1; }
+
+    /* ── Middleware pills ── */
+    .middleware-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .middleware-label {
+      font-size: 10px;
+      color: #334155;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      margin-right: 2px;
+    }
+
+    .pill {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: #1a1d2e;
+      border: 1px solid #252840;
+      color: #7c8db0;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pill:hover {
+      border-color: #0891b2;
+      color: #7dd3fc;
+    }
+
+    .pill-arrow {
+      color: #2d3148;
+      font-size: 12px;
+      user-select: none;
+    }
+
+    /* ── Sub-row inside group ── */
+    .inner-section {
+      margin-top: 10px;
+    }
+
+    .inner-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #334155;
+      margin-bottom: 6px;
+    }
+
+    /* ── Data stores row ── */
+    .data-row {
+      display: flex;
+      gap: 12px;
+    }
+
+    /* ── External services ── */
+    .ext-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .ext-node {
+      flex: 1;
+      min-width: 130px;
+      background: #10131e;
+      border: 1px dashed #252840;
+      border-radius: 8px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .ext-node:hover {
+      border-color: var(--nc, #7c3aed);
+      background: #13162a;
+    }
+
+    .ext-node.active {
+      border-color: var(--nc, #7c3aed);
+    }
+
+    .ext-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    .ext-sub {
+      font-size: 10px;
+      color: #475569;
+      margin-top: 3px;
+    }
+
+    .optional-badge {
+      font-size: 9px;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: #1a1d2e;
+      color: #475569;
+      margin-left: 5px;
+    }
+
+    /* ── Section label above a layer ── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: #334155;
+      margin-bottom: 8px;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      position: fixed;
+      right: 0; top: 0; bottom: 0;
+      width: 400px;
+      background: #0f1220;
+      border-left: 1px solid #1e293b;
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.28s ease;
+      z-index: 100;
+    }
+
+    .sidebar.open { transform: translateX(0); }
+
+    .sidebar-inner { padding: 24px; }
+
+    .sidebar-close {
+      float: right;
+      width: 28px; height: 28px;
+      background: #1e293b;
+      border: none;
+      border-radius: 6px;
+      color: #64748b;
+      cursor: pointer;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+
+    .sidebar-close:hover { background: #2d3748; color: #e2e8f0; }
+
+    .sidebar-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #f8fafc;
+      margin-bottom: 3px;
+    }
+
+    .sidebar-path {
+      font-size: 11px;
+      color: #475569;
+      font-family: 'Monaco', 'Menlo', monospace;
+      margin-bottom: 14px;
+    }
+
+    .sidebar-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      line-height: 1.65;
+      margin-bottom: 18px;
+    }
+
+    .sidebar-divider {
+      height: 1px;
+      background: #1e293b;
+      margin: 16px 0;
+    }
+
+    .sidebar-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-list {
+      list-style: none;
+    }
+
+    .sidebar-list li {
+      font-size: 12px;
+      color: #94a3b8;
+      padding: 5px 0;
+      border-bottom: 1px solid #13172a;
+      display: flex;
+      gap: 7px;
+      align-items: flex-start;
+    }
+
+    .sidebar-list li::before {
+      content: '›';
+      color: #334155;
+      flex-shrink: 0;
+      line-height: 1.5;
+    }
+
+    .sidebar-list code {
+      font-family: monospace;
+      font-size: 11px;
+      background: #1a1d2e;
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: #7dd3fc;
+    }
+
+    .sidebar-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .sidebar-tag {
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    .click-hint {
+      font-size: 11px;
+      color: #1e293b;
+      text-align: center;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid #13172a;
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <div class="diagram-area" id="diagramArea">
+
+    <!-- Header -->
+    <div class="header">
+      <h1>ForkFolio — System Architecture</h1>
+      <div class="header-meta">
+        <span><span class="status-dot"></span>Production</span>
+        <span>Updated: <strong id="lastUpdated"></strong></span>
+        <span>Branch: <code id="branchName"></code></span>
+        <span style="color:#334155">Click any component for details</span>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#4f46e5"></div>Frontend</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#0891b2"></div>Backend</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#059669"></div>Database</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#d97706"></div>Cache</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#7c3aed;border:1px dashed #a78bfa;border-radius:2px"></div>External Service</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#db2777"></div>Auth</div>
+      </div>
+    </div>
+
+    <!-- ── Layer 1: Frontend ── -->
+    <div class="layer">
+      <div class="section-label">Client</div>
+      <div class="node-group" style="--gc: #4f46e5">
+        <span class="node-group-label" style="color:#818cf8">Next.js Frontend</span>
+        <div class="node" style="--nc:#4f46e5" data-node="frontend" onclick="showNode('frontend')">
+          <div class="node-title">Next.js App <span style="color:#475569;font-weight:400;font-size:11px">apps/web/</span></div>
+          <div class="node-sub">App Router · Server Components · SSR</div>
+          <div class="node-tags">
+            <span class="tag">Next.js 16</span>
+            <span class="tag">React 19</span>
+            <span class="tag">TypeScript</span>
+            <span class="tag">Tailwind CSS 4</span>
+            <span class="tag">shadcn/ui</span>
+            <span class="tag">Vitest</span>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <div class="node" style="--nc:#4f46e5;flex:1" data-node="frontend_pages" onclick="showNode('frontend_pages')">
+            <div class="node-title">Pages &amp; Routing</div>
+            <div class="node-sub">/, /browse, /recipes/[id], /recipes/new, /books, /bag, /experiment</div>
+          </div>
+          <div class="node" style="--nc:#db2777;flex:1" data-node="supabase_auth_fe" onclick="showNode('supabase_auth_fe')">
+            <div class="node-title">Auth (Supabase SSR)</div>
+            <div class="node-sub">Google OAuth · httpOnly cookies</div>
+          </div>
+          <div class="node" style="--nc:#ea580c;flex:1" data-node="posthog" onclick="showNode('posthog')">
+            <div class="node-title">PostHog Analytics</div>
+            <div class="node-sub">posthog-js · Event tracking</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 1 -->
+    <div class="layer-connector">
+      <div class="connector-line"></div>
+      <div class="connector-label">REST API + SSE streaming · X-API-Token · X-Viewer-User-Id</div>
+      <div class="connector-arrow"></div>
+    </div>
+
+    <!-- ── Layer 2: Backend ── -->
+    <div class="layer">
+      <div class="section-label">Backend</div>
+      <div class="node-group" style="--gc:#0891b2">
+        <span class="node-group-label" style="color:#22d3ee">FastAPI Backend — app/</span>
+
+        <!-- Middleware stack -->
+        <div class="middleware-row">
+          <span class="middleware-label">Middleware</span>
+          <div class="pill" data-node="mw_timeout" onclick="showNode('mw_timeout')">Timeout (120s)</div>
+          <span class="pill-arrow">→</span>
+          <div class="pill" data-node="mw_auth" onclick="showNode('mw_auth')">Auth Token</div>
+          <span class="pill-arrow">→</span>
+          <div class="pill" data-node="mw_ratelimit" onclick="showNode('mw_ratelimit')">Rate Limit (120/min)</div>
+          <span class="pill-arrow">→</span>
+          <div class="pill" data-node="mw_size" onclick="showNode('mw_size')">Request Size (1MB)</div>
+          <span class="pill-arrow">→</span>
+          <div class="pill" data-node="mw_trace" onclick="showNode('mw_trace')">Trace Context</div>
+        </div>
+
+        <!-- Routers -->
+        <div class="inner-label">API Routers — app/api/v1/</div>
+        <div class="row" style="margin-bottom:10px">
+          <div class="node" style="--nc:#0891b2" data-node="recipes_router" onclick="showNode('recipes_router')">
+            <div class="node-title">Recipes Router</div>
+            <div class="node-sub">app/api/v1/endpoints/recipes.py</div>
+            <div class="node-tags">
+              <span class="tag">process-and-store</span>
+              <span class="tag">preview-from-url</span>
+              <span class="tag">preview-jobs</span>
+              <span class="tag">list/search</span>
+              <span class="tag">delete</span>
+              <span class="tag">grocery-list</span>
+            </div>
+          </div>
+          <div class="node" style="--nc:#0891b2" data-node="books_router" onclick="showNode('books_router')">
+            <div class="node-title">Recipe Books Router</div>
+            <div class="node-sub">app/api/v1/endpoints/recipe_books.py</div>
+            <div class="node-tags">
+              <span class="tag">CRUD</span>
+              <span class="tag">add/remove recipes</span>
+              <span class="tag">by-recipe lookup</span>
+            </div>
+          </div>
+          <div class="node" style="--nc:#7c3aed" data-node="experiments_router" onclick="showNode('experiments_router')">
+            <div class="node-title">Experiments Router</div>
+            <div class="node-sub">app/api/v1/endpoints/experiments.py</div>
+            <div class="node-tags">
+              <span class="tag">LangGraph</span>
+              <span class="tag">SSE stream</span>
+              <span class="tag">chat threads</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Services layer -->
+        <div class="inner-label">Services — app/services/</div>
+        <div class="node" style="--nc:#0891b2" data-node="services" onclick="showNode('services')">
+          <div class="node-title">Services Layer</div>
+          <div class="row" style="margin-top:8px">
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">RecipeProcessingService</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">extract · cleanup · dedupe · embed</div>
+            </div>
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">LLMGenerationService</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">text gen · structured output · embeddings</div>
+            </div>
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">HybridSearchImpl</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">FTS + trigram + pgvector</div>
+            </div>
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">ExperimentAgentGraph</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">LangGraph state machine</div>
+            </div>
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">RecipePreviewJobService</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">queue · poll · complete/fail</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data access layer -->
+        <div class="inner-label" style="margin-top:10px">Data Access — app/services/data/</div>
+        <div class="node" style="--nc:#059669" data-node="data_layer" onclick="showNode('data_layer')">
+          <div class="node-title">Data Access Layer</div>
+          <div class="row" style="margin-top:8px">
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">RecipeManager</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">CRUD + hybrid search SQL</div>
+            </div>
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">RecipeBookManager</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">book + recipe link management</div>
+            </div>
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">ExperimentManager</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">thread + message persistence</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cache layer note -->
+        <div class="inner-label" style="margin-top:10px">Caching — app/core/cache.py</div>
+        <div class="node" style="--nc:#d97706" data-node="cache_layer" onclick="showNode('cache_layer')">
+          <div class="node-title">Process-local TTL Caches</div>
+          <div class="node-sub">LLM responses · embeddings · hybrid search · preview-job fallback</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 2 -->
+    <div class="layer-connector">
+      <div class="connector-line" style="background:linear-gradient(to bottom,#2d3148,#059669)"></div>
+      <div class="connector-label">psycopg2 pool (min=2, max=10) &nbsp;·&nbsp; redis-py (lazy)</div>
+      <div class="connector-arrow" style="border-top-color:#059669"></div>
+    </div>
+
+    <!-- ── Layer 3: Data stores ── -->
+    <div class="layer">
+      <div class="section-label">Data Stores</div>
+      <div class="data-row">
+        <div class="node-group" style="--gc:#059669;flex:2">
+          <span class="node-group-label" style="color:#34d399">PostgreSQL / Supabase</span>
+          <div class="node" style="--nc:#059669" data-node="postgres" onclick="showNode('postgres')">
+            <div class="node-title">Primary Database <span style="color:#475569;font-weight:400;font-size:10px">AWS us-west-2</span></div>
+            <div class="node-sub">psycopg2 · pgvector (HNSW, 768-dim) · pg_trgm</div>
+            <div class="node-tags">
+              <span class="tag">recipes</span>
+              <span class="tag">recipe_ingredients</span>
+              <span class="tag">recipe_instructions</span>
+              <span class="tag">recipe_embeddings</span>
+              <span class="tag">recipe_books</span>
+              <span class="tag">recipe_book_recipes</span>
+              <span class="tag">experiment_threads</span>
+              <span class="tag">experiment_messages</span>
+              <span class="tag">profiles</span>
+            </div>
+          </div>
+        </div>
+        <div class="node-group" style="--gc:#d97706;flex:1">
+          <span class="node-group-label" style="color:#fbbf24">Redis Job Store</span>
+          <div class="node" style="--nc:#d97706" data-node="redis" onclick="showNode('redis')">
+            <div class="node-title">Managed KV <span class="optional-badge">optional</span></div>
+            <div class="node-sub">Render free plan · internal URL</div>
+            <div class="node-tags">
+              <span class="tag">preview jobs</span>
+              <span class="tag">survives restart</span>
+              <span class="tag">TTL expiry</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arrow 3 -->
+    <div class="layer-connector">
+      <div class="connector-line" style="background:linear-gradient(to bottom,#2d3148,#7c3aed)"></div>
+      <div class="connector-label">API calls (HTTPS)</div>
+      <div class="connector-arrow" style="border-top-color:#7c3aed"></div>
+    </div>
+
+    <!-- ── Layer 4: External services ── -->
+    <div class="layer">
+      <div class="section-label">External Services</div>
+      <div class="ext-row">
+        <div class="ext-node" style="--nc:#7c3aed" data-node="openrouter" onclick="showNode('openrouter')">
+          <div class="ext-title">OpenRouter</div>
+          <div class="ext-sub">LLM provider · gpt-oss-20b · OpenAI-compat API</div>
+        </div>
+        <div class="ext-node" style="--nc:#db2777" data-node="supabase_auth" onclick="showNode('supabase_auth')">
+          <div class="ext-title">Supabase Auth</div>
+          <div class="ext-sub">Google OAuth · JWT · profile sync trigger</div>
+        </div>
+        <div class="ext-node" style="--nc:#ea580c" data-node="posthog_ext" onclick="showNode('posthog_ext')">
+          <div class="ext-title">PostHog</div>
+          <div class="ext-sub">Frontend analytics · event capture</div>
+        </div>
+        <div class="ext-node" style="--nc:#65a30d" data-node="braintrust" onclick="showNode('braintrust')">
+          <div class="ext-title">Braintrust <span class="optional-badge">optional</span></div>
+          <div class="ext-sub">LLM call tracing · observability</div>
+        </div>
+        <div class="ext-node" style="--nc:#475569" data-node="render" onclick="showNode('render')">
+          <div class="ext-title">Render</div>
+          <div class="ext-sub">Hosting (FE + BE + Redis) · render.yaml</div>
+        </div>
+      </div>
+    </div>
+
+    <p class="click-hint">Click any component above to see details →</p>
+
+  </div>
+
+  <!-- ── Detail Sidebar ── -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-inner">
+      <button class="sidebar-close" id="sidebarClose" onclick="closeSidebar()">✕</button>
+      <div id="sidebarContent"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// ARCHITECTURE DATA — edit this object to keep docs up to date
+// ─────────────────────────────────────────────────────────────
+const META = {
+  lastUpdated: "2026-05-18",
+  branch: "virajxp1/async-recipe-import",
+};
+
+const NODES = {
+  frontend: {
+    title: "Next.js Frontend",
+    path: "apps/web/",
+    color: "#4f46e5",
+    description: "Server-side rendered React app using the Next.js App Router. Handles all user-facing pages and proxies API calls server-side to the FastAPI backend.",
+    sections: [
+      {
+        title: "Tech Stack",
+        type: "tags",
+        items: ["Next.js 16.1.6", "React 19.2.3", "TypeScript 5.x", "Tailwind CSS 4", "shadcn/ui (Radix + CVA)", "Vitest 4 + RTL", "Vite 7"]
+      },
+      {
+        title: "API Client",
+        items: ["src/lib/forkfolio-api.ts — server-side fetch client", "Base URL: FORKFOLIO_API_BASE_URL env var", "Auth: FORKFOLIO_API_TOKEN header", "User ID: X-Viewer-User-Id header"]
+      },
+      {
+        title: "Key Files",
+        items: ["src/lib/forkfolio-api.ts — backend client", "src/lib/forkfolio-types.ts — shared types", "src/lib/supabase/ — auth helpers", "src/lib/posthog/ — analytics", "scripts/run-with-root-env.mjs — env loading"]
+      },
+      {
+        title: "Dev Commands",
+        items: ["npm run dev — dev server on :3000", "npm run build && npm run start — production", "npm run test — Vitest unit tests"]
+      }
+    ]
+  },
+
+  frontend_pages: {
+    title: "Pages & Routing",
+    path: "apps/web/src/app/",
+    color: "#4f46e5",
+    description: "Next.js App Router pages. All pages use server components by default for fast initial loads.",
+    sections: [
+      {
+        title: "Routes",
+        items: ["/ — landing page", "/browse — recipe search / browse", "/recipes/[recipeId] — recipe detail", "/recipes/new — recipe creation (URL preview or paste)", "/books and /books/[bookId] — recipe books", "/bag — grocery-list aggregation", "/experiment — recipe chat / experimentation", "/auth/callback and /auth/auth-code-error — auth routes"]
+      },
+      {
+        title: "Next.js API Routes",
+        items: ["apps/web/src/app/api/ — client-side aggregation endpoints"]
+      }
+    ]
+  },
+
+  supabase_auth_fe: {
+    title: "Frontend Auth",
+    path: "apps/web/src/lib/supabase/",
+    color: "#db2777",
+    description: "Auth is handled via Supabase with Google OAuth. Sessions are stored in httpOnly cookies using @supabase/ssr to prevent XSS.",
+    sections: [
+      {
+        title: "Flow",
+        items: ["User clicks Sign In → Supabase Auth UI", "Google OAuth consent screen", "Supabase returns auth code", "/auth/callback exchanges code for session", "Session stored in httpOnly cookie via @supabase/ssr", "profile row auto-synced via Supabase DB trigger"]
+      },
+      {
+        title: "Key Files",
+        items: ["src/app/auth/callback/route.ts — OAuth callback", "src/lib/supabase/viewer.ts — get current user ID (server)", "src/lib/supabase/server.ts — SSR Supabase client"]
+      },
+      {
+        title: "Env Vars",
+        items: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"]
+      }
+    ]
+  },
+
+  posthog: {
+    title: "PostHog Analytics",
+    path: "apps/web/src/lib/posthog/",
+    color: "#ea580c",
+    description: "PostHog captures frontend analytics events to understand user behavior.",
+    sections: [
+      {
+        title: "Integration",
+        items: ["posthog-js 1.373.5", "src/lib/posthog/ — SDK setup", "NEXT_PUBLIC_POSTHOG_API_KEY env var"]
+      }
+    ]
+  },
+
+  mw_timeout: {
+    title: "RequestTimeoutMiddleware",
+    path: "app/core/middleware.py",
+    color: "#0891b2",
+    description: "Enforces a maximum request duration. Returns 504 if the handler takes too long.",
+    sections: [
+      { title: "Config", items: ["Default timeout: 120 seconds", "Returns HTTP 504 Gateway Timeout", "Configured via app.config.ini [api] section"] }
+    ]
+  },
+
+  mw_auth: {
+    title: "AuthTokenMiddleware",
+    path: "app/core/middleware.py",
+    color: "#0891b2",
+    description: "Validates the API token on all non-public endpoints. Returns 401 if missing or invalid.",
+    sections: [
+      { title: "Details", items: ["Header: X-API-Token or Authorization: Bearer <token>", "Token set via API_AUTH_TOKEN env var", "Public paths exempt: GET /, GET /api/v1/, GET /api/v1/health", "Returns HTTP 401 Unauthorized on failure"] }
+    ]
+  },
+
+  mw_ratelimit: {
+    title: "RateLimitMiddleware",
+    path: "app/core/middleware.py",
+    color: "#0891b2",
+    description: "Per-IP rate limiting using a sliding window. Returns 429 with Retry-After header when exceeded.",
+    sections: [
+      { title: "Config", items: ["Default: 120 requests/minute per IP", "Returns HTTP 429 Too Many Requests", "Includes Retry-After header", "Configured via app.config.ini [api] section"] }
+    ]
+  },
+
+  mw_size: {
+    title: "RequestSizeLimitMiddleware",
+    path: "app/core/middleware.py",
+    color: "#0891b2",
+    description: "Rejects request bodies that exceed the configured limit.",
+    sections: [
+      { title: "Config", items: ["Default max body size: 1MB", "Returns HTTP 413 Request Entity Too Large"] }
+    ]
+  },
+
+  mw_trace: {
+    title: "TraceContextMiddleware",
+    path: "app/core/middleware.py",
+    color: "#0891b2",
+    description: "Extracts trace ID from the request path for experiment threads, enabling Braintrust observability correlation.",
+    sections: [
+      { title: "Details", items: ["Parses thread ID from /experiments/threads/{id}/messages path", "Sets trace context for downstream Braintrust logging"] }
+    ]
+  },
+
+  recipes_router: {
+    title: "Recipes Router",
+    path: "app/api/v1/endpoints/recipes.py",
+    color: "#0891b2",
+    description: "Handles all recipe lifecycle operations: ingestion from URL or text, browsing, search, and deletion.",
+    sections: [
+      {
+        title: "Endpoints",
+        items: [
+          "POST /api/v1/recipes/process-and-store — ingest recipe (extract + dedupe + embed + store)",
+          "POST /api/v1/recipes/preview-from-url — synchronous URL preview",
+          "POST /api/v1/recipes/preview-from-url/jobs — queue async URL preview job",
+          "GET  /api/v1/recipes/preview-from-url/jobs/{job_id} — poll async preview status",
+          "GET  /api/v1/recipes/ — cursor-paginated recipe list",
+          "GET  /api/v1/recipes/search/semantic — hybrid recipe search",
+          "GET  /api/v1/recipes/{id} — single recipe detail",
+          "DELETE /api/v1/recipes/delete/{id} — delete recipe",
+          "POST /api/v1/recipes/grocery-list — aggregate ingredients from multiple recipes"
+        ]
+      },
+      {
+        title: "Search Query Params",
+        items: ["query — search text", "limit — result count cap", "include_test_data — include fixtures/test rows", "X-Viewer-User-Id — caller visibility scope"]
+      }
+    ]
+  },
+
+  books_router: {
+    title: "Recipe Books Router",
+    path: "app/api/v1/endpoints/recipe_books.py",
+    color: "#0891b2",
+    description: "Manages recipe book collections and the many-to-many relationship between books and recipes.",
+    sections: [
+      {
+        title: "Endpoints",
+        items: [
+          "POST   /api/v1/recipe-books — create book",
+          "GET    /api/v1/recipe-books — list books",
+          "GET    /api/v1/recipe-books/{id} — book detail with recipes",
+          "DELETE /api/v1/recipe-books/{id} — delete book",
+          "POST   /api/v1/recipe-books/{id}/recipes/{rid} — add recipe to book",
+          "DELETE /api/v1/recipe-books/{id}/recipes/{rid} — remove recipe",
+          "GET    /api/v1/recipe-books/by-recipe/{rid} — find books containing a recipe",
+        ]
+      }
+    ]
+  },
+
+  experiments_router: {
+    title: "Experiments Router (LangGraph)",
+    path: "app/api/v1/endpoints/experiments.py",
+    color: "#7c3aed",
+    description: "AI chat interface for experimenting with recipes. Uses a LangGraph state machine to orchestrate multi-turn conversations with recipe context.",
+    sections: [
+      {
+        title: "Endpoints",
+        items: [
+          "POST /api/v1/experiments/threads — create new thread",
+          "GET  /api/v1/experiments/threads — list threads",
+          "GET  /api/v1/experiments/threads/{id} — get thread with messages",
+          "POST /api/v1/experiments/threads/{id}/messages — send message (SSE streaming response)",
+        ]
+      },
+      {
+        title: "LangGraph Agent",
+        items: [
+          "app/services/experiment_agent_graph.py — state machine definition",
+          "app/services/experiment_service.py — thread lifecycle management",
+          "context_recipe_ids — recipes loaded as context for the chat",
+          "SSE streaming — responses stream token by token via Server-Sent Events",
+          "Roles: system, user, assistant, tool"
+        ]
+      }
+    ]
+  },
+
+  services: {
+    title: "Services Layer",
+    path: "app/services/",
+    color: "#0891b2",
+    description: "Business logic layer sitting between the API routers and the data access layer. All heavy lifting happens here.",
+    sections: [
+      {
+        title: "RecipeProcessingService",
+        items: [
+          "recipe_processing_service.py",
+          "Orchestrates the full ingest pipeline",
+          "URL fetch → HTML extract → text cleanup → deduplication → embedding → store",
+          "Retries LLM calls with exponential backoff (max 3)"
+        ]
+      },
+      {
+        title: "RecipePreviewJobService",
+        items: [
+          "recipe_preview_job_service.py",
+          "Queues async URL preview imports and tracks queued / processing / completed / failed states",
+          "Extends TTL when jobs start processing so long-running previews do not expire mid-flight",
+          "Stores job state in Redis when REDIS_URL is set, otherwise falls back to process-local TTL cache",
+          "Execution still runs in FastAPI background tasks; Redis is not a separate worker queue"
+        ]
+      },
+      {
+        title: "LLMGenerationService",
+        items: [
+          "llm_generation_service.py",
+          "All OpenRouter API calls go through here",
+          "Structured output extraction (Pydantic models)",
+          "Text generation and BAAI BGE embeddings (768-dim)",
+          "Process-local TTL caching of responses"
+        ]
+      },
+      {
+        title: "RecipeHybridSearchImpl",
+        items: [
+          "recipe_hybrid_search_impl.py",
+          "Combines: FTS (tsvector) + trigram (pg_trgm) + cosine similarity (pgvector)",
+          "Weighted ranking across all three signals",
+          "Results cached in process-local TTL cache by normalized query + weight key"
+        ]
+      },
+      {
+        title: "RecipeEmbeddingsImpl",
+        items: ["recipe_embeddings_impl.py", "Generates and caches BAAI BGE Base EN V1.5 embeddings", "768-dimensional vectors stored in recipe_embeddings table"]
+      },
+      {
+        title: "RecipeDedupeImpl",
+        items: ["recipe_dedupe_impl.py", "Similarity check before insert to prevent duplicates", "Uses embedding cosine similarity + fuzzy title match"]
+      }
+    ]
+  },
+
+  data_layer: {
+    title: "Data Access Layer",
+    path: "app/services/data/",
+    color: "#059669",
+    description: "Thin layer of manager classes that own all SQL. Uses parameterized queries throughout. Connection pooling via psycopg2.",
+    sections: [
+      {
+        title: "Connection Pool",
+        items: ["app/services/data/supabase_client.py", "psycopg2 connection pool", "min=2, max=10 connections", "All transactions atomic (recipe + ingredients + instructions)"]
+      },
+      {
+        title: "RecipeManager",
+        items: ["managers/recipe_manager.py", "Recipe CRUD", "Hybrid search SQL (FTS + trigram + vector)", "Pagination with offset/limit"]
+      },
+      {
+        title: "RecipeBookManager",
+        items: ["managers/recipe_book_manager.py", "Book CRUD", "recipe_book_recipes join table management"]
+      },
+      {
+        title: "ExperimentManager",
+        items: ["managers/experiment_manager.py", "experiment_threads CRUD", "experiment_messages ordered by sequence_no"]
+      }
+    ]
+  },
+
+  cache_layer: {
+    title: "Cache Layer",
+    path: "app/core/cache.py",
+    color: "#d97706",
+    description: "Process-local TTL caches used for LLM responses, embeddings, hybrid search results, and the in-memory fallback preview job store.",
+    sections: [
+      {
+        title: "Cached Operations",
+        items: ["LLM structured output responses", "Text generation responses", "Embedding vectors (by input text hash)", "Hybrid search results (by query + weight hash)", "Recipe preview jobs when Redis is not configured"]
+      },
+      {
+        title: "Behavior",
+        items: ["Implemented in app/core/cache.py via an in-process TTLCache", "No cross-instance coordination; cache contents are lost on API restart", "TTL-based expiry configured per cache type", "Preview jobs persist across restarts only when REDIS_URL enables the Redis-backed job store"]
+      }
+    ]
+  },
+
+  postgres: {
+    title: "PostgreSQL / Supabase",
+    path: "docs/database-schema.md",
+    color: "#059669",
+    description: "Primary database hosted on Supabase (AWS us-west-2). Uses pgvector for HNSW vector search and pg_trgm for fuzzy text matching.",
+    sections: [
+      {
+        title: "Core Tables",
+        items: [
+          "recipes — id, title, servings, total_time, source_url, is_public, created_by_user_id",
+          "recipe_ingredients — recipe_id, ingredient_text, order_index",
+          "recipe_instructions — recipe_id, instruction_text, step_number",
+          "recipe_embeddings — recipe_id, embedding_type, embedding vector(768)",
+          "recipe_books — id, name, normalized_name, description",
+          "recipe_book_recipes — (recipe_book_id, recipe_id) composite PK",
+          "experiment_threads — id, title, context_recipe_ids UUID[], metadata JSONB",
+          "experiment_messages — thread_id, sequence_no, role, content, tool_call JSONB",
+          "profiles — id (synced from auth.users via trigger)",
+        ]
+      },
+      {
+        title: "Indexes",
+        items: [
+          "FTS: to_tsvector('english', title || ingredients) — GIN",
+          "Trigram: gin_trgm_ops on lowercase title/ingredients",
+          "Vector: HNSW (m=16, ef_construction=64) on recipe_embeddings.embedding",
+          "Ownership: created_by_user_id, is_public",
+        ]
+      },
+      {
+        title: "Extensions",
+        items: ["pgvector — HNSW index, <=> cosine operator", "pg_trgm — % fuzzy match operator"]
+      },
+      {
+        title: "Schema Files",
+        items: [
+          "docs/database-schema.md — full documentation",
+          "docs/recipe-books-schema.sql — book tables DDL",
+          "docs/supabase-auth-profile-schema.sql — auth sync trigger",
+          "docs/experiment-thread-ownership-schema.sql — experiment tables"
+        ]
+      }
+    ]
+  },
+
+  redis: {
+    title: "Redis Job Store",
+    path: "app/core/redis_client.py",
+    color: "#d97706",
+    description: "Optional managed Redis on Render used by app/core/job_store.py to persist async recipe preview job state across API restarts. Execution still happens in-process, so Redis does not resume a job that was interrupted mid-run.",
+    sections: [
+      {
+        title: "Deployment",
+        items: ["Render managed KV service (forkfolio-redis)", "Free plan, internal-only network access", "Provisioned via render.yaml Blueprint"]
+      },
+      {
+        title: "Connection",
+        items: ["REDIS_URL env var (optional)", "Lazy initialization via app/core/redis_client.py", "redis>=5.0.0 Python client"]
+      },
+      {
+        title: "Stored Data",
+        items: ["Key prefix: forkfolio:recipe_preview_job:{job_id}", "JSON payload for queued / processing / completed / failed preview jobs", "TTL defaults to RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS (1800s)"]
+      }
+    ]
+  },
+
+  openrouter: {
+    title: "OpenRouter",
+    path: "app/services/llm_generation_service.py",
+    color: "#7c3aed",
+    description: "LLM provider accessed via OpenAI-compatible API. Used for recipe extraction, structured output generation, and chat in the Experiments feature.",
+    sections: [
+      {
+        title: "Details",
+        items: ["Model: openai/gpt-oss-20b", "Base URL: https://openrouter.ai/api/v1", "SDK: openai Python client (pointed at OpenRouter)", "Embeddings: BAAI BGE Base EN V1.5 (768-dim, via OpenRouter)"]
+      },
+      {
+        title: "Env Vars",
+        items: ["OPEN_ROUTER_API_KEY — required"]
+      },
+      {
+        title: "Usage",
+        items: ["Recipe extraction from HTML/text (structured output)", "Ingredient cleanup / normalization", "Chat completions in Experiments (SSE streaming)", "Embedding generation for vector search"]
+      }
+    ]
+  },
+
+  supabase_auth: {
+    title: "Supabase Auth",
+    path: "docs/supabase-auth-profile-schema.sql",
+    color: "#db2777",
+    description: "Managed auth service handling Google OAuth, JWT issuance, and session management. The frontend uses @supabase/ssr for server-side session handling.",
+    sections: [
+      {
+        title: "Details",
+        items: ["Google OAuth 2.0 as sole provider", "JWT-based sessions stored in httpOnly cookies", "auth.users auto-synced to public.profiles via DB trigger", "Supabase hosted on same AWS region as DB"]
+      },
+      {
+        title: "Env Vars",
+        items: ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "(service role key for backend, kept secret)"]
+      }
+    ]
+  },
+
+  posthog_ext: {
+    title: "PostHog",
+    path: "apps/web/src/lib/posthog/",
+    color: "#ea580c",
+    description: "Product analytics platform for tracking user behavior on the frontend.",
+    sections: [
+      {
+        title: "Details",
+        items: ["posthog-js 1.373.5", "Initialized in Next.js app shell", "Tracks pageviews, feature interactions"]
+      },
+      {
+        title: "Env Vars",
+        items: ["NEXT_PUBLIC_POSTHOG_API_KEY"]
+      }
+    ]
+  },
+
+  braintrust: {
+    title: "Braintrust",
+    path: "app/core/tracing.py",
+    color: "#65a30d",
+    description: "Optional LLM observability platform. Records all LLM calls with inputs, outputs, latencies, and costs for debugging and evaluation.",
+    sections: [
+      {
+        title: "Details",
+        items: ["app/core/tracing.py — integration wrapper", "Conditional on BRAINTRUST_TRACING_ENABLED config flag", "Traces correlated via experiment thread ID", "Zero overhead when disabled"]
+      },
+      {
+        title: "Env Vars",
+        items: ["BRAINTRUST_API_KEY (optional)", "BRAINTRUST_PROJECT_ID (optional)", "BRAINTRUST_TRACING_ENABLED (config flag)"]
+      }
+    ]
+  },
+
+  render: {
+    title: "Render Hosting",
+    path: "render.yaml",
+    color: "#475569",
+    description: "Production hosting on Render. The frontend and backend are deployed independently, and an optional managed Redis service backs async preview job persistence.",
+    sections: [
+      {
+        title: "Services",
+        items: ["forkfolio-fe — Next.js frontend web service", "forkfolio-be — FastAPI backend web service", "forkfolio-redis — managed Redis KV (free plan)"]
+      },
+      {
+        title: "Deploy Commands",
+        items: ["Backend build: pip install -r requirements.txt", "Backend start: python3 scripts/run.py", "Frontend build: npm ci && npm run build", "Frontend start: npm run start", "Health check: GET /api/v1/health"]
+      },
+      {
+        title: "CI/CD",
+        items: [".github/workflows/lint.yml — Ruff + OpenAPI validation", ".github/workflows/test.yml — pytest + vitest"]
+      }
+    ]
+  }
+};
+
+// ─────────────────────────────────────────────
+// Rendering logic — no need to edit below this
+// ─────────────────────────────────────────────
+
+document.getElementById('lastUpdated').textContent = META.lastUpdated;
+document.getElementById('branchName').textContent = META.branch;
+
+let activeNodeId = null;
+
+function showNode(nodeId) {
+  const node = NODES[nodeId];
+  if (!node) return;
+
+  // Deactivate previous
+  if (activeNodeId) {
+    const prev = document.querySelector(`[data-node="${activeNodeId}"]`);
+    if (prev) prev.classList.remove('active');
+  }
+
+  // Activate current
+  activeNodeId = nodeId;
+  const el = document.querySelector(`[data-node="${nodeId}"]`);
+  if (el) el.classList.add('active');
+
+  // Build sidebar content
+  let html = `
+    <div class="sidebar-title">${node.title}</div>
+    ${node.path ? `<div class="sidebar-path">${node.path}</div>` : ''}
+    <p class="sidebar-desc">${node.description}</p>
+  `;
+
+  for (const section of (node.sections || [])) {
+    html += `<div class="sidebar-divider"></div>`;
+    html += `<div class="sidebar-section-title">${section.title}</div>`;
+
+    if (section.type === 'tags') {
+      html += `<div class="sidebar-tags">`;
+      for (const item of section.items) {
+        html += `<span class="sidebar-tag" style="background:#1a1d2e;color:#94a3b8">${item}</span>`;
+      }
+      html += `</div>`;
+    } else {
+      html += `<ul class="sidebar-list">`;
+      for (const item of section.items) {
+        html += `<li>${item}</li>`;
+      }
+      html += `</ul>`;
+    }
+  }
+
+  document.getElementById('sidebarContent').innerHTML = html;
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('diagramArea').classList.add('sidebar-open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('diagramArea').classList.remove('sidebar-open');
+  if (activeNodeId) {
+    const el = document.querySelector(`[data-node="${activeNodeId}"]`);
+    if (el) el.classList.remove('active');
+    activeNodeId = null;
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeSidebar();
+});
+</script>
+</body>
+</html>

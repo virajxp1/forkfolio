@@ -1,3 +1,5 @@
+import time
+
 from app.api.schemas import Recipe
 from app.core.cache import recipe_preview_job_cache
 from app.services.recipe_preview_job_service import (
@@ -25,6 +27,15 @@ class FakeProcessingService:
     ) -> tuple[Recipe | None, str | None, dict[str, int]]:
         del source_url
         return self.recipe, self.error, self.diagnostics
+
+
+class SlowProcessingService:
+    def preview_recipe_from_url(
+        self, source_url: str
+    ) -> tuple[Recipe | None, str | None, dict[str, int]]:
+        del source_url
+        time.sleep(0.2)
+        return None, "late result", {}
 
 
 def setup_function() -> None:
@@ -103,3 +114,23 @@ def test_recipe_preview_job_service_marks_processing_before_terminal_status() ->
 
     assert updated_job is not None
     assert updated_job["status"] == PREVIEW_JOB_STATUS_PROCESSING
+
+
+def test_recipe_preview_job_service_timeout_returns_without_waiting_for_worker() -> None:
+    service = RecipePreviewJobService(timeout_seconds=0.01)
+    job = service.create_job("https://example.com/slow")
+
+    started_at = time.monotonic()
+    service.process_job(
+        job["job_id"],
+        job["url"],
+        processing_service=SlowProcessingService(),
+    )
+    elapsed = time.monotonic() - started_at
+
+    updated_job = service.get_job(job["job_id"])
+
+    assert elapsed < 0.15
+    assert updated_job is not None
+    assert updated_job["status"] == PREVIEW_JOB_STATUS_FAILED
+    assert "timed out" in updated_job["error"]

@@ -289,6 +289,132 @@ Validation error payload (`422` example):
 }
 ```
 
+### `POST /api/v1/recipes/preview-from-url/jobs`
+
+Auth: Required
+
+Queues an async URL preview import and returns a short-lived job record
+immediately. The backend processes the extraction in a background task while the
+frontend polls for status.
+
+Request body:
+
+```json
+{
+  "url": "https://example.com/chocolate-chip-cookies"
+}
+```
+
+Response status:
+
+- `202 Accepted`
+
+Queued response:
+
+```json
+{
+  "job_id": "9a2baf0e-9a4a-4988-9d3d-4d8b5df2d4b4",
+  "status": "queued",
+  "url": "https://example.com/chocolate-chip-cookies",
+  "created_at": "2026-05-18T01:23:45.678901+00:00",
+  "updated_at": "2026-05-18T01:23:45.678901+00:00",
+  "message": "Recipe preview import queued."
+}
+```
+
+Behavior notes:
+
+- The backend stores jobs in Redis when `REDIS_URL` is configured.
+- Without Redis, jobs fall back to the process-local TTL cache and are lost on
+  API restart.
+- Redis persists job state only; preview execution still runs in FastAPI
+  background tasks and is not resumed automatically after a restart.
+- Job TTL defaults to `RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS` (`1800`).
+- Job execution timeout defaults to `RECIPE_PREVIEW_JOB_TIMEOUT_SECONDS`
+  (`240`).
+
+### `GET /api/v1/recipes/preview-from-url/jobs/{job_id}`
+
+Auth: Required
+
+Returns the current state of an async URL preview job.
+
+Possible statuses:
+
+- `queued`
+- `processing`
+- `completed`
+- `failed`
+
+Pending response:
+
+```json
+{
+  "job_id": "9a2baf0e-9a4a-4988-9d3d-4d8b5df2d4b4",
+  "status": "processing",
+  "url": "https://example.com/chocolate-chip-cookies",
+  "created_at": "2026-05-18T01:23:45.678901+00:00",
+  "updated_at": "2026-05-18T01:23:47.123456+00:00",
+  "message": "Recipe preview import in progress."
+}
+```
+
+Completed response:
+
+```json
+{
+  "job_id": "9a2baf0e-9a4a-4988-9d3d-4d8b5df2d4b4",
+  "status": "completed",
+  "success": true,
+  "created": false,
+  "url": "https://example.com/chocolate-chip-cookies",
+  "created_at": "2026-05-18T01:23:45.678901+00:00",
+  "updated_at": "2026-05-18T01:23:52.123456+00:00",
+  "completed_at": "2026-05-18T01:23:52.123456+00:00",
+  "recipe_preview": {
+    "title": "Chocolate Chip Cookies",
+    "ingredients": ["2 cups flour", "1 cup butter"],
+    "instructions": ["Mix", "Bake"],
+    "servings": "24 cookies",
+    "total_time": "30 minutes"
+  },
+  "diagnostics": {
+    "raw_html_length": 105482,
+    "extracted_text_length": 19340,
+    "cleaned_text_length": 4010
+  },
+  "message": "Recipe preview generated successfully. No database insertion performed."
+}
+```
+
+Failed response:
+
+```json
+{
+  "job_id": "9a2baf0e-9a4a-4988-9d3d-4d8b5df2d4b4",
+  "status": "failed",
+  "success": false,
+  "created": false,
+  "url": "https://example.com/chocolate-chip-cookies",
+  "created_at": "2026-05-18T01:23:45.678901+00:00",
+  "updated_at": "2026-05-18T01:24:10.000000+00:00",
+  "completed_at": "2026-05-18T01:24:10.000000+00:00",
+  "diagnostics": {
+    "raw_html_length": 0
+  },
+  "error": "Recipe preview timed out after 240s.",
+  "message": "Recipe preview import timed out."
+}
+```
+
+Not-found response:
+
+```json
+{
+  "detail": "Recipe preview job not found or expired."
+}
+```
+
 ### `GET /api/v1/recipes/search/semantic`
 
 Auth: Required
