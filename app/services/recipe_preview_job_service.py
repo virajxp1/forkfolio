@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import concurrent.futures
 import os
 import threading
+import time
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -77,48 +77,45 @@ class RecipePreviewJobService:
         )
 
         service = processing_service or RecipeProcessingService()
-
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        future = executor.submit(service.preview_recipe_from_url, source_url)
         try:
-            recipe, error, diagnostics = future.result(timeout=self._timeout_seconds)
-        except concurrent.futures.TimeoutError:
+            started_at = time.monotonic()
+            recipe, error, diagnostics = service.preview_recipe_from_url(source_url)
+            elapsed = time.monotonic() - started_at
+        except Exception as exc:
+            logger.exception(
+                "Recipe preview job crashed unexpectedly. job_id=%s url=%s",
+                job_id,
+                source_url,
+            )
+            self._mark_failed(
+                job_id,
+                error=f"Recipe preview failed unexpectedly: {exc!s}",
+                diagnostics={},
+                message="Recipe preview import failed unexpectedly.",
+            )
+            return
+
+        if elapsed > self._timeout_seconds:
             logger.warning(
                 "Recipe preview job timed out after %.0fs. job_id=%s url=%s",
                 self._timeout_seconds,
                 job_id,
                 source_url,
             )
-            self._update_job(
+            self._mark_failed(
                 job_id,
-                {
-                    "status": PREVIEW_JOB_STATUS_FAILED,
-                    "success": False,
-                    "created": False,
-                    "error": (
-                        f"Recipe preview timed out after {int(self._timeout_seconds)}s."
-                    ),
-                    "diagnostics": {},
-                    "message": "Recipe preview import timed out.",
-                },
-                terminal=True,
+                error=f"Recipe preview timed out after {int(self._timeout_seconds)}s.",
+                diagnostics=diagnostics,
+                message="Recipe preview import timed out.",
             )
             return
-        finally:
-            executor.shutdown(wait=False, cancel_futures=True)
 
         if error or not recipe:
-            self._update_job(
+            self._mark_failed(
                 job_id,
-                {
-                    "status": PREVIEW_JOB_STATUS_FAILED,
-                    "success": False,
-                    "created": False,
-                    "error": error or "Recipe preview failed.",
-                    "diagnostics": diagnostics,
-                    "message": "Recipe preview import failed.",
-                },
-                terminal=True,
+                error=error or "Recipe preview failed.",
+                diagnostics=diagnostics,
+                message="Recipe preview import failed.",
             )
             return
 
@@ -133,6 +130,27 @@ class RecipePreviewJobService:
                 "message": (
                     "Recipe preview generated successfully. No database insertion performed."
                 ),
+            },
+            terminal=True,
+        )
+
+    def _mark_failed(
+        self,
+        job_id: str,
+        *,
+        error: str,
+        diagnostics: dict[str, Any],
+        message: str,
+    ) -> None:
+        self._update_job(
+            job_id,
+            {
+                "status": PREVIEW_JOB_STATUS_FAILED,
+                "success": False,
+                "created": False,
+                "error": error,
+                "diagnostics": diagnostics,
+                "message": message,
             },
             terminal=True,
         )

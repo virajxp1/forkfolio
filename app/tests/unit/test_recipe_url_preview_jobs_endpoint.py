@@ -5,7 +5,11 @@ from app.api.schemas import Recipe
 from app.api.v1.endpoints import recipes
 from app.core.cache import recipe_preview_job_cache
 from app.core.config import settings
-from app.core.dependencies import get_recipe_processing_service
+from app.core.dependencies import (
+    get_recipe_preview_job_service,
+    get_recipe_processing_service,
+)
+from app.core.job_store import JobStoreUnavailableError
 
 PREVIEW_JOB_CREATE_PATH = f"{settings.API_BASE_PATH}/recipes/preview-from-url/jobs"
 
@@ -33,6 +37,30 @@ def build_client(service: FakeRecipeProcessingService) -> TestClient:
     app = FastAPI()
     app.include_router(recipes.router)
     app.dependency_overrides[get_recipe_processing_service] = lambda: service
+    return TestClient(app)
+
+
+class UnavailablePreviewJobService:
+    def create_job(self, source_url: str) -> dict:
+        del source_url
+        raise JobStoreUnavailableError("boom")
+
+    def get_job(self, job_id: str) -> dict:
+        del job_id
+        raise JobStoreUnavailableError("boom")
+
+    def process_job(self, *args, **kwargs) -> None:
+        del args, kwargs
+
+
+def build_client_with_preview_service(
+    service: FakeRecipeProcessingService,
+    preview_job_service: UnavailablePreviewJobService,
+) -> TestClient:
+    app = FastAPI()
+    app.include_router(recipes.router)
+    app.dependency_overrides[get_recipe_processing_service] = lambda: service
+    app.dependency_overrides[get_recipe_preview_job_service] = lambda: preview_job_service
     return TestClient(app)
 
 
@@ -105,3 +133,30 @@ def test_get_preview_recipe_job_returns_404_for_unknown_job() -> None:
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Recipe preview job not found or expired."}
+
+
+def test_create_preview_recipe_job_returns_503_when_job_store_unavailable() -> None:
+    client = build_client_with_preview_service(
+        FakeRecipeProcessingService(),
+        UnavailablePreviewJobService(),
+    )
+
+    response = client.post(
+        PREVIEW_JOB_CREATE_PATH,
+        json={"url": "https://example.com/tomato-pasta"},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Recipe preview job store unavailable."}
+
+
+def test_get_preview_recipe_job_returns_503_when_job_store_unavailable() -> None:
+    client = build_client_with_preview_service(
+        FakeRecipeProcessingService(),
+        UnavailablePreviewJobService(),
+    )
+
+    response = client.get(f"{PREVIEW_JOB_CREATE_PATH}/any-job")
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Recipe preview job store unavailable."}

@@ -38,6 +38,14 @@ class SlowProcessingService:
         return None, "late result", {}
 
 
+class CrashingProcessingService:
+    def preview_recipe_from_url(
+        self, source_url: str
+    ) -> tuple[Recipe | None, str | None, dict[str, int]]:
+        del source_url
+        raise RuntimeError("preview worker exploded")
+
+
 def setup_function() -> None:
     recipe_preview_job_cache.clear()
 
@@ -116,7 +124,7 @@ def test_recipe_preview_job_service_marks_processing_before_terminal_status() ->
     assert updated_job["status"] == PREVIEW_JOB_STATUS_PROCESSING
 
 
-def test_recipe_preview_job_service_timeout_returns_without_waiting_for_worker() -> None:
+def test_recipe_preview_job_service_marks_job_failed_when_processing_exceeds_timeout() -> None:
     service = RecipePreviewJobService(timeout_seconds=0.01)
     job = service.create_job("https://example.com/slow")
 
@@ -130,7 +138,26 @@ def test_recipe_preview_job_service_timeout_returns_without_waiting_for_worker()
 
     updated_job = service.get_job(job["job_id"])
 
-    assert elapsed < 0.15
+    assert elapsed >= 0.2
     assert updated_job is not None
     assert updated_job["status"] == PREVIEW_JOB_STATUS_FAILED
     assert "timed out" in updated_job["error"]
+
+
+def test_recipe_preview_job_service_marks_unexpected_worker_exceptions_failed() -> None:
+    service = RecipePreviewJobService()
+    job = service.create_job("https://example.com/crash")
+
+    service.process_job(
+        job["job_id"],
+        job["url"],
+        processing_service=CrashingProcessingService(),
+    )
+
+    updated_job = service.get_job(job["job_id"])
+
+    assert updated_job is not None
+    assert updated_job["status"] == PREVIEW_JOB_STATUS_FAILED
+    assert updated_job["success"] is False
+    assert "failed unexpectedly" in updated_job["error"]
+    assert "completed_at" in updated_job

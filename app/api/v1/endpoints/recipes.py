@@ -27,6 +27,7 @@ from app.core.dependencies import (
     get_recipe_preview_job_service,
     get_recipe_processing_service,
 )
+from app.core.job_store import JobStoreUnavailableError
 from app.core.logging import get_logger
 
 router = APIRouter(prefix=f"{settings.API_BASE_PATH}/recipes", tags=["Recipes"])
@@ -217,7 +218,13 @@ def create_preview_recipe_job(
 ) -> dict:
     """Queue an async recipe preview import for a URL."""
     source_url = str(preview_request.url)
-    job = preview_job_service.create_job(source_url)
+    try:
+        job = preview_job_service.create_job(source_url)
+    except JobStoreUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Recipe preview job store unavailable.",
+        ) from exc
     background_tasks.add_task(
         preview_job_service.process_job,
         job["job_id"],
@@ -233,7 +240,13 @@ def get_preview_recipe_job(
     preview_job_service=recipe_preview_job_service_dep,
 ) -> dict:
     """Return async recipe preview job status and payload when complete."""
-    job = preview_job_service.get_job(job_id.strip())
+    try:
+        job = preview_job_service.get_job(job_id.strip())
+    except JobStoreUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Recipe preview job store unavailable.",
+        ) from exc
     if not job:
         raise HTTPException(
             status_code=404,

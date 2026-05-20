@@ -14,6 +14,10 @@ from app.core.redis_client import get_redis_client
 logger = get_logger(__name__)
 
 
+class JobStoreUnavailableError(RuntimeError):
+    """Raised when the configured preview job store cannot be read or written."""
+
+
 class InMemoryJobStore:
     """Job store backed by the process-local TTL cache. Lost on server restart."""
 
@@ -42,7 +46,7 @@ class RedisJobStore:
             return json.loads(raw) if raw is not None else None
         except Exception as exc:
             logger.warning("RedisJobStore.get failed. job_id=%s error=%s", key, exc)
-            return None
+            raise JobStoreUnavailableError("Recipe preview job store unavailable") from exc
 
     def set(
         self, key: str, value: dict[str, Any], ttl_seconds: Optional[float] = None
@@ -52,6 +56,7 @@ class RedisJobStore:
             self._client.setex(f"{self._KEY_PREFIX}{key}", ttl, json.dumps(value))
         except Exception as exc:
             logger.warning("RedisJobStore.set failed. job_id=%s error=%s", key, exc)
+            raise JobStoreUnavailableError("Recipe preview job store unavailable") from exc
 
 
 def _build_job_store() -> InMemoryJobStore | RedisJobStore:
