@@ -1,3 +1,5 @@
+import multiprocessing
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -10,8 +12,10 @@ from app.core.dependencies import (
     get_recipe_processing_service,
 )
 from app.core.job_store import JobStoreUnavailableError
+from app.services.recipe_preview_job_service import RecipePreviewJobService
 
 PREVIEW_JOB_CREATE_PATH = f"{settings.API_BASE_PATH}/recipes/preview-from-url/jobs"
+WORKER_CONTEXT = multiprocessing.get_context("fork")
 
 
 class FakeRecipeProcessingService:
@@ -37,6 +41,12 @@ def build_client(service: FakeRecipeProcessingService) -> TestClient:
     app = FastAPI()
     app.include_router(recipes.router)
     app.dependency_overrides[get_recipe_processing_service] = lambda: service
+    app.dependency_overrides[get_recipe_preview_job_service] = lambda: (
+        RecipePreviewJobService(
+            processing_service=service,
+            worker_context=WORKER_CONTEXT,
+        )
+    )
     return TestClient(app)
 
 
@@ -60,7 +70,9 @@ def build_client_with_preview_service(
     app = FastAPI()
     app.include_router(recipes.router)
     app.dependency_overrides[get_recipe_processing_service] = lambda: service
-    app.dependency_overrides[get_recipe_preview_job_service] = lambda: preview_job_service
+    app.dependency_overrides[get_recipe_preview_job_service] = lambda: (
+        preview_job_service
+    )
     return TestClient(app)
 
 
@@ -90,7 +102,6 @@ def test_create_preview_recipe_job_returns_queued_then_completed_status() -> Non
     payload = response.json()
     assert payload["status"] == "queued"
     assert payload["url"] == "https://example.com/tomato-pasta"
-    assert fake_service.calls == ["https://example.com/tomato-pasta"]
 
     status_response = client.get(f"{PREVIEW_JOB_CREATE_PATH}/{payload['job_id']}")
 

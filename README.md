@@ -99,7 +99,9 @@ Backend (optional behavior controls):
 - `BRAINTRUST_API_KEY` (required when Braintrust tracing is enabled)
 - `REDIS_URL` (when set, `app.core.redis_client.get_redis_client()` returns a connected client and async recipe preview jobs are persisted in Redis; otherwise jobs are in-process only and lost on restart)
 - `RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS` (default `1800`; how long a preview job lives in the store before expiry)
-- `RECIPE_PREVIEW_JOB_TIMEOUT_SECONDS` (default `240`; max seconds the backend spends on a single URL extraction before marking the job failed — should be less than the frontend's 5-minute polling window)
+- `RECIPE_PREVIEW_JOB_TIMEOUT_SECONDS` (default `240`; max seconds the backend spends on a single URL extraction before terminating the worker and marking the job failed — should be less than the frontend's 5-minute polling window)
+- `RECIPE_PREVIEW_JOB_TERMINATE_GRACE_SECONDS` (default `2`; seconds to wait after asking a timed-out preview worker process to terminate before killing it)
+- `RECIPE_PREVIEW_JOB_START_METHOD` (default `spawn`; multiprocessing start method for isolated preview workers)
 
 Frontend runtime vars:
 

@@ -328,10 +328,14 @@ Behavior notes:
 - Without Redis, jobs fall back to the process-local TTL cache and are lost on
   API restart.
 - Redis persists job state only; preview execution still runs in FastAPI
-  background tasks and is not resumed automatically after a restart.
+  background tasks and is not resumed automatically after a restart. Each
+  extraction is isolated in a child process so timed-out workers can be
+  terminated.
 - Job TTL defaults to `RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS` (`1800`).
 - Job execution timeout defaults to `RECIPE_PREVIEW_JOB_TIMEOUT_SECONDS`
   (`240`).
+- Timed-out worker termination grace defaults to
+  `RECIPE_PREVIEW_JOB_TERMINATE_GRACE_SECONDS` (`2`).
 
 ### `GET /api/v1/recipes/preview-from-url/jobs/{job_id}`
 

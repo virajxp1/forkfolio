@@ -214,7 +214,6 @@ def create_preview_recipe_job(
     background_tasks: BackgroundTasks,
     preview_request: RecipeUrlPreviewRequest = RECIPE_BODY,
     preview_job_service=recipe_preview_job_service_dep,
-    processing_service=recipe_processing_service_dep,
 ) -> dict:
     """Queue an async recipe preview import for a URL."""
     source_url = str(preview_request.url)
@@ -229,7 +228,6 @@ def create_preview_recipe_job(
         preview_job_service.process_job,
         job["job_id"],
         source_url,
-        processing_service,
     )
     return job
 

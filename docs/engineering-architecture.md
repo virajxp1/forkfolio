@@ -25,14 +25,14 @@ OAuth session handling for profile-aware UI state.
 Async URL preview imports use a second path:
 
 1. `POST /api/v1/recipes/preview-from-url/jobs` creates a preview job.
-2. `RecipePreviewJobService` processes the URL in the background and updates
-   job state.
+2. `RecipePreviewJobService` processes the URL in an isolated worker process
+   launched from a background task and updates job state.
 3. `app/core/job_store.py` persists the job in Redis when `REDIS_URL` is set,
    otherwise in the process-local TTL cache.
 4. The frontend polls `GET /api/v1/recipes/preview-from-url/jobs/{job_id}` for
    completion.
 
-Redis persists job state only. The actual preview extraction still runs inside
+Redis persists job state only. The actual preview extraction still runs from
 FastAPI background tasks, so interrupted in-flight jobs are not resumed by
 Redis after a restart.
 

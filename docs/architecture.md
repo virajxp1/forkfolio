@@ -44,14 +44,14 @@ For async URL preview imports, the path diverges after routing:
 1. `POST /api/v1/recipes/preview-from-url/jobs` creates a short-lived preview
    job.
 2. `RecipePreviewJobService` drives the job through `queued`, `processing`,
-   `completed`, or `failed`.
+   `completed`, or `failed`, with extraction isolated in a worker process.
 3. Jobs are stored in Redis when `REDIS_URL` is configured; otherwise they use
    the process-local TTL cache and are lost on API restart.
 4. The frontend polls `GET /api/v1/recipes/preview-from-url/jobs/{job_id}` until
    the preview completes or fails.
 
-Redis persists job state only. Execution still happens in-process via FastAPI
-background tasks, so a backend restart does not resume an interrupted job.
+Redis persists job state only. Execution is launched from FastAPI background
+tasks, so a backend restart does not resume an interrupted job.
 
 ## What Is Solid Today
 
