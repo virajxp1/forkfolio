@@ -587,7 +587,7 @@
             </div>
             <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
               <div style="font-size:11px;font-weight:600;color:#cbd5e1">RecipePreviewJobService</div>
-              <div style="font-size:10px;color:#475569;margin-top:2px">queue · poll · complete/fail</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">queue · process isolate · complete/fail</div>
             </div>
           </div>
         </div>
@@ -717,7 +717,7 @@
 // ARCHITECTURE DATA — edit this object to keep docs up to date
 // ─────────────────────────────────────────────────────────────
 const META = {
-  lastUpdated: "2026-05-18",
+  lastUpdated: "2026-05-20",
   branch: "virajxp1/async-recipe-import",
 };
 
@@ -945,6 +945,7 @@ const NODES = {
         items: [
           "recipe_preview_job_service.py",
           "Queues async URL preview imports and tracks queued / processing / completed / failed states",
+          "Runs extraction in an isolated worker process and terminates timed-out workers",
           "Extends TTL when jobs start processing so long-running previews do not expire mid-flight",
           "Stores job state in Redis when REDIS_URL is set, otherwise falls back to process-local TTL cache",
           "Execution still runs in FastAPI background tasks; Redis is not a separate worker queue"
@@ -1083,7 +1084,7 @@ const NODES = {
       },
       {
         title: "Stored Data",
-        items: ["Key prefix: forkfolio:recipe_preview_job:{job_id}", "JSON payload for queued / processing / completed / failed preview jobs", "TTL defaults to RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS (1800s)"]
+        items: ["Key prefix: forkfolio:recipe_preview_job:{job_id}", "JSON payload for queued / processing / completed / failed preview jobs", "TTL defaults to RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS (1800s)", "Store outages surface as service errors rather than missing jobs"]
       }
     ]
   },

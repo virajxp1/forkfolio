@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // \"\"' | { read -r f; echo \"$f\" | grep -qE '(app/services/|app/api/|app/core/|apps/web/src/app/|render\\.yaml)' && echo '{\"systemMessage\":\"Architecture reminder: a structural file changed — update docs/architecture.html (META.lastUpdated + relevant NODES) if the shape of this service changed.\"}' || true; } 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}
