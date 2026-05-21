@@ -9,21 +9,24 @@ import type {
   CreateExperimentThreadResponse,
   CreateGroceryListRequest,
   CreateGroceryListResponse,
+  CreateRecipePreviewJobRequest,
+  CreateRecipePreviewJobResponse,
   CreateRecipeBookRequest,
   CreateRecipeBookResponse,
   DeleteRecipeResponse,
   GetExperimentThreadResponse,
-  GetRecipeResponse,
-  PreviewRecipeFromUrlRequest,
-  PreviewRecipeFromUrlResponse,
   GetRecipeBookResponse,
   GetRecipeBooksForRecipeResponse,
   GetRecipeBookStatsResponse,
+  GetRecipeResponse,
+  PreviewRecipeFromUrlRequest,
+  PreviewRecipeFromUrlResponse,
   ListRecipeBooksResponse,
   ListExperimentThreadsResponse,
   ListRecipesResponse,
   ProcessRecipeRequest,
   ProcessRecipeResponse,
+  RecipePreviewJobResponse,
   RecipeRecord,
   RemoveRecipeFromBookResponse,
   SearchRecipesResponse,
@@ -271,6 +274,26 @@ export async function previewRecipeFromUrl(
     }),
     body: JSON.stringify(payload),
   });
+}
+
+export async function createRecipePreviewJob(
+  payload: CreateRecipePreviewJobRequest,
+): Promise<CreateRecipePreviewJobResponse> {
+  return forkfolioFetch<CreateRecipePreviewJobResponse>("/recipes/preview-from-url/jobs", {
+    method: "POST",
+    headers: buildHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getRecipePreviewJob(
+  jobId: string,
+): Promise<RecipePreviewJobResponse> {
+  return forkfolioFetch<RecipePreviewJobResponse>(
+    `/recipes/preview-from-url/jobs/${encodeURIComponent(jobId)}`,
+  );
 }
 
 export async function createGroceryList(

@@ -1,4 +1,3 @@
-from html.parser import HTMLParser
 import ipaddress
 import os
 import re
@@ -15,6 +14,7 @@ from app.services.recipe_dedupe_impl import RecipeDedupeServiceImpl
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 from app.services.recipe_extractor_impl import RecipeExtractorImpl
 from app.services.recipe_input_cleanup_impl import RecipeInputCleanupServiceImpl
+from app.services.recipe_website_extractor_impl import RecipeWebsiteExtractorImpl
 
 logger = get_logger(__name__)
 
@@ -35,7 +35,6 @@ URL_FETCH_DOMAIN_ALLOWLIST = tuple(
     )
 )
 URL_FETCH_REDIRECT_STATUS_CODES = frozenset({301, 302, 303, 307, 308})
-MAX_EXTRACTED_TEXT_CHARS = 25000
 RECIPE_SECTION_LINE_RE = re.compile(
     r"(?im)^\s*ingredients\s*:.*^\s*(instructions|directions|method|steps)\s*:",
     re.MULTILINE | re.DOTALL,
@@ -43,92 +42,6 @@ RECIPE_SECTION_LINE_RE = re.compile(
 RECIPE_BULLET_LINE_RE = re.compile(r"(?m)^\s*[-*]\s+\S")
 RECIPE_NUMBERED_STEP_RE = re.compile(r"(?m)^\s*\d+[.)]\s+\S")
 HTML_TAG_RE = re.compile(r"<[^>]+>")
-HTML_IGNORED_TAGS = {
-    "script",
-    "style",
-    "noscript",
-    "svg",
-    "canvas",
-    "iframe",
-    "template",
-}
-HTML_BLOCK_TAGS = {
-    "article",
-    "aside",
-    "br",
-    "dd",
-    "div",
-    "dl",
-    "dt",
-    "footer",
-    "form",
-    "h1",
-    "h2",
-    "h3",
-    "h4",
-    "h5",
-    "h6",
-    "header",
-    "hr",
-    "li",
-    "main",
-    "nav",
-    "ol",
-    "p",
-    "pre",
-    "section",
-    "table",
-    "td",
-    "th",
-    "tr",
-    "ul",
-}
-
-
-class _VisibleTextExtractor(HTMLParser):
-    """Extract visible text while skipping common non-content HTML blocks."""
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._ignored_depth = 0
-        self._parts: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        del attrs  # Unused
-        normalized = tag.lower()
-        if normalized in HTML_IGNORED_TAGS:
-            self._ignored_depth += 1
-            return
-        if normalized in HTML_BLOCK_TAGS:
-            self._parts.append("\n")
-
-    def handle_endtag(self, tag: str) -> None:
-        normalized = tag.lower()
-        if normalized in HTML_IGNORED_TAGS:
-            if self._ignored_depth > 0:
-                self._ignored_depth -= 1
-            return
-        if normalized in HTML_BLOCK_TAGS:
-            self._parts.append("\n")
-
-    def handle_data(self, data: str) -> None:
-        if self._ignored_depth > 0:
-            return
-        cleaned = " ".join(data.split())
-        if cleaned:
-            self._parts.append(f"{cleaned} ")
-
-    def visible_text(self) -> str:
-        if not self._parts:
-            return ""
-
-        text = "".join(self._parts)
-        lines: list[str] = []
-        for line in text.splitlines():
-            normalized = " ".join(line.split())
-            if normalized:
-                lines.append(normalized)
-        return "\n".join(lines)
 
 
 class RecipeProcessingService:
@@ -149,12 +62,16 @@ class RecipeProcessingService:
         recipe_manager: RecipeManager | None = None,
         embeddings_service: RecipeEmbeddingsServiceImpl | None = None,
         dedupe_service: RecipeDedupeServiceImpl | None = None,
+        website_extractor_service: RecipeWebsiteExtractorImpl | None = None,
     ):
         self.cleanup_service = cleanup_service or RecipeInputCleanupServiceImpl()
         self.extractor_service = extractor_service or RecipeExtractorImpl()
         self.recipe_manager = recipe_manager or RecipeManager()
         self.embeddings_service = embeddings_service or RecipeEmbeddingsServiceImpl()
         self.dedupe_service = dedupe_service or RecipeDedupeServiceImpl()
+        self.website_extractor_service = (
+            website_extractor_service or RecipeWebsiteExtractorImpl()
+        )
 
     def process_raw_recipe(
         self,
@@ -241,29 +158,41 @@ class RecipeProcessingService:
         """
         diagnostics: dict[str, int] = {}
         try:
-            raw_html = self._fetch_raw_html(source_url)
-            if not raw_html:
-                return None, "Failed to fetch raw HTML from URL", diagnostics
-
-            extracted_text = self._extract_relevant_content(
-                raw_html, max_chars=MAX_EXTRACTED_TEXT_CHARS
-            )
-            diagnostics["raw_html_length"] = len(raw_html)
-            diagnostics["extracted_text_length"] = len(extracted_text)
-            if not extracted_text:
-                return None, "Failed to extract readable content from HTML", diagnostics
-
-            recipe, extraction_error = self._attempt_preview_extraction(
-                extracted_text, diagnostics
-            )
-            if extraction_error or not recipe:
+            validated_url, validation_error = self._validate_outbound_url(source_url)
+            if validation_error or not validated_url:
+                logger.warning(
+                    "Blocked outbound URL fetch for recipe preview. url=%s reason=%s",
+                    source_url,
+                    validation_error,
+                )
                 return (
                     None,
-                    f"Recipe extraction failed: {extraction_error}",
+                    validation_error or "Blocked outbound URL fetch",
                     diagnostics,
                 )
 
-            logger.info("Recipe preview extracted successfully for URL: %s", source_url)
+            raw_html = self._fetch_raw_html(validated_url)
+            if not raw_html:
+                return None, "Failed to fetch raw HTML from URL", diagnostics
+
+            diagnostics["raw_html_length"] = len(raw_html)
+
+            recipe, extraction_error, website_diagnostics = (
+                self.website_extractor_service.extract_recipe_from_html(raw_html)
+            )
+
+            diagnostics.update(website_diagnostics)
+            if extraction_error or not recipe:
+                return (
+                    None,
+                    extraction_error or "Recipe extraction failed",
+                    diagnostics,
+                )
+
+            logger.info(
+                "Recipe preview extracted successfully via ScrapeGraphAI for URL: %s",
+                validated_url,
+            )
             return recipe, None, diagnostics
         except Exception as e:
             error_msg = f"Recipe URL preview failed: {e!s}"
@@ -420,46 +349,6 @@ class RecipeProcessingService:
             hostname == allowed or hostname.endswith(f".{allowed}")
             for allowed in URL_FETCH_DOMAIN_ALLOWLIST
         )
-
-    def _extract_relevant_content(self, raw_html: str, max_chars: int) -> str:
-        """
-        Parse HTML and extract visible text with light deterministic cleanup only.
-        """
-        if not raw_html or not raw_html.strip():
-            return ""
-
-        parser = _VisibleTextExtractor()
-        parser.feed(raw_html)
-        parser.close()
-
-        visible_text = parser.visible_text()
-        if not visible_text:
-            return ""
-
-        lines = [line.strip() for line in visible_text.splitlines() if line.strip()]
-        if not lines:
-            return ""
-
-        extracted = "\n".join(lines)
-        if len(extracted) > max_chars:
-            extracted = extracted[:max_chars]
-
-        return extracted
-
-    def _attempt_preview_extraction(
-        self,
-        extracted_text: str,
-        diagnostics: dict[str, int],
-    ) -> tuple[Optional[Recipe], Optional[str]]:
-        cleaned_text = self._cleanup_input(extracted_text)
-        diagnostics["cleaned_text_length"] = len(cleaned_text or "")
-        if not cleaned_text:
-            return None, "Failed to cleanup extracted website content"
-
-        recipe, extraction_error = self._extract_recipe(cleaned_text)
-        if extraction_error or not recipe:
-            return None, extraction_error
-        return recipe, None
 
     def _cleanup_input(self, raw_input: str) -> Optional[str]:
         """

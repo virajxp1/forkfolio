@@ -22,10 +22,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { consumeExperimentRecipeDraft } from "@/lib/experiment-recipe-draft";
 import {
+  type CreateRecipePreviewJobResponse,
   MIN_RECIPE_INPUT_LENGTH,
   type PreviewRecipeFromUrlResponse,
   type ProcessRecipeResponse,
   type ProcessRecipeSuccessResponse,
+  type RecipePreviewJobResponse,
   type RecipePreviewRecord,
 } from "@/lib/forkfolio-types";
 import { capturePostHogEvent } from "@/lib/posthog/client";
@@ -37,6 +39,9 @@ type ErrorPayload = {
 };
 
 type InputMode = "url" | "text";
+
+const PREVIEW_POLL_INTERVAL_MS = 2_000;
+const PREVIEW_MAX_POLL_MS = 5 * 60_000;
 
 class BrowserApiError extends Error {
   status: number;
@@ -112,7 +117,7 @@ async function processRecipeClient(
 
 async function previewRecipeFromUrlClient(
   sourceUrl: string,
-): Promise<PreviewRecipeFromUrlResponse> {
+): Promise<CreateRecipePreviewJobResponse> {
   const response = await fetch("/api/recipes/preview", {
     method: "POST",
     headers: {
@@ -135,7 +140,51 @@ async function previewRecipeFromUrlClient(
     );
   }
 
-  return (await response.json()) as PreviewRecipeFromUrlResponse;
+  return (await response.json()) as CreateRecipePreviewJobResponse;
+}
+
+async function getRecipePreviewJobClient(
+  jobId: string,
+): Promise<RecipePreviewJobResponse> {
+  const response = await fetch(`/api/recipes/preview/${encodeURIComponent(jobId)}`, {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+    },
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const payload = await readErrorPayload(response);
+    const detail = payload?.detail ?? payload?.error ?? null;
+    throw new BrowserApiError(
+      detail ?? `Request failed with status ${response.status}.`,
+      response.status,
+      detail,
+    );
+  }
+
+  return (await response.json()) as RecipePreviewJobResponse;
+}
+
+function getPreviewPollingErrorMessage(error: unknown): string {
+  if (error instanceof BrowserApiError && error.status === 404) {
+    return "Recipe preview import expired before completion. Try the URL again.";
+  }
+  return getErrorMessage(error, "Failed to fetch recipe preview status.");
+}
+
+function previewJobToPreviewResponse(
+  previewJob: Extract<RecipePreviewJobResponse, { status: "completed" }>,
+): PreviewRecipeFromUrlResponse {
+  return {
+    success: true,
+    created: false,
+    url: previewJob.url,
+    recipe_preview: previewJob.recipe_preview,
+    diagnostics: previewJob.diagnostics,
+    message: previewJob.message,
+  };
 }
 
 function formatRecipePreviewAsRawInput(preview: RecipePreviewRecord): string {
@@ -173,6 +222,14 @@ function captureRecipeImportEvent(options: {
     is_public: options.isPublic,
     source_url_present: options.sourceUrlPresent,
     success: options.success,
+  });
+}
+
+function captureRecipePreviewEvent(previewResult: PreviewRecipeFromUrlResponse): void {
+  capturePostHogEvent(POSTHOG_EVENT.RecipePreviewFetched, {
+    ingredient_count: previewResult.success ? previewResult.recipe_preview.ingredients.length : 0,
+    instruction_count: previewResult.success ? previewResult.recipe_preview.instructions.length : 0,
+    success: previewResult.success,
   });
 }
 
@@ -237,10 +294,14 @@ export default function NewRecipePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [previewErrorMessage, setPreviewErrorMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [previewJob, setPreviewJob] = useState<RecipePreviewJobResponse | null>(null);
+  const [previewPollStartedAt, setPreviewPollStartedAt] = useState<number | null>(null);
   const [previewResult, setPreviewResult] = useState<PreviewRecipeFromUrlResponse | null>(
     null,
   );
   const [result, setResult] = useState<ProcessRecipeResponse | null>(null);
+  const previewJobId = previewJob?.job_id ?? null;
+  const previewJobStatus = previewJob?.status ?? null;
 
   useEffect(() => {
     const experimentDraft = consumeExperimentRecipeDraft();
@@ -251,10 +312,97 @@ export default function NewRecipePage() {
     setInputMode("text");
     setSourceUrl("");
     setTextModeSourceUrl(null);
+    setPreviewJob(null);
+    setPreviewPollStartedAt(null);
     setPreviewResult(null);
     setPreviewErrorMessage(null);
     setErrorMessage(null);
   }, []);
+
+  useEffect(() => {
+    if (!previewJobId || !previewJobStatus || !previewPollStartedAt) {
+      return;
+    }
+    if (previewJobStatus === "completed" || previewJobStatus === "failed") {
+      return;
+    }
+
+    let cancelled = false;
+    let nextPollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const pollPreviewJob = async () => {
+      if (cancelled) {
+        return;
+      }
+
+      if (Date.now() - previewPollStartedAt >= PREVIEW_MAX_POLL_MS) {
+        capturePostHogEvent(POSTHOG_EVENT.RecipePreviewFetched, {
+          success: false,
+        });
+        setIsPreviewing(false);
+        setPreviewJob(null);
+        setPreviewPollStartedAt(null);
+        setPreviewErrorMessage(
+          "Recipe preview import timed out after 5 minutes. Try the URL again.",
+        );
+        return;
+      }
+
+      try {
+        const response = await getRecipePreviewJobClient(previewJobId);
+        if (cancelled) {
+          return;
+        }
+
+        setPreviewJob(response);
+        if (response.status === "completed") {
+          const previewResponse = previewJobToPreviewResponse(response);
+          setPreviewResult(previewResponse);
+          captureRecipePreviewEvent(previewResponse);
+          setPreviewErrorMessage(null);
+          setIsPreviewing(false);
+          setPreviewPollStartedAt(null);
+          return;
+        }
+
+        if (response.status === "failed") {
+          capturePostHogEvent(POSTHOG_EVENT.RecipePreviewFetched, {
+            success: false,
+          });
+          setPreviewResult(null);
+          setPreviewErrorMessage(response.error || "Recipe preview failed.");
+          setIsPreviewing(false);
+          setPreviewPollStartedAt(null);
+          return;
+        }
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        capturePostHogEvent(POSTHOG_EVENT.RecipePreviewFetched, {
+          success: false,
+        });
+        setPreviewJob(null);
+        setPreviewPollStartedAt(null);
+        setIsPreviewing(false);
+        setPreviewErrorMessage(getPreviewPollingErrorMessage(error));
+        return;
+      }
+
+      nextPollTimeout = setTimeout(() => {
+        void pollPreviewJob();
+      }, PREVIEW_POLL_INTERVAL_MS);
+    };
+
+    void pollPreviewJob();
+
+    return () => {
+      cancelled = true;
+      if (nextPollTimeout) {
+        clearTimeout(nextPollTimeout);
+      }
+    };
+  }, [previewJobId, previewJobStatus, previewPollStartedAt]);
 
   const trimmedLength = useMemo(() => rawInput.trim().length, [rawInput]);
   const normalizedSourceUrl = useMemo(() => sourceUrl.trim(), [sourceUrl]);
@@ -327,28 +475,22 @@ export default function NewRecipePage() {
     setIsPreviewing(true);
     setPreviewErrorMessage(null);
     setErrorMessage(null);
+    setPreviewJob(null);
+    setPreviewPollStartedAt(null);
     setPreviewResult(null);
     setTextModeSourceUrl(null);
 
     try {
       const response = await previewRecipeFromUrlClient(normalizedSourceUrl);
-      setPreviewResult(response);
-      capturePostHogEvent(POSTHOG_EVENT.RecipePreviewFetched, {
-        ingredient_count: response.success ? response.recipe_preview.ingredients.length : 0,
-        instruction_count: response.success ? response.recipe_preview.instructions.length : 0,
-        success: response.success,
-      });
-      if (!response.success) {
-        setPreviewErrorMessage(response.error || "Recipe preview failed.");
-      }
+      setPreviewJob(response);
+      setPreviewPollStartedAt(Date.now());
     } catch (error) {
       capturePostHogEvent(POSTHOG_EVENT.RecipePreviewFetched, {
         success: false,
       });
       setPreviewErrorMessage(
-        getErrorMessage(error, "Failed to fetch recipe preview from URL."),
+        getErrorMessage(error, "Failed to start recipe preview import."),
       );
-    } finally {
       setIsPreviewing(false);
     }
   }
@@ -375,6 +517,8 @@ export default function NewRecipePage() {
         success: response.success,
       });
       if (response.success) {
+        setPreviewJob(null);
+        setPreviewPollStartedAt(null);
         setPreviewResult(null);
         setSourceUrl("");
         setTextModeSourceUrl(null);
@@ -398,6 +542,8 @@ export default function NewRecipePage() {
     setRawInput(formatRecipePreviewAsRawInput(preview));
     setInputMode("text");
     setTextModeSourceUrl(sourceUrlForSave);
+    setPreviewJob(null);
+    setPreviewPollStartedAt(null);
     setPreviewErrorMessage(null);
   }
 
@@ -410,6 +556,8 @@ export default function NewRecipePage() {
     setIsPreviewing(false);
     setIsSavingPreview(false);
     setIsSubmitting(false);
+    setPreviewJob(null);
+    setPreviewPollStartedAt(null);
     setPreviewErrorMessage(null);
     setErrorMessage(null);
     setPreviewResult(null);
@@ -418,6 +566,10 @@ export default function NewRecipePage() {
 
   const successfulResult = result?.success ? result : null;
   const successfulPreview = previewResult?.success ? previewResult : null;
+  const previewPendingJob =
+    previewJob && (previewJob.status === "queued" || previewJob.status === "processing")
+      ? previewJob
+      : null;
   const previewIngredients = successfulPreview
     ? successfulPreview.recipe_preview.ingredients.slice(0, 8)
     : [];
@@ -520,8 +672,8 @@ export default function NewRecipePage() {
                         Import From URL
                       </CardTitle>
                       <CardDescription>
-                        Fetch a webpage, preview extracted recipe fields, then save the
-                        recipe directly.
+                        Start an async import, wait for the extracted preview, then save
+                        the recipe directly.
                       </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -536,9 +688,11 @@ export default function NewRecipePage() {
                             onChange={(event) => setSourceUrl(event.target.value)}
                             placeholder="https://example.com/chocolate-chip-cookies"
                             className="border-border/80 bg-background/80"
+                            disabled={isPreviewing}
                           />
                           <p className="text-sm text-muted-foreground">
-                            Preview alone does not insert into your database until you save.
+                            The page will poll for up to 5 minutes, then show the preview
+                            before anything is saved.
                           </p>
                         </div>
 
@@ -550,12 +704,12 @@ export default function NewRecipePage() {
                           {isPreviewing ? (
                             <>
                               <Loader2 className="size-4 animate-spin" />
-                              Fetching Preview...
+                              Importing Recipe...
                             </>
                           ) : (
                             <>
                               <Sparkles className="size-4" />
-                              Fetch URL Preview
+                              Start URL Import
                             </>
                           )}
                         </Button>
@@ -563,6 +717,35 @@ export default function NewRecipePage() {
 
                       {previewErrorMessage ? (
                         <p className="text-sm text-destructive">{previewErrorMessage}</p>
+                      ) : null}
+
+                      {previewPendingJob ? (
+                        <Card
+                          className="border-primary/25 bg-primary/5"
+                          aria-live="polite"
+                          role="status"
+                        >
+                          <CardHeader className="space-y-2">
+                            <Badge className="w-fit rounded-full px-3 py-0.5">
+                              {previewPendingJob.status === "queued" ? "Queued" : "Importing"}
+                            </Badge>
+                            <CardTitle className="flex items-center gap-2 font-display text-2xl leading-tight">
+                              <Loader2 className="size-5 animate-spin text-primary" />
+                              {previewPendingJob.status === "queued"
+                                ? "Recipe import queued"
+                                : "Recipe import in progress"}
+                            </CardTitle>
+                            <CardDescription className="text-sm">
+                              {previewPendingJob.message ??
+                                "We are extracting the recipe in the background and will keep polling for up to 5 minutes."}
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <p className="rounded-lg border border-border/80 bg-background/80 px-3 py-2 text-sm break-all">
+                              {previewPendingJob.url}
+                            </p>
+                          </CardContent>
+                        </Card>
                       ) : null}
 
                       {successfulPreview ? (

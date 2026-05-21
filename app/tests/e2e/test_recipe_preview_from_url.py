@@ -12,7 +12,7 @@ def test_preview_from_url_blocks_loopback_target(api_client: APIClient) -> None:
     assert payload["success"] is False
     assert payload["created"] is False
     assert payload["url"] == "http://127.0.0.1/recipe"
-    assert payload["error"] == "Failed to fetch raw HTML from URL"
+    assert "Blocked IP target" in payload["error"]
 
 
 def test_preview_from_url_rejects_invalid_url(api_client: APIClient) -> None:

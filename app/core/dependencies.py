@@ -9,6 +9,7 @@ from app.services.data.managers.recipe_manager import RecipeManager
 from app.services.grocery_list_aggregation_impl import GroceryListAggregationServiceImpl
 from app.services.recipe_embeddings_impl import RecipeEmbeddingsServiceImpl
 from app.services.recipe_hybrid_search_impl import RecipeHybridSearchServiceImpl
+from app.services.recipe_preview_job_service import RecipePreviewJobService
 from app.services.recipe_processing_service import RecipeProcessingService
 
 
@@ -55,6 +56,11 @@ def get_grocery_list_aggregation_service() -> GroceryListAggregationServiceImpl:
 def get_recipe_processing_service() -> RecipeProcessingService:
     """Dependency provider for RecipeProcessingService."""
     return RecipeProcessingService()
+
+
+def get_recipe_preview_job_service() -> RecipePreviewJobService:
+    """Dependency provider for URL preview job service."""
+    return RecipePreviewJobService()
 
 
 def get_experiment_service() -> ExperimentService:

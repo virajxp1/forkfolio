@@ -2,10 +2,7 @@ import socket
 
 import app.services.recipe_processing_service as recipe_processing_service_module
 from app.api.schemas import Recipe
-from app.services.recipe_processing_service import (
-    MAX_EXTRACTED_TEXT_CHARS,
-    RecipeProcessingService,
-)
+from app.services.recipe_processing_service import RecipeProcessingService
 
 
 class EchoCleanupService:
@@ -29,20 +26,59 @@ class MarkerRecipeExtractor:
         )
 
 
+class SuccessfulWebsiteExtractor:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def extract_recipe_from_html(
+        self, raw_html: str
+    ) -> tuple[Recipe | None, str | None, dict[str, int]]:
+        self.calls.append(raw_html)
+        return (
+            Recipe(
+                title="Website Recipe",
+                ingredients=["1 cup flour"],
+                instructions=["Mix ingredients"],
+                servings="2",
+                total_time="15 minutes",
+            ),
+            None,
+            {"scrapegraphai_success": 1},
+        )
+
+
+class FailingWebsiteExtractor:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def extract_recipe_from_html(
+        self, raw_html: str
+    ) -> tuple[Recipe | None, str | None, dict[str, int]]:
+        self.calls.append(raw_html)
+        return None, "scrapegraph failed", {"scrapegraphai_attempted": 1}
+
+
 class PreviewServiceHarness(RecipeProcessingService):
-    def __init__(self, html: str):
+    def __init__(self, html: str, website_extractor_service=None) -> None:  # noqa: ANN001
         super().__init__(
             cleanup_service=EchoCleanupService(),
             extractor_service=MarkerRecipeExtractor(),
             recipe_manager=object(),
             embeddings_service=object(),
             dedupe_service=object(),
+            website_extractor_service=website_extractor_service
+            or FailingWebsiteExtractor(),
         )
         self._html = html
 
     def _fetch_raw_html(self, source_url: str):  # type: ignore[override]
         del source_url
         return self._html
+
+
+def _public_resolution(hostname: str, port: int, type: int):
+    del hostname, type
+    return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port))]
 
 
 def test_cleanup_input_skips_llm_for_structured_recipe_text() -> None:
@@ -97,38 +133,45 @@ def test_cleanup_input_uses_cleanup_service_for_html_payload() -> None:
     assert cleaned.startswith("CLEANED::")
 
 
-def test_preview_fails_when_recipe_is_beyond_max_context_window() -> None:
-    long_noise = "noise " * 6000
-    html = (
-        "<html><body>"
-        f"<div>{long_noise}</div>"
-        "<div>MAGIC_RECIPE Ingredients: marker Instructions: use marker</div>"
-        "</body></html>"
+def test_preview_uses_scrapegraphai_html_extractor(monkeypatch) -> None:
+    website_extractor = SuccessfulWebsiteExtractor()
+    html = "<html><body>sdk recipe html</body></html>"
+    service = PreviewServiceHarness(
+        html=html,
+        website_extractor_service=website_extractor,
     )
-    service = PreviewServiceHarness(html)
 
-    recipe, error, diagnostics = service.preview_recipe_from_url("https://example.com")
-
-    assert recipe is None
-    assert error == "Recipe extraction failed: missing marker"
-    assert diagnostics["extracted_text_length"] <= MAX_EXTRACTED_TEXT_CHARS
-    assert diagnostics["cleaned_text_length"] > 0
-
-
-def test_preview_skips_fallback_when_first_pass_succeeds() -> None:
-    html = (
-        "<html><body>"
-        "<div>MAGIC_RECIPE Ingredients: marker Instructions: use marker</div>"
-        "</body></html>"
-    )
-    service = PreviewServiceHarness(html)
+    monkeypatch.setattr(socket, "getaddrinfo", _public_resolution)
 
     recipe, error, diagnostics = service.preview_recipe_from_url("https://example.com")
 
     assert error is None
     assert recipe is not None
-    assert recipe.title == "Recovered Recipe"
-    assert diagnostics["cleaned_text_length"] > 0
+    assert recipe.title == "Website Recipe"
+    assert diagnostics["scrapegraphai_success"] == 1
+    assert diagnostics["raw_html_length"] == len(html)
+    assert website_extractor.calls == [html]
+
+
+def test_preview_returns_scrapegraphai_error_when_extraction_fails(
+    monkeypatch,
+) -> None:
+    html = (
+        "<html><body>"
+        "<div>MAGIC_RECIPE Ingredients: marker Instructions: use marker</div>"
+        "</body></html>"
+    )
+    service = PreviewServiceHarness(html)
+    service.website_extractor_service = FailingWebsiteExtractor()
+
+    monkeypatch.setattr(socket, "getaddrinfo", _public_resolution)
+
+    recipe, error, diagnostics = service.preview_recipe_from_url("https://example.com")
+
+    assert recipe is None
+    assert error == "scrapegraph failed"
+    assert diagnostics["raw_html_length"] == len(html)
+    assert diagnostics["scrapegraphai_attempted"] == 1
 
 
 def test_validate_outbound_url_blocks_loopback_ip_literal() -> None:

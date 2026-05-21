@@ -1,6 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Body,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+)
 
 from app.api.schemas import (
     GroceryListCreateRequest,
@@ -16,8 +24,10 @@ from app.core.dependencies import (
     get_recipe_embeddings_service,
     get_recipe_hybrid_search_service,
     get_recipe_manager,
+    get_recipe_preview_job_service,
     get_recipe_processing_service,
 )
+from app.core.job_store import JobStoreUnavailableError
 from app.core.logging import get_logger
 
 router = APIRouter(prefix=f"{settings.API_BASE_PATH}/recipes", tags=["Recipes"])
@@ -29,6 +39,7 @@ GROCERY_LIST_BODY = Body()
 # Dependency instances to satisfy Ruff B008
 recipe_manager_dep = Depends(get_recipe_manager)
 recipe_processing_service_dep = Depends(get_recipe_processing_service)
+recipe_preview_job_service_dep = Depends(get_recipe_preview_job_service)
 recipe_embeddings_service_dep = Depends(get_recipe_embeddings_service)
 recipe_hybrid_search_service_dep = Depends(get_recipe_hybrid_search_service)
 grocery_list_aggregation_service_dep = Depends(get_grocery_list_aggregation_service)
@@ -196,6 +207,50 @@ def preview_recipe_from_url(
             "Recipe preview generated successfully. No database insertion performed."
         ),
     }
+
+
+@router.post("/preview-from-url/jobs", status_code=202)
+def create_preview_recipe_job(
+    background_tasks: BackgroundTasks,
+    preview_request: RecipeUrlPreviewRequest = RECIPE_BODY,
+    preview_job_service=recipe_preview_job_service_dep,
+) -> dict:
+    """Queue an async recipe preview import for a URL."""
+    source_url = str(preview_request.url)
+    try:
+        job = preview_job_service.create_job(source_url)
+    except JobStoreUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Recipe preview job store unavailable.",
+        ) from exc
+    background_tasks.add_task(
+        preview_job_service.process_job,
+        job["job_id"],
+        source_url,
+    )
+    return job
+
+
+@router.get("/preview-from-url/jobs/{job_id}")
+def get_preview_recipe_job(
+    job_id: str,
+    preview_job_service=recipe_preview_job_service_dep,
+) -> dict:
+    """Return async recipe preview job status and payload when complete."""
+    try:
+        job = preview_job_service.get_job(job_id.strip())
+    except JobStoreUnavailableError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail="Recipe preview job store unavailable.",
+        ) from exc
+    if not job:
+        raise HTTPException(
+            status_code=404,
+            detail="Recipe preview job not found or expired.",
+        )
+    return job
 
 
 @router.get("/")

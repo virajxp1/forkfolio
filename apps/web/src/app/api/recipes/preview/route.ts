@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { isForkfolioApiError, previewRecipeFromUrl } from "@/lib/forkfolio-api";
-import type { PreviewRecipeFromUrlRequest } from "@/lib/forkfolio-types";
+import { createRecipePreviewJob, isForkfolioApiError } from "@/lib/forkfolio-api";
+import type { CreateRecipePreviewJobRequest } from "@/lib/forkfolio-types";
 
 type PreviewRoutePayload = {
   url?: unknown;
@@ -9,7 +9,7 @@ type PreviewRoutePayload = {
 
 type NormalizedPayloadResult =
   | {
-      payload: PreviewRecipeFromUrlRequest;
+      payload: CreateRecipePreviewJobRequest;
       status: 200;
     }
   | {
@@ -72,24 +72,15 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const response = await previewRecipeFromUrl(normalizedPayload.payload);
+    const response = await createRecipePreviewJob(normalizedPayload.payload);
     return NextResponse.json(response, {
-      status: 200,
+      status: 202,
       headers: {
         "Cache-Control": "no-store",
       },
     });
   } catch (error) {
     if (isForkfolioApiError(error)) {
-      if (error.status === 405) {
-        return NextResponse.json(
-          {
-            detail:
-              "URL preview is not available on the configured backend deployment yet. Deploy the latest backend with POST /api/v1/recipes/preview-from-url.",
-          },
-          { status: 503 },
-        );
-      }
       return NextResponse.json(
         { detail: error.detail ?? error.message },
         { status: error.status },
@@ -97,7 +88,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json(
-      { detail: "Failed to preview recipe from URL." },
+      { detail: "Failed to queue recipe preview from URL." },
       { status: 500 },
     );
   }

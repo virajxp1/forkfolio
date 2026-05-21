@@ -115,6 +115,19 @@ describe("/recipes/new page", () => {
     fetchMock.mockResolvedValueOnce(
       new Response(
         JSON.stringify({
+          job_id: "preview-job-123",
+          status: "queued",
+          url: "https://example.com/pasta",
+          message: "Recipe preview import queued.",
+        }),
+        { status: 202, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          job_id: "preview-job-123",
+          status: "completed",
           success: true,
           created: false,
           url: "https://example.com/pasta",
@@ -126,9 +139,7 @@ describe("/recipes/new page", () => {
             total_time: "20 minutes",
           },
           diagnostics: {
-            raw_html_length: 1200,
-            extracted_text_length: 900,
-            cleaned_text_length: 700,
+            scrapegraphai_success: 1,
           },
           message: "Recipe preview generated successfully.",
         }),
@@ -163,7 +174,7 @@ describe("/recipes/new page", () => {
     render(<NewRecipePage />);
 
     await user.type(screen.getByLabelText("Recipe URL"), "https://example.com/pasta");
-    await user.click(screen.getByRole("button", { name: /Fetch URL Preview/i }));
+    await user.click(screen.getByRole("button", { name: /Start URL Import/i }));
 
     expect(await screen.findByText("Lemon Garlic Pasta")).toBeInTheDocument();
 
@@ -177,9 +188,10 @@ describe("/recipes/new page", () => {
     expect(screen.queryByLabelText("Recipe URL")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Raw recipe text")).not.toBeInTheDocument();
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/recipes/process");
-    const saveRequestInit = fetchMock.mock.calls[1]?.[1] as RequestInit;
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/recipes/preview/preview-job-123");
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/recipes/process");
+    const saveRequestInit = fetchMock.mock.calls[2]?.[1] as RequestInit;
     const savePayload = JSON.parse(String(saveRequestInit.body));
     expect(savePayload).toMatchObject({
       source_url: "https://example.com/pasta",

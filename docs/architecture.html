@@ -488,7 +488,7 @@
         <div class="row" style="margin-top:8px">
           <div class="node" style="--nc:#4f46e5;flex:1" data-node="frontend_pages" onclick="showNode('frontend_pages')">
             <div class="node-title">Pages &amp; Routing</div>
-            <div class="node-sub">/, /recipes, /books, /auth/callback</div>
+            <div class="node-sub">/, /browse, /recipes/[id], /recipes/new, /books, /bag, /experiment</div>
           </div>
           <div class="node" style="--nc:#db2777;flex:1" data-node="supabase_auth_fe" onclick="showNode('supabase_auth_fe')">
             <div class="node-title">Auth (Supabase SSR)</div>
@@ -537,7 +537,8 @@
             <div class="node-sub">app/api/v1/endpoints/recipes.py</div>
             <div class="node-tags">
               <span class="tag">process-and-store</span>
-              <span class="tag">preview-url</span>
+              <span class="tag">preview-from-url</span>
+              <span class="tag">preview-jobs</span>
               <span class="tag">list/search</span>
               <span class="tag">delete</span>
               <span class="tag">grocery-list</span>
@@ -584,6 +585,10 @@
               <div style="font-size:11px;font-weight:600;color:#cbd5e1">ExperimentAgentGraph</div>
               <div style="font-size:10px;color:#475569;margin-top:2px">LangGraph state machine</div>
             </div>
+            <div style="flex:1;padding:6px 8px;background:#0d0f1a;border-radius:5px;border:1px solid #1e293b;cursor:default">
+              <div style="font-size:11px;font-weight:600;color:#cbd5e1">RecipePreviewJobService</div>
+              <div style="font-size:10px;color:#475569;margin-top:2px">queue · process isolate · complete/fail</div>
+            </div>
           </div>
         </div>
 
@@ -610,8 +615,8 @@
         <!-- Cache layer note -->
         <div class="inner-label" style="margin-top:10px">Caching — app/core/cache.py</div>
         <div class="node" style="--nc:#d97706" data-node="cache_layer" onclick="showNode('cache_layer')">
-          <div class="node-title">Redis Cache Layer <span class="optional-badge">optional</span></div>
-          <div class="node-sub">LLM responses · embeddings · hybrid search results · TTL-based · in-memory fallback</div>
+          <div class="node-title">Process-local TTL Caches</div>
+          <div class="node-sub">LLM responses · embeddings · hybrid search · preview-job fallback</div>
         </div>
       </div>
     </div>
@@ -646,14 +651,14 @@
           </div>
         </div>
         <div class="node-group" style="--gc:#d97706;flex:1">
-          <span class="node-group-label" style="color:#fbbf24">Redis Cache</span>
+          <span class="node-group-label" style="color:#fbbf24">Redis Job Store</span>
           <div class="node" style="--nc:#d97706" data-node="redis" onclick="showNode('redis')">
             <div class="node-title">Managed KV <span class="optional-badge">optional</span></div>
             <div class="node-sub">Render free plan · internal URL</div>
             <div class="node-tags">
-              <span class="tag">LLM response cache</span>
-              <span class="tag">embedding cache</span>
-              <span class="tag">search cache</span>
+              <span class="tag">preview jobs</span>
+              <span class="tag">survives restart</span>
+              <span class="tag">TTL expiry</span>
             </div>
           </div>
         </div>
@@ -712,8 +717,8 @@
 // ARCHITECTURE DATA — edit this object to keep docs up to date
 // ─────────────────────────────────────────────────────────────
 const META = {
-  lastUpdated: "2026-05-17",
-  branch: "main",
+  lastUpdated: "2026-05-20",
+  branch: "virajxp1/async-recipe-import",
 };
 
 const NODES = {
@@ -751,7 +756,7 @@ const NODES = {
     sections: [
       {
         title: "Routes",
-        items: ["/ — recipe browse / search", "/recipes/[id] — recipe detail", "/recipes/new — recipe creation (URL or paste)", "/books — recipe books listing", "/books/[id] — book detail with recipe list", "/auth/callback — Google OAuth callback"]
+        items: ["/ — landing page", "/browse — recipe search / browse", "/recipes/[recipeId] — recipe detail", "/recipes/new — recipe creation (URL preview or paste)", "/books and /books/[bookId] — recipe books", "/bag — grocery-list aggregation", "/experiment — recipe chat / experimentation", "/auth/callback and /auth/auth-code-error — auth routes"]
       },
       {
         title: "Next.js API Routes",
@@ -854,16 +859,19 @@ const NODES = {
         title: "Endpoints",
         items: [
           "POST /api/v1/recipes/process-and-store — ingest recipe (extract + dedupe + embed + store)",
-          "POST /api/v1/recipes/preview-url — preview URL extraction before saving",
-          "GET  /api/v1/recipes — list/search with hybrid search + pagination",
+          "POST /api/v1/recipes/preview-from-url — synchronous URL preview",
+          "POST /api/v1/recipes/preview-from-url/jobs — queue async URL preview job",
+          "GET  /api/v1/recipes/preview-from-url/jobs/{job_id} — poll async preview status",
+          "GET  /api/v1/recipes/ — cursor-paginated recipe list",
+          "GET  /api/v1/recipes/search/semantic — hybrid recipe search",
           "GET  /api/v1/recipes/{id} — single recipe detail",
-          "DELETE /api/v1/recipes/{id} — delete recipe",
-          "POST /api/v1/grocery-list — aggregate ingredients from multiple recipes",
+          "DELETE /api/v1/recipes/delete/{id} — delete recipe",
+          "POST /api/v1/recipes/grocery-list — aggregate ingredients from multiple recipes"
         ]
       },
       {
         title: "Search Query Params",
-        items: ["q — text query (FTS + trigram + vector)", "offset / limit — pagination", "is_public — filter public/private", "viewer_user_id — scoped from X-Viewer-User-Id header"]
+        items: ["query — search text", "limit — result count cap", "include_test_data — include fixtures/test rows", "X-Viewer-User-Id — caller visibility scope"]
       }
     ]
   },
@@ -933,13 +941,24 @@ const NODES = {
         ]
       },
       {
+        title: "RecipePreviewJobService",
+        items: [
+          "recipe_preview_job_service.py",
+          "Queues async URL preview imports and tracks queued / processing / completed / failed states",
+          "Runs extraction in an isolated worker process and terminates timed-out workers",
+          "Extends TTL when jobs start processing so long-running previews do not expire mid-flight",
+          "Stores job state in Redis when REDIS_URL is set, otherwise falls back to process-local TTL cache",
+          "Execution still runs in FastAPI background tasks; Redis is not a separate worker queue"
+        ]
+      },
+      {
         title: "LLMGenerationService",
         items: [
           "llm_generation_service.py",
           "All OpenRouter API calls go through here",
           "Structured output extraction (Pydantic models)",
           "Text generation and BAAI BGE embeddings (768-dim)",
-          "Redis caching of responses"
+          "Process-local TTL caching of responses"
         ]
       },
       {
@@ -948,7 +967,7 @@ const NODES = {
           "recipe_hybrid_search_impl.py",
           "Combines: FTS (tsvector) + trigram (pg_trgm) + cosine similarity (pgvector)",
           "Weighted ranking across all three signals",
-          "Results cached in Redis by query hash"
+          "Results cached in process-local TTL cache by normalized query + weight key"
         ]
       },
       {
@@ -991,15 +1010,15 @@ const NODES = {
     title: "Cache Layer",
     path: "app/core/cache.py",
     color: "#d97706",
-    description: "Optional caching layer wrapping LLM calls, embeddings, and hybrid search. Gracefully falls back to in-memory dict when Redis is unavailable.",
+    description: "Process-local TTL caches used for LLM responses, embeddings, hybrid search results, and the in-memory fallback preview job store.",
     sections: [
       {
         title: "Cached Operations",
-        items: ["LLM structured output responses", "Text generation responses", "Embedding vectors (by input text hash)", "Hybrid search results (by query + weight hash)"]
+        items: ["LLM structured output responses", "Text generation responses", "Embedding vectors (by input text hash)", "Hybrid search results (by query + weight hash)", "Recipe preview jobs when Redis is not configured"]
       },
       {
         title: "Behavior",
-        items: ["Redis connection lazy-initialized on first use", "Falls back to in-memory dict when REDIS_URL not set", "TTL-based expiry configured per cache type", "Cache key = hash of (input, model, params)"]
+        items: ["Implemented in app/core/cache.py via an in-process TTLCache", "No cross-instance coordination; cache contents are lost on API restart", "TTL-based expiry configured per cache type", "Preview jobs persist across restarts only when REDIS_URL enables the Redis-backed job store"]
       }
     ]
   },
@@ -1050,10 +1069,10 @@ const NODES = {
   },
 
   redis: {
-    title: "Redis Cache",
+    title: "Redis Job Store",
     path: "app/core/redis_client.py",
     color: "#d97706",
-    description: "Optional managed Redis on Render (free plan). Speeds up repeated LLM calls and searches. The system works without it via in-memory fallback.",
+    description: "Optional managed Redis on Render used by app/core/job_store.py to persist async recipe preview job state across API restarts. Execution still happens in-process, so Redis does not resume a job that was interrupted mid-run.",
     sections: [
       {
         title: "Deployment",
@@ -1061,7 +1080,11 @@ const NODES = {
       },
       {
         title: "Connection",
-        items: ["REDIS_URL env var (optional)", "Lazy initialization on first cache hit", "redis>=5.0.0 Python client"]
+        items: ["REDIS_URL env var (optional)", "Lazy initialization via app/core/redis_client.py", "redis>=5.0.0 Python client"]
+      },
+      {
+        title: "Stored Data",
+        items: ["Key prefix: forkfolio:recipe_preview_job:{job_id}", "JSON payload for queued / processing / completed / failed preview jobs", "TTL defaults to RECIPE_PREVIEW_JOB_CACHE_TTL_SECONDS (1800s)", "Store outages surface as service errors rather than missing jobs"]
       }
     ]
   },
@@ -1142,7 +1165,7 @@ const NODES = {
     title: "Render Hosting",
     path: "render.yaml",
     color: "#475569",
-    description: "Production hosting on Render. The frontend, backend, and Redis cache are all deployed here.",
+    description: "Production hosting on Render. The frontend and backend are deployed independently, and an optional managed Redis service backs async preview job persistence.",
     sections: [
       {
         title: "Services",

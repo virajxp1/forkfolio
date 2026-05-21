@@ -13,8 +13,10 @@ ForkFolio is split into:
 - FastAPI backend (`app/`) for ingestion, extraction, storage, search, books,
   and grocery-list aggregation.
 - Next.js frontend (`apps/web`) for search, browse, recipe detail, book views,
-  add-recipe flows, and Supabase-based Google sign-in.
+  add-recipe flows, async URL preview polling, experiments, and Supabase-based
+  Google sign-in.
 - PostgreSQL (Supabase) persistence with connection pooling and pgvector.
+- Optional Redis-backed persistence for async URL preview jobs.
 
 ## Runtime Layers
 
@@ -24,8 +26,9 @@ ForkFolio is split into:
    integration.
 3. Manager/data layer (`app/services/data/managers/*`): SQL access and
    transactional operations.
-4. Infrastructure layer (`app/services/data/supabase_client.py`): pooled DB
-   connectivity.
+4. Infrastructure layer: pooled DB connectivity
+   (`app/services/data/supabase_client.py`) and optional Redis-backed preview
+   job storage (`app/core/job_store.py`, `app/core/redis_client.py`).
 
 ## Request Path
 
@@ -36,10 +39,25 @@ ForkFolio is split into:
 4. Data is read/written through manager SQL calls.
 5. JSON response is returned to the caller.
 
+For async URL preview imports, the path diverges after routing:
+
+1. `POST /api/v1/recipes/preview-from-url/jobs` creates a short-lived preview
+   job.
+2. `RecipePreviewJobService` drives the job through `queued`, `processing`,
+   `completed`, or `failed`, with extraction isolated in a worker process.
+3. Jobs are stored in Redis when `REDIS_URL` is configured; otherwise they use
+   the process-local TTL cache and are lost on API restart.
+4. The frontend polls `GET /api/v1/recipes/preview-from-url/jobs/{job_id}` until
+   the preview completes or fails.
+
+Redis persists job state only. Execution is launched from FastAPI background
+tasks, so a backend restart does not resume an interrupted job.
+
 ## What Is Solid Today
 
 - Clear layering between routing, services, and persistence.
 - Transaction-aware DB context management.
+- Async URL preview jobs can survive backend restarts when Redis is configured.
 - Unit and e2e coverage across major user flows.
 - OpenAPI validation integrated in quality checks.
 
@@ -47,7 +65,7 @@ ForkFolio is split into:
 
 - Configuration is still environment-coupled in several places (single-service
   assumptions and static infra defaults).
-- Rate limiting and app-level caches are process-local, not distributed.
+- Rate limiting and most app-level caches are process-local, not distributed.
 - URL preview ingestion remains a high-risk surface and needs strict SSRF
   hardening defaults.
 - API error semantics are mixed in some flows (`200` with `success: false`).
