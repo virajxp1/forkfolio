@@ -1,5 +1,6 @@
 import importlib
 import json
+import multiprocessing
 import os
 import time
 
@@ -10,9 +11,11 @@ from fastapi.testclient import TestClient
 
 from app.api.schemas import Recipe
 from app.core.config import settings
+from app.services.recipe_preview_job_service import RecipePreviewJobService
 
 PREVIEW_JOB_CREATE_PATH = f"{settings.API_BASE_PATH}/recipes/preview-from-url/jobs"
 REDIS_KEY_PREFIX = "forkfolio:recipe_preview_job:"
+WORKER_CONTEXT = multiprocessing.get_context("fork")
 
 
 class FakeRecipeProcessingService:
@@ -43,7 +46,9 @@ def _delete_prefixed_keys(client: redis.Redis, prefix: str) -> None:
 def _redis_client_from_env() -> redis.Redis:
     redis_url = os.getenv("REDIS_URL", "").strip()
     if not redis_url:
-        pytest.skip("REDIS_URL not set; skipping Redis-backed preview job integration test.")
+        pytest.skip(
+            "REDIS_URL not set; skipping Redis-backed preview job integration test."
+        )
 
     client = redis.Redis.from_url(redis_url, decode_responses=True)
     deadline = time.monotonic() + 10
@@ -82,13 +87,18 @@ def _build_client(service: FakeRecipeProcessingService) -> tuple[TestClient, obj
 
     app = FastAPI()
     app.include_router(recipes_module.router)
-    app.dependency_overrides[dependencies_module.get_recipe_processing_service] = (
-        lambda: service
+    app.dependency_overrides[dependencies_module.get_recipe_preview_job_service] = (
+        lambda: RecipePreviewJobService(
+            processing_service=service,
+            worker_context=WORKER_CONTEXT,
+        )
     )
     return TestClient(app), job_store_module.recipe_preview_job_store
 
 
-def test_preview_job_endpoints_persist_state_in_redis(redis_client: redis.Redis) -> None:
+def test_preview_job_endpoints_persist_state_in_redis(
+    redis_client: redis.Redis,
+) -> None:
     processing_service = FakeRecipeProcessingService(
         recipe=Recipe(
             title="Tomato Pasta",
@@ -112,7 +122,6 @@ def test_preview_job_endpoints_persist_state_in_redis(redis_client: redis.Redis)
     create_payload = create_response.json()
     assert create_payload["status"] == "queued"
     assert create_payload["url"] == "https://example.com/tomato-pasta"
-    assert processing_service.calls == ["https://example.com/tomato-pasta"]
 
     job_id = create_payload["job_id"]
     redis_key = f"{REDIS_KEY_PREFIX}{job_id}"

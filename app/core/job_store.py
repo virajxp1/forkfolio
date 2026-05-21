@@ -46,7 +46,9 @@ class RedisJobStore:
             return json.loads(raw) if raw is not None else None
         except Exception as exc:
             logger.warning("RedisJobStore.get failed. job_id=%s error=%s", key, exc)
-            raise JobStoreUnavailableError("Recipe preview job store unavailable") from exc
+            raise JobStoreUnavailableError(
+                "Recipe preview job store unavailable"
+            ) from exc
 
     def set(
         self, key: str, value: dict[str, Any], ttl_seconds: Optional[float] = None
@@ -56,7 +58,9 @@ class RedisJobStore:
             self._client.setex(f"{self._KEY_PREFIX}{key}", ttl, json.dumps(value))
         except Exception as exc:
             logger.warning("RedisJobStore.set failed. job_id=%s error=%s", key, exc)
-            raise JobStoreUnavailableError("Recipe preview job store unavailable") from exc
+            raise JobStoreUnavailableError(
+                "Recipe preview job store unavailable"
+            ) from exc
 
 
 def _build_job_store() -> InMemoryJobStore | RedisJobStore:
