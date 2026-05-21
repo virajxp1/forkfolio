@@ -19,6 +19,7 @@ import {
 import { capturePostHogEvent } from "@/lib/posthog/client";
 import { POSTHOG_EVENT } from "@/lib/posthog/events";
 import { createClient } from "@/lib/supabase/client";
+import { isExpectedSignedOutMessage } from "@/lib/supabase/auth";
 import { hasSupabaseAuthConfig } from "@/lib/supabase/config";
 
 function resolveDisplayName(user: User): string {
@@ -42,11 +43,6 @@ function resolveDisplayName(user: User): string {
 
 function resolveInitial(label: string): string {
   return label.slice(0, 1).toUpperCase() || "P";
-}
-
-function isExpectedSignedOutMessage(message: string | null | undefined): boolean {
-  const normalizedMessage = message?.trim().toLowerCase().replace(/[!.]+$/, "") ?? "";
-  return normalizedMessage === "auth session missing";
 }
 
 export function AuthProfileButton() {
@@ -82,6 +78,17 @@ export function AuthProfileButton() {
           : nextErrorMessage,
       );
       setIsLoading(false);
+    }).catch((error: unknown) => {
+      if (!isActive) {
+        return;
+      }
+
+      const nextErrorMessage =
+        error instanceof Error && error.message ? error.message : "Failed to reach auth service.";
+
+      setCurrentUser(null);
+      setErrorMessage(isExpectedSignedOutMessage(nextErrorMessage) ? null : nextErrorMessage);
+      setIsLoading(false);
     });
 
     const {
@@ -92,7 +99,7 @@ export function AuthProfileButton() {
       }
 
       setCurrentUser(session?.user ?? null);
-      setErrorMessage(null);
+      setErrorMessage((current) => (session?.user ? null : current));
       setIsLoading(false);
       if (!session) {
         setIsDialogOpen(false);
