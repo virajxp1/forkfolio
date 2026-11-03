@@ -1,9 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EXPERIMENT_RECIPE_DRAFT_STORAGE_KEY } from "@/lib/experiment-recipe-draft";
+import { setupSupabaseMock } from "@/test/supabase-mock";
 
+const supabaseMock = setupSupabaseMock();
 const { mockRouterPush } = vi.hoisted(() => ({
   mockRouterPush: vi.fn(),
 }));
@@ -25,7 +27,7 @@ vi.mock("next/navigation", async () => {
   };
 });
 
-import ExperimentPage from "./page";
+import ExperimentPageClient from "./experiment-page-client";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -58,11 +60,26 @@ function toUrl(input: RequestInfo | URL): string {
   return input.url;
 }
 
+function mockSignedInUser(userId = "user-1") {
+  supabaseMock.signInUser(userId);
+}
+
+function mockSignedOutUser(message = "Auth session missing!") {
+  supabaseMock.signOutUser(message);
+}
+
+async function renderAuthenticatedExperimentPage() {
+  render(<ExperimentPageClient />);
+  await screen.findByRole("button", { name: "New Thread" });
+}
+
 describe("/experiment page", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", vi.fn());
     window.sessionStorage.clear();
+    supabaseMock.reset();
     mockRouterPush.mockReset();
+    mockSignedInUser();
   });
 
   it("starts a new thread from sidebar and renders active conversation", async () => {
@@ -90,7 +107,7 @@ describe("/experiment page", () => {
     });
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    await renderAuthenticatedExperimentPage();
 
     await user.click(screen.getByRole("button", { name: "New Thread" }));
 
@@ -191,7 +208,7 @@ describe("/experiment page", () => {
     });
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    await renderAuthenticatedExperimentPage();
 
     await user.type(screen.getByLabelText("Your message"), "Auto start this thread");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -306,7 +323,7 @@ describe("/experiment page", () => {
     });
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    await renderAuthenticatedExperimentPage();
 
     await user.type(screen.getByLabelText("Your message"), "Check scroll");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -406,7 +423,7 @@ describe("/experiment page", () => {
     });
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    await renderAuthenticatedExperimentPage();
 
     await user.type(screen.getByLabelText("Your message"), "Give me a plan");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -536,7 +553,7 @@ describe("/experiment page", () => {
     });
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    await renderAuthenticatedExperimentPage();
 
     await user.click(screen.getByRole("button", { name: "New Thread" }));
 
@@ -598,7 +615,7 @@ describe("/experiment page", () => {
     });
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    await renderAuthenticatedExperimentPage();
 
     await user.click(screen.getByRole("button", { name: "New Thread" }));
     await user.type(screen.getByLabelText("Your message"), "Help me make dinner");
@@ -613,13 +630,24 @@ describe("/experiment page", () => {
     expect(reloadCalls).toHaveLength(0);
   });
 
-  it("renders a private workspace gate when history requires sign-in", async () => {
+  it("renders a server-seeded sign-in gate immediately without requesting history", () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock.mockResolvedValue(
-      jsonResponse({ detail: "Sign in to use experiment threads." }, 401),
+
+    render(
+      <ExperimentPageClient
+        initialAccess={{ accessState: "auth_required", viewerUserId: null, errorMessage: null }}
+      />,
     );
 
-    render(<ExperimentPage />);
+    expect(screen.getByRole("heading", { name: "Sign in to open Recipe Lab" })).toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("renders a private workspace gate without requesting history when no user is signed in", async () => {
+    const fetchMock = vi.mocked(fetch);
+    mockSignedOutUser();
+
+    render(<ExperimentPageClient />);
 
     expect(await screen.findByRole("heading", { name: "Sign in to open Recipe Lab" })).toBeInTheDocument();
     expect(screen.getByText("Private workspace")).toBeInTheDocument();
@@ -627,6 +655,7 @@ describe("/experiment page", () => {
     expect(screen.queryByRole("button", { name: "New Thread" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Your message")).not.toBeInTheDocument();
     expect(screen.queryByText("No conversation history yet.")).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("renders auth setup guidance and retries when auth is unavailable", async () => {
@@ -639,7 +668,7 @@ describe("/experiment page", () => {
     );
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    render(<ExperimentPageClient />);
 
     expect(
       await screen.findByRole("heading", { name: "Recipe Lab needs authentication setup" }),
@@ -671,6 +700,211 @@ describe("/experiment page", () => {
         }),
       }),
     );
+  });
+
+  it("shows a seeded blocked auth state without requesting history", async () => {
+    const fetchMock = vi.mocked(fetch);
+    supabaseMock.hasSupabaseAuthConfigMock.mockReturnValue(false);
+
+    render(
+      <ExperimentPageClient
+        initialAccess={{
+          accessState: "auth_unavailable",
+          viewerUserId: null,
+          errorMessage: "Failed to reach auth service.",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Recipe Lab needs authentication setup" }),
+    ).toBeInTheDocument();
+    const authErrorMatches = await screen.findAllByText("Failed to reach auth service.");
+    expect(authErrorMatches.length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "New Thread" })).not.toBeInTheDocument();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("clears stale blocked auth errors when auth stays blocked but the reason changes", async () => {
+    supabaseMock.signOutUser();
+
+    render(
+      <ExperimentPageClient
+        initialAccess={{
+          accessState: "auth_unavailable",
+          viewerUserId: null,
+          errorMessage: "Failed to reach auth service.",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Sign in to open Recipe Lab" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Failed to reach auth service.")).not.toBeInTheDocument();
+  });
+
+  it("clears loaded private state when auth changes to signed out", async () => {
+    const fetchMock = vi.mocked(fetch);
+    fetchMock.mockImplementation(async (input) => {
+      const url = toUrl(input);
+      if (url.startsWith("/api/experiments/threads?")) {
+        return jsonResponse({
+          success: true,
+          count: 1,
+          threads: [
+            {
+              id: "thread-existing",
+              title: "Existing draft",
+              metadata: {},
+              created_at: null,
+              updated_at: null,
+              last_message_role: "assistant",
+              last_message_content: "Current draft from history.",
+              last_message_created_at: null,
+            },
+          ],
+        });
+      }
+      if (url === "/api/experiments/threads/thread-existing?message_limit=120") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-existing",
+            title: "Existing draft",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-assistant-existing",
+                thread_id: "thread-existing",
+                sequence_no: 1,
+                role: "assistant",
+                content: "Current draft from history.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+        });
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    const user = userEvent.setup();
+    await renderAuthenticatedExperimentPage();
+
+    await user.click(await screen.findByRole("button", { name: /Existing draft/i }));
+    expect(await screen.findAllByText("Current draft from history.")).not.toHaveLength(0);
+
+    await act(async () => {
+      supabaseMock.emit("SIGNED_OUT", null);
+    });
+
+    expect(await screen.findByRole("heading", { name: "Sign in to open Recipe Lab" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Existing draft/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Current draft from history.")).not.toBeInTheDocument();
+  });
+
+  it("clears the previous viewer state before loading history for a different signed-in user", async () => {
+    const fetchMock = vi.mocked(fetch);
+    let historyRequestCount = 0;
+    let resolveSecondHistoryRequest: ((response: Response) => void) | null = null;
+    fetchMock.mockImplementation(async (input) => {
+      const url = toUrl(input);
+      if (url.startsWith("/api/experiments/threads?")) {
+        historyRequestCount += 1;
+        if (historyRequestCount === 2) {
+          return await new Promise<Response>((resolve) => {
+            resolveSecondHistoryRequest = resolve;
+          });
+        }
+        return jsonResponse({
+          success: true,
+          count: 1,
+          threads: [
+            {
+              id: "thread-user-1",
+              title: "User one thread",
+              metadata: {},
+              created_at: null,
+              updated_at: null,
+              last_message_role: "assistant",
+              last_message_content: "History for user one.",
+              last_message_created_at: null,
+            },
+          ],
+        });
+      }
+      if (url === "/api/experiments/threads/thread-user-1?message_limit=120") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-user-1",
+            title: "User one thread",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-assistant-user-1",
+                thread_id: "thread-user-1",
+                sequence_no: 1,
+                role: "assistant",
+                content: "History for user one.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+        });
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    const user = userEvent.setup();
+    await renderAuthenticatedExperimentPage();
+    expect(await screen.findByRole("button", { name: /User one thread/i })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /User one thread/i }));
+    expect(await screen.findAllByText("History for user one.")).not.toHaveLength(0);
+
+    await act(async () => {
+      supabaseMock.emit("SIGNED_IN", { user: { id: "user-2" } });
+    });
+
+    expect(screen.queryByRole("button", { name: /User one thread/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("History for user one.")).not.toBeInTheDocument();
+    expect(screen.getByText("Loading…")).toBeInTheDocument();
+
+    expect(resolveSecondHistoryRequest).not.toBeNull();
+    resolveSecondHistoryRequest?.(
+      jsonResponse({
+        success: true,
+        count: 1,
+        threads: [
+          {
+            id: "thread-user-2",
+            title: "User two thread",
+            metadata: {},
+            created_at: null,
+            updated_at: null,
+            last_message_role: "assistant",
+            last_message_content: "History for user two.",
+            last_message_created_at: null,
+          },
+        ],
+      }),
+    );
+
+    expect(await screen.findByRole("button", { name: /User two thread/i })).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.filter(([input]) => toUrl(input).startsWith("/api/experiments/threads?")),
+    ).toHaveLength(2);
   });
 
   it("stores latest assistant output before opening Add Recipe flow", async () => {
@@ -772,7 +1006,7 @@ describe("/experiment page", () => {
     });
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    await renderAuthenticatedExperimentPage();
 
     await user.type(screen.getByLabelText("Your message"), "Give me a complete recipe draft");
     await user.click(screen.getByRole("button", { name: "Send" }));
@@ -936,7 +1170,7 @@ describe("/experiment page", () => {
     });
 
     const user = userEvent.setup();
-    render(<ExperimentPage />);
+    await renderAuthenticatedExperimentPage();
 
     await user.click(await screen.findByRole("button", { name: /Existing draft/i }));
     const historyDraftMatches = await screen.findAllByText("Current draft from history.");
@@ -956,5 +1190,108 @@ describe("/experiment page", () => {
     releaseStream?.();
     const updatedDraftMatches = await screen.findAllByText("Updated draft after send.");
     expect(updatedDraftMatches.length).toBeGreaterThan(1);
+  });
+
+  it("re-enables the composer for a new signed-in viewer when auth changes mid-send", async () => {
+    const fetchMock = vi.mocked(fetch);
+    let releaseStream: (() => void) | null = null;
+    let historyRequestCount = 0;
+    fetchMock.mockImplementation(async (input, init) => {
+      const url = toUrl(input);
+      if (url.startsWith("/api/experiments/threads?")) {
+        historyRequestCount += 1;
+        return jsonResponse({
+          success: true,
+          count: historyRequestCount === 1 ? 1 : 0,
+          threads:
+            historyRequestCount === 1
+              ? [
+                  {
+                    id: "thread-existing",
+                    title: "Existing draft",
+                    metadata: {},
+                    created_at: null,
+                    updated_at: null,
+                    last_message_role: "assistant",
+                    last_message_content: "Current draft from history.",
+                    last_message_created_at: null,
+                  },
+                ]
+              : [],
+        });
+      }
+      if (url === "/api/experiments/threads/thread-existing?message_limit=120") {
+        return jsonResponse({
+          success: true,
+          thread: {
+            id: "thread-existing",
+            title: "Existing draft",
+            metadata: {},
+            context_recipe_ids: [],
+            messages: [
+              {
+                id: "msg-assistant-existing",
+                thread_id: "thread-existing",
+                sequence_no: 1,
+                role: "assistant",
+                content: "Current draft from history.",
+                tool_name: null,
+                tool_call: null,
+                created_at: null,
+              },
+            ],
+            created_at: null,
+            updated_at: null,
+          },
+        });
+      }
+      if (
+        url === "/api/experiments/threads/thread-existing/messages/stream" &&
+        init?.method === "POST"
+      ) {
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(encoder.encode('event: status\ndata: {"step":"drafting"}\n\n'));
+            releaseStream = () => {
+              controller.close();
+            };
+          },
+        });
+        return new Response(stream, {
+          status: 200,
+          headers: { "Content-Type": "text/event-stream" },
+        });
+      }
+      return jsonResponse({ detail: "Not found" }, 404);
+    });
+
+    const user = userEvent.setup();
+    await renderAuthenticatedExperimentPage();
+
+    await user.click(await screen.findByRole("button", { name: /Existing draft/i }));
+    await user.type(screen.getByLabelText("Your message"), "Keep working this draft");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Your message")).toBeDisabled();
+    });
+
+    await act(async () => {
+      supabaseMock.emit("SIGNED_IN", { user: { id: "user-2" } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Your message")).toBeEnabled();
+    });
+    expect(screen.queryByText("Current draft from history.")).not.toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Your message"), "New viewer message");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Send" })).toBeEnabled();
+    });
+
+    expect(releaseStream).not.toBeNull();
+    releaseStream?.();
   });
 });
